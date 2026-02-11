@@ -31,10 +31,10 @@ clean:
 	find . -type d -name "__pycache__" -delete
 
 run-dev:
-	uv run uvicorn src.infrastructure.interfaces.api.fastapi_app:app --reload --host 0.0.0.0 --port 8000
+	uv run uvicorn api.fastapi_app:app --reload --host 0.0.0.0 --port 8000
 
 run-prod:
-	uv run uvicorn src.infrastructure.interfaces.api.fastapi_app:app --host 0.0.0.0 --port 8000
+	uv run uvicorn api.fastapi_app:app --host 0.0.0.0 --port 8000
 
 run-cli:
-	uv run python src/infrastructure/interfaces/cli/chat_interface.py
+	uv run python src/cli/chat_interface.py

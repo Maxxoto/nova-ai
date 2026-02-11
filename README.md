@@ -1,36 +1,17 @@
 # Nova Agent API
 
-A powerful agent-based API service built with FastAPI and Hexagonal Architecture.
+A powerful agent-based API service built with FastAPI and a simplified Hexagonal Architecture.
 
-## Architecture Layers
+## Architecture Structure
 
-This project follows Hexagonal Architecture with clear separation of concerns:
+This project follows a flattened architecture for better clarity while maintaining separation of concerns:
 
-### Core Layer (Domain)
-- **Entities**: `AgentState`, `Plan` - Pure business objects
-- **Ports** - Interface definitions
-- **Policies**: `SafetyPolicy` - Business rules and validation
-- *No external dependencies*
-
-### Application Layer (Use Cases)
-- **Use Cases** - Business logic (e.g., `ChatService`, `HandleUserPrompt`)
-- **Services** - Application orchestration and workflow logic
-- *Depends only on Core ports*
-
-### Adapters Layer (Infrastructure)
-- **LLM Adapters**
-- **Memory Adapters**
-- **Tool Adapters**
-- *Implements Core port interfaces*
-
-### Infrastructure Layer (DI, Database, Cache, etc)
-- **DependencyContainer** - Wires adapters to ports
-- *Manages service lifecycle*
-
-### Interfaces Layer (Agent Interface e.g: HTTP, SSE , WebSocket)
-- **FastAPI Controllers** - HTTP endpoints
-- **CLI For Testing**
-- *Thin layer delegating to Application*
+- **`src/api/`**: Entry points for HTTP interfaces (FastAPI).
+- **`src/cli/`**: Entry points for Command Line interfaces.
+- **`src/core/`**: Core business logic, including entities, ports, and services (orchestrators, nodes, parsers, chat service).
+- **`src/adapters/`**: Implementations of ports for LLMs and Memory providers.
+- **`src/config.py`**: Centralized application configuration.
+- **`src/di.py`**: Dependency Injection container.
 
 ## Quick Start with uv
 
@@ -52,15 +33,15 @@ This project follows Hexagonal Architecture with clear separation of concerns:
 
 ### Running the Application
 
-**Start the Hexagonal Architecture API:**
+**Start the API:**
 ```bash
-uv run uvicorn src.interfaces.api.fastapi_app:app --reload --host 0.0.0.0 --port 8000
+uv run uvicorn api.fastapi_app:app --reload --host 0.0.0.0 --port 8000
 ```
 
-**Access the API:**
-- API: http://localhost:8000
-- Documentation: http://localhost:8000/docs
-- Health check: http://localhost:8000/health
+**Run the CLI interface:**
+```bash
+uv run python src/cli/chat_interface.py
+```
 
 ### Development Commands
 
@@ -73,20 +54,7 @@ uv run black src/ tests/
 
 # Lint code
 uv run flake8 src/ tests/
-
-# Type checking
-uv run mypy src/
 ```
-
-## Architecture Flow
-
-```
-Interfaces → Application → Core ← Adapters ← Infrastructure
-```
-
-- **Dependencies flow inward** - Outer layers depend on inner layers
-- **Core layer has no dependencies** on outer layers
-- **Port interfaces define boundaries** between layers
 
 ## License
 

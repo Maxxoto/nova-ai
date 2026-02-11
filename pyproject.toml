@@ -42,8 +42,10 @@ dependencies = [
     "opik>=1.9.3",
     "letta-client>=0.1.324",
     "langchain-pinecone>=0.2.13",
-    "langgraph-checkpoint-postgres>=3.0.1",
-    "psycopg[binary]>=3.2.12",
+    # File-based memory dependencies
+    "sentence-transformers>=2.2.0",
+    "filelock>=3.12.0",
+    "numpy>=1.24.0",
 ]
 
 [project.optional-dependencies]
@@ -82,5 +84,5 @@ disallow_untyped_defs = true
 dev = ["pytest>=8.4.2"]
 
 [project.scripts]
-nova-api = "src.interfaces.api.fastapi_app:app"
-nova-agent-legacy = "src.nova_agent.main:app"
+nova-api = "api.fastapi_app:app"
+nova-agent-legacy = "nova_agent.main:app"

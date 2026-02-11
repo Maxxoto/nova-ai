@@ -1,6 +1,6 @@
 """LangGraph application entry point for LangGraph CLI integration."""
 
-from infrastructure.adapters.llm_providers.groq import GroqLLMAdapter
+from adapters.llm_providers.groq import GroqLLMAdapter
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -17,7 +17,7 @@ def create_agent():
     # This avoids the "custom checkpointer" error from LangGraph API
     from langchain_core.messages import SystemMessage
     from langgraph.graph import StateGraph, START, END
-    from domain.entities.agent_state import AgentState
+    from core.entities.agent_state import AgentState
 
     def agent_node(state: AgentState):
         system_prompt = (
