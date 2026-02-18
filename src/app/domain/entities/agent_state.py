@@ -29,6 +29,11 @@ class AgentState(BaseModel):
     needs_conversation_summary: bool = Field(default=False)
     needs_memory_summary: bool = Field(default=False)
 
+    # Tools
+    tool_calls: Optional[List[Dict[str, Any]]] = Field(default=None)
+    tool_results: Optional[List[Dict[str, Any]]] = Field(default=None)
+    should_call_tools: bool = Field(default=False)
+
     final_output: Optional[str] = Field(default=None)
 
     class Config:

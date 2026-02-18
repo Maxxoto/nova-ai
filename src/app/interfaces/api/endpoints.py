@@ -6,8 +6,8 @@ from fastapi import APIRouter, Request, Depends
 from sse_starlette.sse import EventSourceResponse
 
 from app.domain.entities.chat_message import ChatCompletionRequest
-from app.application.usecases.chat_service import ChatService
-from app.dependencies import get_chat_service
+from app.application.services.enhanced_orchestrator import EnhancedLangGraphOrchestrator
+from app.dependencies import get_orchestrator
 
 
 # Create routers
@@ -18,12 +18,12 @@ chat_router = APIRouter(prefix="/sse", tags=["chat"])
 async def chat_completion_stream(
     request: ChatCompletionRequest,
     request_obj: Request,
-    chat_service: ChatService = Depends(get_chat_service),
+    orchestrator: EnhancedLangGraphOrchestrator = Depends(get_orchestrator),
 ):
-    """Stream chat completion using hexagonal architecture via Server-Sent Events."""
+    """Stream chat completion using EnhancedOrchestrator via Server-Sent Events."""
 
     async def event_generator():
-        """Generate SSE events from chat service streaming response."""
+        """Generate SSE events from orchestrator streaming response."""
         thread_id = None
         try:
             # Convert messages to dict format
@@ -31,22 +31,22 @@ async def chat_completion_stream(
                 {"role": msg.role, "content": msg.content} for msg in request.messages
             ]
 
-            # Stream the response using chat service
-            async for stream_dict in chat_service.stream_chat_completion(
+            # Stream the response using orchestrator
+            async for stream_dict in orchestrator.stream_chat_completion(
                 messages=messages_dict, thread_id=request.thread_id
             ):
                 if await request_obj.is_disconnected():
                     break
 
                 # Store thread_id for completion/error events
-                thread_id = stream_dict["thread_id"]
+                thread_id = stream_dict.get("thread_id", request.thread_id)
 
                 # Send each chunk as an SSE event with thread_id
                 yield {
                     "event": "message",
                     "data": json.dumps(
                         {
-                            "content": stream_dict["content"],
+                            "content": stream_dict.get("content", ""),
                             "type": "chunk",
                             "thread_id": thread_id,
                         }

@@ -43,6 +43,7 @@ class LLMClientPort(ABC):
         thread_id: Optional[str] = None,
         model: Optional[str] = None,
         streaming: Optional[bool] = False,
+        tools: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         """Non-streaming chat completion with memory context.
 
@@ -50,6 +51,8 @@ class LLMClientPort(ABC):
             messages: List of chat messages
             thread_id: Optional thread ID for conversation context
             model: Optional model name to override default
+            streaming: Whether to stream (default False)
+            tools: Optional list of tool definitions for function calling
 
         Returns:
             Dictionary containing response, thread_id, and memory status

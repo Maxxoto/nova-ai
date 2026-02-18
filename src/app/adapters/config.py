@@ -21,9 +21,17 @@ class Settings(BaseSettings):
     port: int = 8000
     reload: bool = True
 
-    # Groq Settings
-    groq_api_key: str = os.getenv("GROQ_API_KEY", "your-groq-api-key-here")
-    groq_model: str = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
+    # LiteLLM Settings (Multi-Provider)
+    # Format: "provider/model-name" (e.g., "groq/openai/gpt-oss-20b")
+    lite_llm_model: str = os.getenv("LITE_LLM_MODEL", "groq/openai/gpt-oss-20b")
+    lite_llm_api_key: str = os.getenv(
+        "LITE_LLM_API_KEY", ""
+    )  # Universal API key for all providers
+    litellm_temperature: float = float(os.getenv("LITELLM_TEMPERATURE", "0.7"))
+    litellm_max_tokens: int = int(os.getenv("LITELLM_MAX_TOKENS", "4096"))
+
+    # Workspace Settings
+    workspace_dir: str = os.getenv("NOVA_WORKSPACE", os.path.expanduser("~/.nova"))
 
     class Config:
         case_sensitive = False

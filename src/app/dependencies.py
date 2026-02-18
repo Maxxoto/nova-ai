@@ -2,7 +2,7 @@
 
 import logging
 import os
-from typing import AsyncGenerator
+from pathlib import Path
 
 from fastapi import Depends
 from langgraph.store.base import BaseStore
@@ -12,24 +12,31 @@ from psycopg_pool import AsyncConnectionPool
 
 from app.domain.ports.llm_client_port import LLMClientPort
 from app.domain.ports.memory_port import MemoryPort
-from app.adapters.llm_providers.groq import GroqLLMAdapter
+from app.adapters.llm_providers.litellm_adapter import LiteLLMAdapter
 from app.adapters.memory.in_memory_adapter import InMemoryMemoryAdapter
-from app.application.usecases.chat_service import ChatService
+from app.application.services.enhanced_orchestrator import EnhancedLangGraphOrchestrator
+from app.adapters.config import settings
 
 
 logger = logging.getLogger(__name__)
 
 # Cache for expensive async resources
-_llm_client: GroqLLMAdapter | None = None
+_llm_client: LiteLLMAdapter | None = None
 _longterm_store: BaseStore | None = None
 _thread_memory: InMemorySaver | None = None
+_orchestrator: EnhancedLangGraphOrchestrator | None = None
 
 
 def get_llm_client() -> LLMClientPort:
     """Get or create LLM client (cached)."""
     global _llm_client
     if _llm_client is None:
-        _llm_client = GroqLLMAdapter()
+        _llm_client = LiteLLMAdapter(
+            model=settings.lite_llm_model,
+            api_key=settings.lite_llm_api_key,
+            temperature=settings.litellm_temperature,
+            max_tokens=settings.litellm_max_tokens,
+        )
     return _llm_client
 
 
@@ -83,37 +90,15 @@ async def get_memory(
     )
 
 
-async def get_chat_service(
+async def get_orchestrator(
     llm: LLMClientPort = Depends(get_llm_client),
-    memory: MemoryPort = Depends(get_memory),
-    thread_memory: InMemorySaver = Depends(get_thread_memory),
-    longterm_memory: BaseStore = Depends(get_longterm_memory_store),
-) -> ChatService:
-    """Get chat service with all dependencies."""
-    return ChatService(
-        llm_client=llm,
-        memory=memory,
-        thread_memory=thread_memory,
-        longterm_memory=longterm_memory,
-    )
-
-
-async def init_chat_service() -> ChatService:
-    """Initialize chat service for CLI/non-FastAPI contexts.
-
-    This function manually resolves dependencies without using FastAPI's Depends().
-    """
-    llm = get_llm_client()
-    thread_memory = get_thread_memory()
-    longterm_memory = await get_longterm_memory_store()
-    memory = InMemoryMemoryAdapter(
-        llm_client=llm,
-        thread_memory_saver=thread_memory,
-        longterm_memory_store=longterm_memory,
-    )
-    return ChatService(
-        llm_client=llm,
-        memory=memory,
-        thread_memory=thread_memory,
-        longterm_memory=longterm_memory,
-    )
+) -> EnhancedLangGraphOrchestrator:
+    """Get enhanced orchestrator with all dependencies."""
+    global _orchestrator
+    if _orchestrator is None:
+        workspace = Path(os.getenv("NOVA_WORKSPACE", Path.home() / ".nova"))
+        _orchestrator = EnhancedLangGraphOrchestrator(
+            llm_client=llm,
+            workspace=workspace,
+        )
+    return _orchestrator

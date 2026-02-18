@@ -10,7 +10,6 @@ import logging
 from typing import List, Dict, Any
 
 from app.dependencies import init_chat_service
-from app.adapters.config import settings
 
 # Configure logging
 logging.basicConfig(
@@ -167,12 +166,5 @@ async def main():
 
 
 if __name__ == "__main__":
-    # Check if required environment variables are set
-    if not settings.groq_api_key:
-        print("❌ Error: GROQ_API_KEY environment variable is not set")
-        print("Please set it before running the chat interface:")
-        print("export GROQ_API_KEY=your_groq_api_key_here")
-        sys.exit(1)
-
     # Run the chat interface
     asyncio.run(main())
