@@ -1,5 +1,6 @@
 """Updated LangGraph Orchestrator with new tools, memory, and skills integration."""
 
+import json
 import logging
 import uuid
 import os
@@ -7,7 +8,6 @@ from pathlib import Path
 from typing import AsyncGenerator, Dict, Any, List, Optional
 
 from langchain_core.messages import (
-    AIMessageChunk,
     SystemMessage,
     HumanMessage,
     AIMessage,
@@ -355,7 +355,7 @@ class EnhancedLangGraphOrchestrator:
             session = self.session_manager.get_or_create(thread_id)
 
             # Consolidate if we have enough messages
-            if len(session.messages) > 10:
+            if len(session.messages) > 50:
                 await self.memory_consolidator.consolidate(session)
                 self.session_manager.save(session)
                 logger.info("Memory consolidated")
