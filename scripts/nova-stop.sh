@@ -1,6 +1,4 @@
 #!/bin/bash
-cd /Users/automation-mac/Documents/Research/nova-api
-
 if [ ! -f nova.pid ]; then
     echo "❌ No PID file found - bot may not be running"
     exit 1

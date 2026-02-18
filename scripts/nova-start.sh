@@ -1,5 +1,4 @@
 #!/bin/bash
-cd /Users/automation-mac/Documents/Research/nova-api
 
 # Create logs directory if not exists
 mkdir -p logs
@@ -9,7 +8,7 @@ LOG_DATE=$(date +%Y-%m-%d)
 LOG_FILE="logs/nova-$LOG_DATE.log"
 
 # Start bot in background with nohup
-nohup python -m src.app.main >> "$LOG_FILE" 2>&1 &
+nohup python3 -m src.app.main >> "$LOG_FILE" 2>&1 &
 
 # Save PID
 echo $! > nova.pid
