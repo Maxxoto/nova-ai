@@ -27,8 +27,20 @@ dependencies = [
     "langchain-community>=0.0.20",
     "langgraph>=0.0.30",
     "langchain-core>=1.0.0",
-    "groq>=0.9.0",
-    "langchain-groq>=1.0.0",
+    # Phase 1: LiteLLM for multi-provider support
+    "litellm>=1.50.0",
+    # Phase 2: Tools
+    "json-repair>=0.30.0",
+    "readability-lxml>=0.8.1",
+    "beautifulsoup4>=4.12.0",
+    # Phase 4: Skills
+    "pyyaml>=6.0",
+    "python-frontmatter>=1.0.0",
+    # Phase 5: CLI
+    "typer>=0.12.0",
+    "rich>=13.0.0",
+    # Phase 6: Telegram
+    "python-telegram-bot>=21.0",
     # Web and API
     "sse-starlette>=1.0.0",
     "python-dotenv>=1.0.0",
@@ -82,5 +94,5 @@ disallow_untyped_defs = true
 dev = ["pytest>=8.4.2"]
 
 [project.scripts]
-nova-api = "src.interfaces.api.fastapi_app:app"
-nova-agent-legacy = "src.nova_agent.main:app"
+nova-api = "app.interfaces.api.fastapi_app:app"
+nova = "app.interfaces.cli.app:app"
