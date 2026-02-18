@@ -16,15 +16,9 @@ dependencies = [
     "pydantic>=2.0.0",
     "pydantic-settings>=2.0.0",
     # Database and storage
-    "sqlalchemy>=2.0.0",
-    "alembic>=1.12.0",
     "redis>=5.0.0",
-    # Security and authentication
-    "python-jose[cryptography]>=3.3.0",
-    "python-multipart>=0.0.6",
     # LLM and AI dependencies
     "langchain>=0.1.0",
-    "langchain-community>=0.0.20",
     "langgraph>=0.0.30",
     "langchain-core>=1.0.0",
     # Phase 1: LiteLLM for multi-provider support
@@ -49,12 +43,7 @@ dependencies = [
     "pytest-asyncio>=1.2.0",
     "pytest>=8.4.2",
     "langgraph-cli[inmem]>=0.4.4",
-    "langchain-ollama>=1.0.0",
     "langmem>=0.0.30",
-    "opik>=1.9.3",
-    "letta-client>=0.1.324",
-    "langchain-pinecone>=0.2.13",
-    "langgraph-checkpoint-postgres>=3.0.1",
     "psycopg[binary]>=3.2.12",
 ]
 
