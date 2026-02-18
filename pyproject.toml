@@ -82,5 +82,4 @@ disallow_untyped_defs = true
 dev = ["pytest>=8.4.2"]
 
 [project.scripts]
-nova-api = "src.interfaces.api.fastapi_app:app"
-nova-agent-legacy = "src.nova_agent.main:app"
+nova-api = "app.interfaces.api.fastapi_app:app"
