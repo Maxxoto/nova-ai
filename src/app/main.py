@@ -18,7 +18,27 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app.adapters.llm_providers.litellm_adapter import LiteLLMAdapter
 from app.adapters.config import settings
+
+# ============================================================================
+# ORCHESTRATOR CHOICE: Choose one of the two approaches below
+# ============================================================================
+#
+# OPTION 1: Nanobot-style (CURRENT) - Simple while loop for tool calling
+#   - Simple, easy to debug
+#   - Direct tool execution
+#   - Good for basic agents
 from app.application.services.agent_loop import AgentLoop
+#
+# OPTION 2: LangGraph-style (ADVANCED) - StateGraph with workflow nodes
+#   - More extensible with nodes
+#   - Better for complex workflows
+#   - Visual graph debugging
+#   - To switch: Comment out AgentLoop above, uncomment below:
+#
+# from app.application.services.enhanced_orchestrator import EnhancedLangGraphOrchestrator
+#
+# ============================================================================
+
 from app.infrastructure.bus.queue import MessageBus
 from app.infrastructure.channels.telegram import TelegramChannel
 from app.infrastructure.tools import ToolRegistry
@@ -89,14 +109,32 @@ async def main():
         f"✓ Tool registry initialized with {len(tool_registry.list_tools())} tools"
     )
 
-    # 5. Initialize AgentLoop (nanobot-style)
+    # ============================================================================
+    # ORCHESTRATOR INITIALIZATION - Choose one below
+    # ============================================================================
+    #
+    # OPTION 1: Nanobot-style (CURRENT)
+    #   - Simple while loop that calls LLM with tools
+    #   - Handles tool execution in loop
     agent_loop = AgentLoop(
         bus=bus,
         llm_client=llm,
         workspace=workspace,
         tool_registry=tool_registry,
     )
-    logger.info("✓ AgentLoop initialized")
+    logger.info("✓ AgentLoop initialized (nanobot-style)")
+    #
+    # OPTION 2: LangGraph-style (ADVANCED)
+    #   - To switch: Comment out AgentLoop above, uncomment below
+    #   - Then update startup section (see below)
+    #
+    # orchestrator = EnhancedLangGraphOrchestrator(
+    #     llm_client=llm,
+    #     workspace=workspace,
+    # )
+    # logger.info("✓ EnhancedLangGraphOrchestrator initialized")
+    #
+    # ============================================================================
 
     # 6. Initialize Channels
     channels: List[TelegramChannel] = []
@@ -133,9 +171,14 @@ async def main():
         )
         logger.info("Nova will run but won't receive any messages.")
 
-    # 7. Start everything
+    # ============================================================================
+    # STARTUP - Choose one section below based on your orchestrator choice
+    # ============================================================================
     try:
-        # Start AgentLoop
+        # ----------------------------------------------------------------------
+        # OPTION 1: Nanobot-style startup (CURRENT)
+        # ----------------------------------------------------------------------
+        # Start AgentLoop (consumes from bus and processes messages)
         await agent_loop.start()
 
         # Start all channels
@@ -151,13 +194,71 @@ async def main():
         while True:
             await asyncio.sleep(1)
 
+        # ----------------------------------------------------------------------
+        # OPTION 2: LangGraph-style startup (ADVANCED)
+        # ----------------------------------------------------------------------
+        # To switch: Comment out OPTION 1 above, uncomment OPTION 2 below:
+        #
+        # # Create message processing task that uses orchestrator
+        # async def process_messages():
+        #     from app.infrastructure.bus.events import OutboundMessage
+        #     while True:
+        #         try:
+        #             msg = await asyncio.wait_for(bus.consume_inbound(), timeout=1.0)
+        #             logger.info(f"Processing message from {msg.channel}:{msg.sender_id}")
+        #
+        #             # Call orchestrator
+        #             response = await orchestrator.chat_completion(
+        #                 messages=[{"role": "user", "content": msg.content}],
+        #                 thread_id=msg.session_key,
+        #             )
+        #
+        #             # Publish response
+        #             await bus.publish_outbound(
+        #                 OutboundMessage(
+        #                     channel=msg.channel,
+        #                     chat_id=msg.chat_id,
+        #                     content=response.get("response", "No response generated"),
+        #                     metadata=msg.metadata,
+        #                 )
+        #             )
+        #             logger.info(f"Response sent: {len(response.get('response', ''))} chars")
+        #
+        #         except asyncio.TimeoutError:
+        #             continue
+        #         except Exception as e:
+        #             logger.error(f"Error processing message: {e}", exc_info=True)
+        #
+        # # Start message processing
+        # processing_task = asyncio.create_task(process_messages())
+        #
+        # # Start all channels
+        # channel_tasks = []
+        # for channel in channels:
+        #     task = asyncio.create_task(channel.start())
+        #     channel_tasks.append(task)
+        #
+        # logger.info("\n🎉 Nova Agent is running with LangGraph!")
+        # logger.info("Press Ctrl+C to stop\n")
+        #
+        # # Keep running until interrupted
+        # while True:
+        #     await asyncio.sleep(1)
+        #
+        # ============================================================================
+
     except KeyboardInterrupt:
         logger.info("\n🛑 Shutting down...")
     except Exception as e:
         logger.error(f"Error: {e}", exc_info=True)
     finally:
-        # Cleanup
+        # Cleanup - OPTION 1 (AgentLoop)
         await agent_loop.stop()
+        #
+        # Cleanup - OPTION 2 (LangGraph)
+        # Uncomment below if using LangGraph:
+        # processing_task.cancel()
+        #
         for channel in channels:
             await channel.stop()
         bus.stop()
