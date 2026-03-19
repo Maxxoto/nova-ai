@@ -31,6 +31,7 @@ class ExecTool(Tool):
         timeout: int = 30,
         restrict_to_workspace: bool = False,
         allowed_dir: Optional[Path] = None,
+        name: str = "exec",
     ):
         """Initialize shell execution tool.
 
@@ -39,15 +40,17 @@ class ExecTool(Tool):
             timeout: Command timeout in seconds
             restrict_to_workspace: If True, restrict to workspace directory
             allowed_dir: If set, restrict to this directory
+            name: Tool name (default: "exec", can be "bash" for compatibility)
         """
         self.working_dir = working_dir or os.getcwd()
         self.timeout = timeout
         self.restrict_to_workspace = restrict_to_workspace
         self.allowed_dir = allowed_dir or (Path(working_dir) if working_dir else None)
+        self._custom_name = name
 
     @property
     def name(self) -> str:
-        return "exec"
+        return self._custom_name
 
     @property
     def description(self) -> str:

@@ -99,9 +99,18 @@ class EnhancedLangGraphOrchestrator:
         registry.register(EditFileTool(allowed_dir=allowed_dir))
         registry.register(ListDirTool(allowed_dir=allowed_dir))
 
-        # Shell tool with safety
+        # Shell tool with safety - register as both "exec" and "bash" for LLM compatibility
         registry.register(
             ExecTool(
+                name="exec",
+                working_dir=str(allowed_dir),
+                restrict_to_workspace=True,
+                allowed_dir=allowed_dir,
+            )
+        )
+        registry.register(
+            ExecTool(
+                name="bash",
                 working_dir=str(allowed_dir),
                 restrict_to_workspace=True,
                 allowed_dir=allowed_dir,
