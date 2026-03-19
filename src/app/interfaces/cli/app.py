@@ -1,11 +1,23 @@
 """CLI interface for Nova Agent."""
 
 import asyncio
+import json
 import logging
 import os
 import sys
 from pathlib import Path
 from typing import Optional
+
+# IMPORTANT: Configure logging BEFORE importing any app modules
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+
+# Set LITELLM_LOG environment variable BEFORE importing litellm
+from app.adapters.config import settings
+
+if settings.litellm_log.upper() == "ERROR":
+    os.environ["LITELLM_LOG"] = "ERROR"
 
 import typer
 from rich.console import Console
@@ -16,7 +28,6 @@ from rich.prompt import Prompt
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from app.adapters.llm_providers.litellm_adapter import LiteLLMAdapter
-from app.adapters.config import settings
 from app.infrastructure.memory import MemoryStore
 from app.infrastructure.session import SessionManager
 from app.infrastructure.skills import SkillsLoader, ContextBuilder
@@ -31,11 +42,14 @@ from app.infrastructure.tools import (
     WebFetchTool,
 )
 
+# ONLY use "LiteLLM" logger (capital L), ignore "litellm" (lowercase)
+lite_llm_log_level = getattr(logging, settings.litellm_log.upper(), logging.ERROR)
 
-# Setup logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+# Configure "LiteLLM" logger (capital L) - this is the main verbose_logger
+verbose_logger = logging.getLogger("LiteLLM")
+verbose_logger.setLevel(lite_llm_log_level)
+verbose_logger.propagate = True
+
 logger = logging.getLogger(__name__)
 
 # Typer app
@@ -334,9 +348,7 @@ def chat(
     workspace: Optional[Path] = typer.Option(
         None, "--workspace", "-w", help="Workspace directory"
     ),
-    model: str = typer.Option(
-        "groq/openai/gpt-oss-20b", "--model", help="Model to use"
-    ),
+    model: str = typer.Option(settings.lite_llm_model, "--model", help="Model to use"),
 ):
     """Chat with Nova agent."""
     if workspace:
@@ -487,7 +499,7 @@ async def _process_message(
     tools: ToolRegistry,
     session_key: str,
 ):
-    """Process a single message."""
+    """Process a single message with tool calling support."""
     try:
         # Get session
         session = session_manager.get_or_create(session_key)
@@ -498,39 +510,118 @@ async def _process_message(
             current_message=message,
         )
 
-        # Get response from LLM
-        console.print("[bold green]Nova[/bold green]", end=" ")
+        # Agent loop for tool calling
+        max_iterations = 10
+        iteration = 0
+        tools_used = []
+        final_content = None
 
-        response_chunks = []
-        try:
-            # Try streaming first
-            async for chunk in llm.stream_chat_completion(
-                messages, thread_id=session_key
-            ):
-                content = chunk.get("content", "")
-                if content:
-                    response_chunks.append(content)
-                    console.print(content, end="")
-        except Exception as stream_error:
-            # Fallback to non-streaming if streaming fails
-            logger.warning(
-                f"Streaming failed, falling back to non-streaming: {stream_error}"
+        tool_definitions = tools.get_definitions()
+
+        while iteration < max_iterations:
+            iteration += 1
+
+            # Get response from LLM with tools
+            response = await llm.chat_completion(
+                messages=messages,
+                tools=tool_definitions if tool_definitions else None,
+                streaming=False,
+                thread_id=session_key,
             )
-            response = await llm.chat_completion(messages, thread_id=session_key)
-            content = response.get("response", "")
-            response_chunks.append(content)
-            console.print(content, end="")
 
-        console.print()  # New line
+            tool_calls = response.get("tool_calls")
+
+            if tool_calls:
+                console.print(f"\n[dim]🔧 Using {len(tool_calls)} tool(s)...[/dim]")
+
+                # Add assistant message with tool calls
+                messages.append(
+                    {
+                        "role": "assistant",
+                        "content": response.get("response", ""),
+                        "tool_calls": [
+                            {
+                                "id": getattr(tc, "id", f"call_{i}"),
+                                "type": "function",
+                                "function": {
+                                    "name": tc.function.name,
+                                    "arguments": json.dumps(tc.function.arguments),
+                                },
+                            }
+                            if hasattr(tc, "function")
+                            else tc
+                            for i, tc in enumerate(tool_calls)
+                        ],
+                    }
+                )
+
+                # Execute each tool call
+                for tc in tool_calls:
+                    tool_name = None
+                    tool_args = {}
+                    tool_id = f"call_{len(tools_used)}"
+
+                    if hasattr(tc, "function"):
+                        tool_name = tc.function.name
+                        tool_args = (
+                            tc.function.arguments
+                            if isinstance(tc.function.arguments, dict)
+                            else json.loads(tc.function.arguments)
+                        )
+                        tool_id = getattr(tc, "id", tool_id)
+                    elif isinstance(tc, dict):
+                        func_info = tc.get("function", {})
+                        tool_name = func_info.get("name", "")
+                        tool_args = func_info.get("arguments", {})
+                        tool_id = tc.get("id", tool_id)
+
+                    if not tool_name:
+                        logger.warning(f"Skipping tool call with no name: {tc}")
+                        continue
+
+                    console.print(f"  [dim]→ {tool_name}[/dim]")
+                    tools_used.append(tool_name)
+
+                    try:
+                        result = await tools.execute(tool_name, tool_args)
+                        tool_result = str(result)
+                    except Exception as e:
+                        tool_result = f"Error executing {tool_name}: {str(e)}"
+                        logger.error(tool_result)
+
+                    messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tool_id,
+                            "name": tool_name,
+                            "content": tool_result,
+                        }
+                    )
+            else:
+                # No tool calls, we have the final response
+                final_content = response.get("response", "")
+                break
+
+        if iteration >= max_iterations:
+            console.print("[yellow]⚠ Max iterations reached[/yellow]")
+            final_content = "I needed too many tool uses to complete this task."
+
+        # Display final response
+        console.print("\n[bold green]Nova[/bold green]", end=" ")
+
+        if final_content:
+            console.print(final_content)
+        else:
+            console.print("[dim](no response)[/dim]")
 
         # Save to session
-        full_response = "".join(response_chunks)
         session.add_message("user", message)
-        session.add_message("assistant", full_response)
+        session.add_message("assistant", final_content or "", tools_used=tools_used)
         session_manager.save(session)
 
     except Exception as e:
         console.print(f"\n[bold red]Error:[/bold red] {e}")
+        logger.error(f"Error in _process_message: {e}", exc_info=True)
 
 
 @app.command()

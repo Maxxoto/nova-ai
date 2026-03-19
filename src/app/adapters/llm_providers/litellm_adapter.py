@@ -13,13 +13,30 @@ Usage:
 """
 
 import logging
+import os
 from typing import AsyncGenerator, Dict, Any, List, Optional
-
-from litellm import acompletion, completion
 
 from app.domain.ports.llm_client_port import LLMClientPort
 from app.adapters.config import settings
 
+# IMPORTANT: Set LITELLM_LOG environment variable BEFORE importing litellm
+log_level = settings.litellm_log.upper()
+os.environ["LITELLM_LOG"] = log_level
+
+from litellm import acompletion, completion
+
+# Configure Python logging for litellm
+# Only use "LiteLLM" logger (capital L) - the main verbose_logger
+verbose_logger = logging.getLogger("LiteLLM")
+verbose_logger.setLevel(getattr(logging, log_level, logging.INFO))
+
+# If set to ERROR, prevent propagation to avoid duplicate logs
+if log_level == "ERROR":
+    verbose_logger.propagate = False
+
+# Set handler levels to suppress INFO logs
+for handler in verbose_logger.handlers:
+    handler.setLevel(getattr(logging, log_level, logging.INFO))
 
 logger = logging.getLogger(__name__)
 

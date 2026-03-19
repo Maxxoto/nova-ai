@@ -49,7 +49,7 @@ from app.infrastructure.tools.filesystem import (
     ListDirTool,
 )
 from app.infrastructure.tools.shell import ExecTool
-from app.infrastructure.tools.web import WebFetchTool
+from app.infrastructure.tools.web import WebSearchTool, WebFetchTool
 
 
 # Setup logging
@@ -102,7 +102,9 @@ async def main():
     # Register shell tool
     tool_registry.register(ExecTool(allowed_dir=allowed_dir))
 
-    # Register web tool
+    # Register web tools
+    brave_api_key = os.getenv("BRAVE_API_KEY")
+    tool_registry.register(WebSearchTool(api_key=brave_api_key))
     tool_registry.register(WebFetchTool())
 
     logger.info(
