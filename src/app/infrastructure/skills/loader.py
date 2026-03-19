@@ -38,6 +38,9 @@ class SkillsLoader:
         self.builtin_path = Path(__file__).parent / "builtin"
         self.user_path = self.workspace / "skills"
 
+        # Cache for loaded skills
+        self._cached_skills: Optional[list[Skill]] = None
+
         # Ensure directories exist
         self._ensure_directories()
 
@@ -113,15 +116,23 @@ class SkillsLoader:
             logger.error(f"Error loading skill from {skill_path}: {e}")
             return None
 
-    def load_all(self) -> list[Skill]:
+    def load_all(self, force_reload: bool = False) -> list[Skill]:
         """Load all skills from user directory.
+
+        Args:
+            force_reload: If True, bypass cache and reload from disk
 
         Returns:
             List of loaded skills
         """
+        # Return cached skills if available and not forcing reload
+        if self._cached_skills is not None and not force_reload:
+            return self._cached_skills
+
         skills = []
 
         if not self.user_path.exists():
+            self._cached_skills = skills
             return skills
 
         for skill_dir in self.user_path.iterdir():
@@ -137,6 +148,7 @@ class SkillsLoader:
                     logger.debug(f"Loaded skill: {skill.name}")
 
         logger.info(f"Loaded {len(skills)} skills")
+        self._cached_skills = skills
         return skills
 
     def get_skill(self, name: str) -> Optional[Skill]:

@@ -385,7 +385,7 @@ def chat(
         memory_store = MemoryStore(ws)
         session_manager = SessionManager(ws)
         skills_loader = SkillsLoader(ws)
-        context_builder = ContextBuilder(ws)
+        context_builder = ContextBuilder(ws, skills_loader=skills_loader)
         tools = setup_tools(ws, api_key)
 
         # Show status
