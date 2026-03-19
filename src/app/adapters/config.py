@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     )  # Universal API key for all providers
     litellm_temperature: float = float(os.getenv("LITELLM_TEMPERATURE", "0.7"))
     litellm_max_tokens: int = int(os.getenv("LITELLM_MAX_TOKENS", "4096"))
+    litellm_log: str = os.getenv("LITELLM_LOG", "INFO")
 
     # Workspace Settings
     workspace_dir: str = os.getenv("NOVA_WORKSPACE", os.path.expanduser("~/.nova"))
