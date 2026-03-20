@@ -142,6 +142,16 @@ class WebFetchTool(Tool):
     def param_model(self) -> type[BaseModel]:
         return WebFetchParams
 
+    def _is_valid_url(self, url: str) -> bool:
+        """Check if URL is valid."""
+        from urllib.parse import urlparse
+
+        try:
+            result = urlparse(url)
+            return all([result.scheme in ("http", "https"), result.netloc])
+        except Exception:
+            return False
+
     async def execute(self, url: str, extract_readability: bool = True) -> str:
         """Fetch and extract content from URL.
 
