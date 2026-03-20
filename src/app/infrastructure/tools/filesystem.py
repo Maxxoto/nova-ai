@@ -3,8 +3,36 @@
 import os
 from pathlib import Path
 from typing import Any, Optional
+from pydantic import BaseModel, Field, field_validator
 
 from app.infrastructure.tools.base import Tool
+
+
+class ReadFileParams(BaseModel):
+    """Parameters for read_file."""
+
+    path: str = Field(description="Path to the file to read")
+
+
+class WriteFileParams(BaseModel):
+    """Parameters for write_file."""
+
+    path: str = Field(description="Path to the file to write")
+    content: str = Field(description="Content to write to the file")
+
+
+class EditFileParams(BaseModel):
+    """Parameters for edit_file."""
+
+    path: str = Field(description="Path to the file to edit")
+    old_string: str = Field(description="Text to replace")
+    new_string: str = Field(description="Replacement text")
+
+
+class ListDirParams(BaseModel):
+    """Parameters for list_dir."""
+
+    path: str = Field(default=".", description="Path to the directory to list")
 
 
 class ReadFileTool(Tool):
@@ -30,14 +58,8 @@ class ReadFileTool(Tool):
         return desc
 
     @property
-    def parameters(self) -> dict[str, Any]:
-        return {
-            "type": "object",
-            "properties": {
-                "path": {"type": "string", "description": "Path to the file to read"}
-            },
-            "required": ["path"],
-        }
+    def param_model(self) -> type[BaseModel]:
+        return ReadFileParams
 
     def _resolve_path(self, path: str) -> Path:
         """Resolve and validate path."""
@@ -104,18 +126,8 @@ class WriteFileTool(Tool):
         return desc
 
     @property
-    def parameters(self) -> dict[str, Any]:
-        return {
-            "type": "object",
-            "properties": {
-                "path": {"type": "string", "description": "Path to the file to write"},
-                "content": {
-                    "type": "string",
-                    "description": "Content to write to the file",
-                },
-            },
-            "required": ["path", "content"],
-        }
+    def param_model(self) -> type[BaseModel]:
+        return WriteFileParams
 
     def _resolve_path(self, path: str) -> Path:
         """Resolve and validate path."""
@@ -180,16 +192,8 @@ class EditFileTool(Tool):
         return desc
 
     @property
-    def parameters(self) -> dict[str, Any]:
-        return {
-            "type": "object",
-            "properties": {
-                "path": {"type": "string", "description": "Path to the file to edit"},
-                "old_string": {"type": "string", "description": "Text to replace"},
-                "new_string": {"type": "string", "description": "Replacement text"},
-            },
-            "required": ["path", "old_string", "new_string"],
-        }
+    def param_model(self) -> type[BaseModel]:
+        return EditFileParams
 
     def _resolve_path(self, path: str) -> Path:
         """Resolve and validate path."""
@@ -262,17 +266,8 @@ class ListDirTool(Tool):
         return desc
 
     @property
-    def parameters(self) -> dict[str, Any]:
-        return {
-            "type": "object",
-            "properties": {
-                "path": {
-                    "type": "string",
-                    "description": "Path to the directory to list",
-                }
-            },
-            "required": ["path"],
-        }
+    def param_model(self) -> type[BaseModel]:
+        return ListDirParams
 
     def _resolve_path(self, path: str) -> Path:
         """Resolve and validate path."""

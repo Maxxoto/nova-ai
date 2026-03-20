@@ -5,8 +5,16 @@ import os
 import shlex
 from pathlib import Path
 from typing import Any, Optional
+from pydantic import BaseModel, Field
 
 from app.infrastructure.tools.base import Tool
+
+
+class ExecParams(BaseModel):
+    """Parameters for shell execution."""
+
+    command: str = Field(description="Shell command to execute")
+    cwd: Optional[str] = Field(default=None, description="Working directory (optional)")
 
 
 class ExecTool(Tool):
@@ -60,21 +68,8 @@ class ExecTool(Tool):
         return desc
 
     @property
-    def parameters(self) -> dict[str, Any]:
-        return {
-            "type": "object",
-            "properties": {
-                "command": {
-                    "type": "string",
-                    "description": "Shell command to execute",
-                },
-                "cwd": {
-                    "type": "string",
-                    "description": "Working directory (optional, defaults to workspace)",
-                },
-            },
-            "required": ["command"],
-        }
+    def param_model(self) -> type[BaseModel]:
+        return ExecParams
 
     def _is_dangerous(self, command: str) -> bool:
         """Check if command contains dangerous patterns."""
