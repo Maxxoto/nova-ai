@@ -43,7 +43,10 @@ class Session(BaseModel):
         return v
 
     def add_message(
-        self, role: str, content: str, tools_used: Optional[List[str]] = None
+        self,
+        role: Literal["user", "assistant", "system"],
+        content: str,
+        tools_used: Optional[List[str]] = None,
     ) -> None:
         """Add a validated message to the session.
 
@@ -109,6 +112,11 @@ class Session(BaseModel):
             # Handle timestamp conversion
             if isinstance(msg_data.get("timestamp"), str):
                 msg_data["timestamp"] = datetime.fromisoformat(msg_data["timestamp"])
+
+            # Handle empty content - replace with placeholder
+            if not msg_data.get("content", "").strip():
+                msg_data["content"] = "(empty message)"
+
             messages.append(Message(**msg_data))
 
         created_at = data.get("created_at")

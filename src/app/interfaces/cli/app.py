@@ -628,7 +628,11 @@ async def _process_message(
 
         # Save to session
         session.add_message("user", message)
-        session.add_message("assistant", final_content or "", tools_used=tools_used)
+        session.add_message(
+            "assistant",
+            final_content or "(no response)",
+            tools_used=tools_used,
+        )
         session_manager.save(session)
 
     except Exception as e:
