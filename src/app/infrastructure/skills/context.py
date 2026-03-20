@@ -14,15 +14,16 @@ logger = logging.getLogger(__name__)
 class ContextBuilder:
     """Builds prompts with bootstrap files, memory, and skills."""
 
-    def __init__(self, workspace: Path):
+    def __init__(self, workspace: Path, skills_loader: Optional[SkillsLoader] = None):
         """Initialize context builder.
 
         Args:
             workspace: Path to workspace directory
+            skills_loader: Optional SkillsLoader instance. If not provided, creates a new one.
         """
         self.workspace = Path(workspace)
         self.memory_store = MemoryStore(workspace)
-        self.skills_loader = SkillsLoader(workspace)
+        self.skills_loader = skills_loader or SkillsLoader(workspace)
         self.bootstrap_dir = self.workspace  # Bootstrap files are in workspace root
 
     def _load_bootstrap_file(self, filename: str) -> str:

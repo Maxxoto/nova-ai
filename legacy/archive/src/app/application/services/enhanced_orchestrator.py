@@ -99,9 +99,18 @@ class EnhancedLangGraphOrchestrator:
         registry.register(EditFileTool(allowed_dir=allowed_dir))
         registry.register(ListDirTool(allowed_dir=allowed_dir))
 
-        # Shell tool with safety
+        # Shell tool with safety - register as both "exec" and "bash" for LLM compatibility
         registry.register(
             ExecTool(
+                name="exec",
+                working_dir=str(allowed_dir),
+                restrict_to_workspace=True,
+                allowed_dir=allowed_dir,
+            )
+        )
+        registry.register(
+            ExecTool(
+                name="bash",
                 working_dir=str(allowed_dir),
                 restrict_to_workspace=True,
                 allowed_dir=allowed_dir,
@@ -394,7 +403,7 @@ class EnhancedLangGraphOrchestrator:
                     break
 
             if last_ai_message:
-                session.add_message("assistant", last_ai_message)
+                session.add_message("assistant", last_ai_message or "(no response)")
 
             self.session_manager.save(session)
 
@@ -432,7 +441,8 @@ class EnhancedLangGraphOrchestrator:
         if messages:
             last_msg = messages[-1]
             if last_msg.get("role") == "user":
-                session.add_message("user", last_msg.get("content", ""))
+                content = last_msg.get("content", "") or "(empty message)"
+                session.add_message("user", content)
 
         # Prepare initial state
         initial_state = AgentState(

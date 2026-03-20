@@ -2,10 +2,12 @@
 
 import logging
 from pathlib import Path
+from typing import Optional
 
 import json_repair
 
 from app.infrastructure.memory.store import MemoryStore
+from app.infrastructure.memory.models import MemorySummary
 from app.infrastructure.session.manager import Session
 from app.domain.ports.llm_client_port import LLMClientPort
 
@@ -39,7 +41,7 @@ class MemoryConsolidator:
         session: Session,
         keep_count: int = 10,
         archive_all: bool = False,
-    ) -> None:
+    ) -> Optional[MemorySummary]:
         """Consolidate old messages into memory.
 
         Args:
@@ -151,6 +153,43 @@ Respond with ONLY valid JSON, no markdown fences."""
                 session.last_consolidated = len(session.messages) - keep_count
 
             logger.info(f"Memory consolidation completed for session {session.key}")
+
+            # Try to create validated MemorySummary (optional enhancement)
+            try:
+                from app.application.services.llm_validator import LLMResponseValidator
+
+                validator = LLMResponseValidator(self.provider)
+
+                # Extract basic info for MemorySummary
+                summary_text = result.get("history_entry", "")
+
+                # Extract key topics from conversation
+                topics = []
+                for msg in old_messages:
+                    content = msg.get("content", "")
+                    # Simple extraction of potential topics
+                    if any(
+                        word in content.lower()
+                        for word in ["python", "rust", "file", "search", "memory"]
+                    ):
+                        topics.append(content[:50] + "...")
+
+                # Create MemorySummary
+                memory_summary = MemorySummary(
+                    summary=summary_text,
+                    key_topics=topics[:5] if topics else [],
+                    message_count=len(old_messages),
+                )
+
+                logger.info(
+                    f"[Memory Consolidation] Created validated MemorySummary with {len(topics)} topics"
+                )
+
+                return memory_summary
+
+            except Exception as e:
+                logger.warning(f"Could not create validated MemorySummary: {e}")
+                return None
 
         except Exception as e:
             logger.error(f"Memory consolidation failed: {e}")
