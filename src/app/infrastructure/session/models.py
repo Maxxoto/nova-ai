@@ -63,13 +63,14 @@ class Session(BaseModel):
             max_messages: Maximum number of recent messages to return
 
         Returns:
-            List of messages as dictionaries
+            List of messages as dictionaries (with datetime serialized to ISO strings)
         """
         messages = self.messages
         if max_messages and len(messages) > max_messages:
             messages = messages[-max_messages:]
 
-        return [msg.model_dump() for msg in messages]
+        # Use mode='json' to serialize datetime to ISO strings
+        return [msg.model_dump(mode="json") for msg in messages]
 
     def clear(self) -> None:
         """Clear all messages in the session."""
@@ -81,11 +82,11 @@ class Session(BaseModel):
         """Convert session to dictionary for serialization.
 
         Returns:
-            Dictionary representation of session
+            Dictionary representation of session (with datetime serialized to ISO strings)
         """
         return {
             "key": self.key,
-            "messages": [msg.model_dump() for msg in self.messages],
+            "messages": [msg.model_dump(mode="json") for msg in self.messages],
             "last_consolidated": self.last_consolidated,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
