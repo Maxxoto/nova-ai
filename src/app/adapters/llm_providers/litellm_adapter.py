@@ -23,6 +23,43 @@ from app.adapters.config import settings
 log_level = settings.litellm_log.upper()
 os.environ["LITELLM_LOG"] = log_level
 
+# Disable LiteLLM's async logging to prevent event loop issues
+os.environ["LITELLM_CALLBACK_LOGGING"] = "false"
+os.environ["LITELLM_CACHE"] = "false"
+os.environ["LITELLM_SUCCESS_CALLBACK"] = "false"
+
+# Import and patch litellm BEFORE any usage
+import litellm as litellm_module
+
+# Prevent logging worker from being created
+try:
+    from litellm.litellm_core_utils import logging_worker as lw_module
+
+    # Patch get_worker to return None
+    if hasattr(lw_module, "get_worker"):
+
+        def no_worker(*args, **kwargs):
+            return None
+
+        lw_module.get_worker = no_worker
+
+    # Patch the worker class
+    if hasattr(lw_module, "LoggingWorker"):
+
+        class NoLoggingWorker:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def start(self, *args, **kwargs):
+                pass
+
+            def stop(self, *args, **kwargs):
+                pass
+
+        lw_module.LoggingWorker = NoLoggingWorker
+except Exception:
+    pass  # If patching fails, continue
+
 from litellm import acompletion, completion
 
 # Configure Python logging for litellm

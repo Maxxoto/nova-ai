@@ -38,6 +38,8 @@ dependencies = [
     # Web and API
     "sse-starlette>=1.0.0",
     "python-dotenv>=1.0.0",
+    # Pydantic AI for LLM validation
+    "pydantic-ai>=0.0.14",
     # Code quality
     "ruff>=0.14.2",
     "pytest-asyncio>=1.2.0",
@@ -83,5 +85,4 @@ disallow_untyped_defs = true
 dev = ["pytest>=8.4.2"]
 
 [project.scripts]
-nova-api = "app.interfaces.api.fastapi_app:app"
 nova = "app.interfaces.cli.app:app"

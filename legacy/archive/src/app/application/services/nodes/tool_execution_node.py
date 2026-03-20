@@ -46,8 +46,13 @@ class ToolExecutionNode:
         tool_results = []
 
         for tool_call in tool_calls:
-            tool_name = tool_call.get("name", "")
-            tool_args = tool_call.get("arguments", {})
+            # Handle both Pydantic ToolCall model and dict format
+            if hasattr(tool_call, "function"):
+                tool_name = tool_call.function.name
+                tool_args = tool_call.function.arguments
+            else:
+                tool_name = tool_call.get("name", "")
+                tool_args = tool_call.get("arguments", {})
 
             logger.info(f"Executing tool: {tool_name} with args: {tool_args}")
 

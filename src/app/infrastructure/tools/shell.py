@@ -5,8 +5,16 @@ import os
 import shlex
 from pathlib import Path
 from typing import Any, Optional
+from pydantic import BaseModel, Field
 
 from app.infrastructure.tools.base import Tool
+
+
+class ExecParams(BaseModel):
+    """Parameters for shell execution."""
+
+    command: str = Field(description="Shell command to execute")
+    cwd: Optional[str] = Field(default=None, description="Working directory (optional)")
 
 
 class ExecTool(Tool):
@@ -31,6 +39,7 @@ class ExecTool(Tool):
         timeout: int = 30,
         restrict_to_workspace: bool = False,
         allowed_dir: Optional[Path] = None,
+        name: str = "exec",
     ):
         """Initialize shell execution tool.
 
@@ -39,15 +48,17 @@ class ExecTool(Tool):
             timeout: Command timeout in seconds
             restrict_to_workspace: If True, restrict to workspace directory
             allowed_dir: If set, restrict to this directory
+            name: Tool name (default: "exec", can be "bash" for compatibility)
         """
         self.working_dir = working_dir or os.getcwd()
         self.timeout = timeout
         self.restrict_to_workspace = restrict_to_workspace
         self.allowed_dir = allowed_dir or (Path(working_dir) if working_dir else None)
+        self._custom_name = name
 
     @property
     def name(self) -> str:
-        return "exec"
+        return self._custom_name
 
     @property
     def description(self) -> str:
@@ -57,21 +68,8 @@ class ExecTool(Tool):
         return desc
 
     @property
-    def parameters(self) -> dict[str, Any]:
-        return {
-            "type": "object",
-            "properties": {
-                "command": {
-                    "type": "string",
-                    "description": "Shell command to execute",
-                },
-                "cwd": {
-                    "type": "string",
-                    "description": "Working directory (optional, defaults to workspace)",
-                },
-            },
-            "required": ["command"],
-        }
+    def param_model(self) -> type[BaseModel]:
+        return ExecParams
 
     def _is_dangerous(self, command: str) -> bool:
         """Check if command contains dangerous patterns."""

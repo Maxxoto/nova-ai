@@ -1,58 +1,28 @@
-"""Test configuration with FastAPI dependency overrides."""
+"""Test configuration for Nova Agent CLI."""
 
 import pytest
-from fastapi.testclient import TestClient
-
-from app.interfaces.api.fastapi_app import create_app
-from app.dependencies import get_chat_service
-
-
-@pytest.fixture
-def app():
-    """Create FastAPI app for testing."""
-    return create_app()
+from pathlib import Path
+import tempfile
+import os
 
 
 @pytest.fixture
-def client(app):
-    """Create test client."""
-    return TestClient(app)
+def temp_workspace():
+    """Create a temporary workspace directory for testing."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        workspace = Path(tmpdir) / ".nova"
+        workspace.mkdir(parents=True, exist_ok=True)
+        (workspace / "workspace").mkdir(exist_ok=True)
+        (workspace / "memory").mkdir(exist_ok=True)
+        (workspace / "sessions").mkdir(exist_ok=True)
+        (workspace / "bootstrap").mkdir(exist_ok=True)
+        yield workspace
 
 
 @pytest.fixture
-def mock_chat_service():
-    """Create mock chat service for testing."""
-
-    # This is a placeholder - implement actual mock as needed
-    class MockChatService:
-        async def stream_chat_completion(self, messages, thread_id=None):
-            yield {"content": "Test response", "thread_id": thread_id or "test-thread"}
-
-        async def chat_completion(self, messages, thread_id=None):
-            return {
-                "response": "Test response",
-                "thread_id": thread_id or "test-thread",
-                "memory_used": True,
-                "workflow_completed": True,
-            }
-
-        async def get_conversation_history(self, user_id):
-            return []
-
-        async def clear_conversation_memory(self, user_id):
-            return True
-
-    return MockChatService()
-
-
-@pytest.fixture(autouse=True)
-def override_dependencies(app, mock_chat_service):
-    """Override dependencies for all tests."""
-
-    async def _get_mock_chat_service():
-        return mock_chat_service
-
-    app.dependency_overrides[get_chat_service] = _get_mock_chat_service
+def mock_env(temp_workspace, monkeypatch):
+    """Set up environment variables for testing."""
+    monkeypatch.setenv("NOVA_WORKSPACE", str(temp_workspace))
+    monkeypatch.setenv("LITE_LLM_API_KEY", "test-api-key")
+    monkeypatch.setenv("LITE_LLM_MODEL", "groq/test-model")
     yield
-    # Clean up overrides after test
-    app.dependency_overrides.clear()

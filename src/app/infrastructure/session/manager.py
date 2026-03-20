@@ -1,86 +1,15 @@
-"""Session management for conversation persistence."""
+"""Session management for conversation persistence with Pydantic validation."""
 
 import json
 import logging
-from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
+
+from app.infrastructure.session.models import Session
 
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class Session:
-    """Conversation session."""
-
-    key: str  # Format: "user_id" or "channel:chat_id"
-    messages: list[dict] = field(default_factory=list)
-    last_consolidated: int = 0  # Index of last archived message
-    created_at: str = field(default_factory=lambda: datetime.now().isoformat())
-    updated_at: str = field(default_factory=lambda: datetime.now().isoformat())
-
-    def add_message(
-        self, role: str, content: str, tools_used: Optional[list[str]] = None
-    ) -> None:
-        """Add a message to the session.
-
-        Args:
-            role: Message role (user, assistant, system)
-            content: Message content
-            tools_used: Optional list of tools used
-        """
-        message = {
-            "role": role,
-            "content": content,
-            "timestamp": datetime.now().isoformat(),
-        }
-        if tools_used:
-            message["tools_used"] = tools_used
-
-        self.messages.append(message)
-        self.updated_at = datetime.now().isoformat()
-
-    def get_history(self, max_messages: Optional[int] = None) -> list[dict]:
-        """Get conversation history.
-
-        Args:
-            max_messages: Maximum number of recent messages to return
-
-        Returns:
-            List of messages
-        """
-        if max_messages and len(self.messages) > max_messages:
-            return self.messages[-max_messages:]
-        return self.messages.copy()
-
-    def clear(self) -> None:
-        """Clear all messages."""
-        self.messages = []
-        self.last_consolidated = 0
-        self.updated_at = datetime.now().isoformat()
-
-    def to_dict(self) -> dict:
-        """Convert session to dictionary."""
-        return {
-            "key": self.key,
-            "messages": self.messages,
-            "last_consolidated": self.last_consolidated,
-            "created_at": self.created_at,
-            "updated_at": self.updated_at,
-        }
-
-    @classmethod
-    def from_dict(cls, data: dict) -> "Session":
-        """Create session from dictionary."""
-        return cls(
-            key=data["key"],
-            messages=data.get("messages", []),
-            last_consolidated=data.get("last_consolidated", 0),
-            created_at=data.get("created_at", datetime.now().isoformat()),
-            updated_at=data.get("updated_at", datetime.now().isoformat()),
-        )
 
 
 class SessionManager:
@@ -153,7 +82,7 @@ class SessionManager:
         """
         try:
             session_path = self._get_session_path(session.key)
-            session.updated_at = datetime.now().isoformat()
+            session.updated_at = datetime.now()
             session_path.write_text(
                 json.dumps(session.to_dict(), indent=2, ensure_ascii=False),
                 encoding="utf-8",
@@ -178,7 +107,7 @@ class SessionManager:
         Returns:
             List of session keys
         """
-        sessions = []
+        sessions: list[str] = []
         for session_file in self.sessions_dir.glob("*.json"):
             key = session_file.stem.replace("_", ":", 1)
             sessions.append(key)

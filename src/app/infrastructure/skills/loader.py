@@ -1,32 +1,20 @@
-"""Skills loader for markdown-based skills with YAML frontmatter."""
+"""Skills loader for markdown-based skills with YAML frontmatter and Pydantic validation."""
 
 import logging
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 
 import frontmatter
 import yaml
+
+from app.infrastructure.skills.models import Skill, SkillRequirements, SkillMetadata
 
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class Skill:
-    """Represents a loaded skill."""
-
-    name: str
-    description: str
-    content: str
-    always_load: bool
-    requirements: dict
-    metadata: dict
-    source: Path
-
-
 class SkillsLoader:
-    """Loader for markdown-based skills."""
+    """Loader for markdown-based skills with Pydantic validation."""
 
     def __init__(self, workspace: Path):
         """Initialize skills loader.
@@ -37,6 +25,9 @@ class SkillsLoader:
         self.workspace = Path(workspace)
         self.builtin_path = Path(__file__).parent / "builtin"
         self.user_path = self.workspace / "skills"
+
+        # Cache for loaded skills
+        self._cached_skills: Optional[list[Skill]] = None
 
         # Ensure directories exist
         self._ensure_directories()
@@ -90,22 +81,46 @@ class SkillsLoader:
             # Extract metadata
             metadata = post.metadata
 
-            # Get skill info
-            name = metadata.get("name", skill_path.parent.name)
-            description = metadata.get("description", "")
-            always_load = metadata.get("always_load", False)
-            requirements = metadata.get("requirements", {})
+            # Get skill info with proper type handling
+            name = str(metadata.get("name", skill_path.parent.name))
+            description = str(metadata.get("description", ""))
+            always_load = bool(metadata.get("always_load", False))
+            requirements_raw = metadata.get("requirements", {})
 
             # Content is the markdown body
             content = post.content
+
+            # Build structured metadata with type safety
+            raw_tags = metadata.get("tags", [])
+            tags_list = list(raw_tags) if isinstance(raw_tags, (list, tuple)) else []
+
+            skill_metadata = SkillMetadata(
+                author=str(metadata.get("author")) if metadata.get("author") else None,
+                version=str(metadata.get("version", "1.0.0")),
+                tags=[str(t) for t in tags_list],
+                created=str(metadata.get("created"))
+                if metadata.get("created")
+                else None,
+                updated=str(metadata.get("updated"))
+                if metadata.get("updated")
+                else None,
+            )
+
+            # Build structured requirements with type safety
+            reqs = requirements_raw if isinstance(requirements_raw, dict) else {}
+            skill_requirements = SkillRequirements(
+                tools=[str(t) for t in reqs.get("tools", [])],
+                apis=[str(a) for a in reqs.get("apis", [])],
+                skills=[str(s) for s in reqs.get("skills", [])],
+            )
 
             return Skill(
                 name=name,
                 description=description,
                 content=content,
                 always_load=always_load,
-                requirements=requirements,
-                metadata=metadata,
+                requirements=skill_requirements,
+                metadata=skill_metadata,
                 source=skill_path,
             )
 
@@ -113,15 +128,23 @@ class SkillsLoader:
             logger.error(f"Error loading skill from {skill_path}: {e}")
             return None
 
-    def load_all(self) -> list[Skill]:
+    def load_all(self, force_reload: bool = False) -> list[Skill]:
         """Load all skills from user directory.
+
+        Args:
+            force_reload: If True, bypass cache and reload from disk
 
         Returns:
             List of loaded skills
         """
+        # Return cached skills if available and not forcing reload
+        if self._cached_skills is not None and not force_reload:
+            return self._cached_skills
+
         skills = []
 
         if not self.user_path.exists():
+            self._cached_skills = skills
             return skills
 
         for skill_dir in self.user_path.iterdir():
@@ -137,6 +160,7 @@ class SkillsLoader:
                     logger.debug(f"Loaded skill: {skill.name}")
 
         logger.info(f"Loaded {len(skills)} skills")
+        self._cached_skills = skills
         return skills
 
     def get_skill(self, name: str) -> Optional[Skill]:
@@ -171,31 +195,24 @@ class SkillsLoader:
         all_skills = self.load_all()
         return [s for s in all_skills if not s.always_load]
 
-    def check_requirements(self, skill: Skill) -> tuple[bool, list[str]]:
-        """Check if skill requirements are met.
 
-        Args:
-            skill: Skill to check
+def check_requirements(self, skill: Skill) -> tuple[bool, list[str]]:
+    """Check if skill requirements are met.
 
-        Returns:
-            Tuple of (is_valid, list_of_errors)
-        """
-        errors = []
+    Note: This only checks for required skills. Tool and API availability
+    must be checked by the caller with access to tool registry and env vars.
 
-        # Check for required binaries
-        bins = skill.requirements.get("bins", [])
-        for binary in bins:
-            import shutil
+    Args:
+        skill: Skill to check
 
-            if not shutil.which(binary):
-                errors.append(f"Required binary not found: {binary}")
+    Returns:
+        Tuple of (is_valid, list_of_errors)
+    """
+    errors = []
 
-        # Check for required environment variables
-        env_vars = skill.requirements.get("env", [])
-        import os
+    # Check for required skills
+    for required_skill in skill.requirements.skills:
+        if not self.get_skill(required_skill):
+            errors.append(f"Required skill not found: {required_skill}")
 
-        for env_var in env_vars:
-            if not os.getenv(env_var):
-                errors.append(f"Required environment variable not set: {env_var}")
-
-        return len(errors) == 0, errors
+    return len(errors) == 0, errors

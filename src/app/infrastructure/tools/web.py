@@ -7,8 +7,35 @@ from urllib.parse import urlparse
 import aiohttp
 from readability import Document
 from bs4 import BeautifulSoup
+from pydantic import BaseModel, Field, field_validator
 
 from app.infrastructure.tools.base import Tool
+
+
+class WebSearchParams(BaseModel):
+    """Parameters for web search."""
+
+    query: str = Field(description="Search query")
+    count: int = Field(
+        default=5, ge=1, le=20, description="Number of results to return"
+    )
+
+    @field_validator("query")
+    @classmethod
+    def query_must_not_be_empty(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("query cannot be empty")
+        return v
+
+
+class WebFetchParams(BaseModel):
+    """Parameters for web fetch."""
+
+    url: str = Field(description="URL to fetch")
+    extract_readability: bool = Field(
+        default=True,
+        description="Whether to extract readable content using Readability",
+    )
 
 
 class WebSearchTool(Tool):
@@ -35,21 +62,8 @@ class WebSearchTool(Tool):
         return "Search the web using Brave Search API. Returns search results with titles, URLs, and snippets."
 
     @property
-    def parameters(self) -> dict[str, Any]:
-        return {
-            "type": "object",
-            "properties": {
-                "query": {"type": "string", "description": "Search query"},
-                "count": {
-                    "type": "integer",
-                    "description": "Number of results to return (default: 5, max: 20)",
-                    "default": 5,
-                    "minimum": 1,
-                    "maximum": 20,
-                },
-            },
-            "required": ["query"],
-        }
+    def param_model(self) -> type[BaseModel]:
+        return WebSearchParams
 
     async def execute(self, query: str, count: int = 5) -> str:
         """Execute web search.
@@ -125,22 +139,20 @@ class WebFetchTool(Tool):
         return "Fetch and extract readable content from a URL. Useful for reading articles, documentation, etc."
 
     @property
-    def parameters(self) -> dict[str, Any]:
-        return {
-            "type": "object",
-            "properties": {"url": {"type": "string", "description": "URL to fetch"}},
-            "required": ["url"],
-        }
+    def param_model(self) -> type[BaseModel]:
+        return WebFetchParams
 
     def _is_valid_url(self, url: str) -> bool:
         """Check if URL is valid."""
+        from urllib.parse import urlparse
+
         try:
-            parsed = urlparse(url)
-            return bool(parsed.netloc) and parsed.scheme in ("http", "https")
-        except:
+            result = urlparse(url)
+            return all([result.scheme in ("http", "https"), result.netloc])
+        except Exception:
             return False
 
-    async def execute(self, url: str) -> str:
+    async def execute(self, url: str, extract_readability: bool = True) -> str:
         """Fetch and extract content from URL.
 
         Args:

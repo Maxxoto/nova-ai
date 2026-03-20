@@ -85,9 +85,18 @@ def setup_tools(workspace: Path, api_key: str) -> ToolRegistry:
     registry.register(EditFileTool(allowed_dir=allowed_dir))
     registry.register(ListDirTool(allowed_dir=allowed_dir))
 
-    # Shell tool
+    # Shell tool - register as both "exec" and "bash" for LLM compatibility
     registry.register(
         ExecTool(
+            name="exec",
+            working_dir=str(allowed_dir),
+            restrict_to_workspace=True,
+            allowed_dir=allowed_dir,
+        )
+    )
+    registry.register(
+        ExecTool(
+            name="bash",
             working_dir=str(allowed_dir),
             restrict_to_workspace=True,
             allowed_dir=allowed_dir,
@@ -385,7 +394,7 @@ def chat(
         memory_store = MemoryStore(ws)
         session_manager = SessionManager(ws)
         skills_loader = SkillsLoader(ws)
-        context_builder = ContextBuilder(ws)
+        context_builder = ContextBuilder(ws, skills_loader=skills_loader)
         tools = setup_tools(ws, api_key)
 
         # Show status
@@ -423,58 +432,59 @@ def chat(
 
     session_key = "cli:interactive"
 
-    while True:
-        try:
-            user_input = Prompt.ask("\n[bold blue]You[/bold blue]").strip()
+    # Interactive mode - run entire loop in single event loop to avoid LiteLLM queue issues
+    async def interactive_loop():
+        while True:
+            try:
+                user_input = Prompt.ask("\n[bold blue]You[/bold blue]").strip()
 
-            if not user_input:
-                continue
+                if not user_input:
+                    continue
 
-            # Handle commands
-            if user_input.lower() in ["/exit", "/quit", "exit", "quit"]:
-                console.print("[dim]Goodbye! 👋[/dim]")
-                break
+                # Handle commands
+                if user_input.lower() in ["/exit", "/quit", "exit", "quit"]:
+                    console.print("[dim]Goodbye! 👋[/dim]")
+                    break
 
-            if user_input.lower() == "/new":
-                session_manager.get_or_create(session_key).clear()
-                console.print("[dim]Started new conversation[/dim]")
-                continue
+                if user_input.lower() == "/new":
+                    session_manager.get_or_create(session_key).clear()
+                    console.print("[dim]Started new conversation[/dim]")
+                    continue
 
-            if user_input.lower() == "/tools":
-                tool_list = "\n".join([f"  • {t}" for t in tools.list_tools()])
-                console.print(
-                    Panel(tool_list, title="Available Tools", border_style="green")
-                )
-                continue
-
-            if user_input.lower() == "/skills":
-                skill_list = "\n".join(
-                    [f"  • {s.name}: {s.description}" for s in skills]
-                )
-                console.print(
-                    Panel(skill_list, title="Loaded Skills", border_style="green")
-                )
-                continue
-
-            if user_input.lower() == "/memory":
-                memory_content = memory_store.read_long_term()
-                if memory_content.strip():
+                if user_input.lower() == "/tools":
+                    tool_list = "\n".join([f"  • {t}" for t in tools.list_tools()])
                     console.print(
-                        Panel(
-                            memory_content[:500] + "..."
-                            if len(memory_content) > 500
-                            else memory_content,
-                            title="Long-term Memory",
-                            border_style="yellow",
-                        )
+                        Panel(tool_list, title="Available Tools", border_style="green")
                     )
-                else:
-                    console.print("[dim]No long-term memory yet[/dim]")
-                continue
+                    continue
 
-            # Process message
-            asyncio.run(
-                _process_message(
+                if user_input.lower() == "/skills":
+                    skill_list = "\n".join(
+                        [f"  • {s.name}: {s.description}" for s in skills]
+                    )
+                    console.print(
+                        Panel(skill_list, title="Loaded Skills", border_style="green")
+                    )
+                    continue
+
+                if user_input.lower() == "/memory":
+                    memory_content = memory_store.read_long_term()
+                    if memory_content.strip():
+                        console.print(
+                            Panel(
+                                memory_content[:500] + "..."
+                                if len(memory_content) > 500
+                                else memory_content,
+                                title="Long-term Memory",
+                                border_style="yellow",
+                            )
+                        )
+                    else:
+                        console.print("[dim]No long-term memory yet[/dim]")
+                    continue
+
+                # Process message - await directly instead of asyncio.run
+                await _process_message(
                     user_input,
                     llm,
                     context_builder,
@@ -482,13 +492,15 @@ def chat(
                     tools,
                     session_key,
                 )
-            )
 
-        except KeyboardInterrupt:
-            console.print("\n[dim]Goodbye! 👋[/dim]")
-            break
-        except Exception as e:
-            console.print(f"[bold red]Error:[/bold red] {e}")
+            except KeyboardInterrupt:
+                console.print("\n[dim]Goodbye! 👋[/dim]")
+                break
+            except Exception as e:
+                console.print(f"\n[bold red]Error:[/bold red] {e}")
+
+    # Run the entire interactive loop in a single event loop
+    asyncio.run(interactive_loop())
 
 
 async def _process_message(
@@ -616,7 +628,11 @@ async def _process_message(
 
         # Save to session
         session.add_message("user", message)
-        session.add_message("assistant", final_content or "", tools_used=tools_used)
+        session.add_message(
+            "assistant",
+            final_content or "(no response)",
+            tools_used=tools_used,
+        )
         session_manager.save(session)
 
     except Exception as e:

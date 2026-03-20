@@ -34,6 +34,15 @@ class Settings(BaseSettings):
     # Workspace Settings
     workspace_dir: str = os.getenv("NOVA_WORKSPACE", os.path.expanduser("~/.nova"))
 
+    # Pydantic AI Settings
+    pydantic_ai_max_retries: int = int(os.getenv("PYDANTIC_AI_MAX_RETRIES", "3"))
+    pydantic_ai_validation_debug: bool = (
+        os.getenv("PYDANTIC_AI_VALIDATION_DEBUG", "false").lower() == "true"
+    )
+    pydantic_ai_async_only: bool = (
+        os.getenv("PYDANTIC_AI_ASYNC_ONLY", "true").lower() == "true"
+    )
+
     class Config:
         case_sensitive = False
 
