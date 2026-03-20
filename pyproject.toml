@@ -44,6 +44,8 @@ dependencies = [
     # Web and API
     "sse-starlette>=1.0.0",
     "python-dotenv>=1.0.0",
+    # Pydantic AI for LLM validation
+    "pydantic-ai>=0.0.14",
     # Code quality
     "ruff>=0.14.2",
     "pytest-asyncio>=1.2.0",
