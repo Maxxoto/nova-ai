@@ -14,7 +14,310 @@ Nova, also known as 若曦 (*Ruòxī*), is a powerful agentic AI assistant built
 
 ## ✨ Overview
 
-Powered by **LiteLLM multi-provider support** and **LangGraph orchestration**, Nova features extensible skills, markdown-based memory, and a flexible tool system. She adapts to a growing range of tasks — from deep reasoning to creative brainstorming.
+Powered by **LiteLLM multi-provider support** and **pure Python agentic loop**, Nova features extensible skills, markdown-based memory, and a flexible tool system. She adapts to a growing range of tasks — from deep reasoning to creative brainstorming.
+
+---
+
+## 🎓 Research Project: Framework-less Agentic AI
+
+This project explores how to build an **agentic AI system without relying on complex frameworks**—using pure Python and LiteLLM. It serves as a learning resource for understanding the core mechanics of agentic loops, tool calling, and LLM integration.
+
+### Why Framework-less?
+
+Most AI agent tutorials and projects rely on frameworks like LangChain, LangGraph, or AutoGPT. While powerful, these frameworks can:
+- Hide implementation details behind abstractions
+- Make debugging difficult when things go wrong
+- Create lock-in to specific architectural decisions
+- Add complexity for simple use cases
+
+This project demonstrates that you can build a fully-functional AI agent with:
+- **~500 lines of core code** for the agent loop
+- **Clear, readable Python** without framework magic
+- **Full control** over tool calling, memory, and orchestration
+- **Easy debugging** — everything is explicit
+
+### Key Architecture Decisions
+
+| Decision | Why |
+|----------|-----|
+| **Pure Python Agent Loop** | Simple `while` loop for tool calling — no graph abstractions |
+| **LiteLLM as Adapter** | One interface for 100+ LLM providers |
+| **Tool Registry Pattern** | Explicit tool registration and schema generation |
+| **Two-Layer Memory** | Fast context (MEMORY.md) + searchable history (HISTORY.md) |
+| **Session Persistence** | JSON files — no database required |
+
+---
+
+## 🔄 How the Agentic Loop Works
+
+The core of Nova is the **AgentLoop** — a simple, understandable implementation of tool-calling AI without framework complexity.
+
+### The Basic Loop (agent_loop.py:142-246)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           AGENT LOOP FLOW                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+User Message
+     │
+     ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  1. BUILD CONTEXT                                                            │
+│     - System prompt (personality + skills)                                  │
+│     - Conversation history (session)                                        │
+│     - Long-term memory (MEMORY.md)                                          │
+│     - Current user message                                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+     │
+     ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  2. GET TOOL DEFINITIONS                                                     │
+│     registry.get_definitions() ──► [                                        │
+│       {"type": "function", "function": {"name": "read_file", ...}},          │
+│       {"type": "function", "function": {"name": "write_file", ...}},         │
+│       ...                                                                    │
+│     ]                                                                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+     │
+     ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  3. CALL LLM WITH TOOLS                                                      │
+│     response = await llm.chat_completion(                                   │
+│         messages=messages,                                                  │
+│         tools=tool_definitions,  ◄── OpenAI function calling format         │
+│     )                                                                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+     │
+     ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  4. CHECK FOR TOOL CALLS                                                     │
+│     tool_calls = response.get("tool_calls")                                 │
+│                                                                              │
+│     if tool_calls:                                                           │
+│         ┌──────────────────────────────────────────────────────────────────┐ │
+│         │  5. EXECUTE TOOLS                                                 │ │
+│         │     for tc in tool_calls:                                        │ │
+│         │         result = await registry.execute(                         │ │
+│         │             tc.function.name,                                    │ │
+│         │             tc.function.arguments                                │ │
+│         │         )                                                        │ │
+│         └──────────────────────────────────────────────────────────────────┘ │
+│         ┌──────────────────────────────────────────────────────────────────┐ │
+│         │  6. ADD RESULTS TO MESSAGES                                       │ │
+│         │     messages.append({                                             │ │
+│         │         "role": "tool",                                           │ │
+│         │         "tool_call_id": tool_id,                                  │ │
+│         │         "content": result                                         │ │
+│         │     })                                                            │ │
+│         └──────────────────────────────────────────────────────────────────┘ │
+│         ┌──────────────────────────────────────────────────────────────────┐ │
+│         │  7. LOOP BACK TO STEP 3                                           │ │
+│         │     iteration += 1                                                │ │
+│         │     continue  ◄── Call LLM again with tool results                │ │
+│         └──────────────────────────────────────────────────────────────────┘ │
+│     else:                                                                    │
+│         return response  ◄── No tools called, we're done!                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Core Code (Simplified)
+
+```python
+async def _run_agent_loop(self, messages: List[Dict], tools: List[Dict]):
+    iteration = 0
+    
+    while iteration < self.max_iterations:
+        iteration += 1
+        
+        # Get tool definitions
+        tool_definitions = self.tool_registry.get_definitions()
+        
+        # Call LLM
+        response = await self.llm_client.chat_completion(
+            messages=messages,
+            tools=tool_definitions,
+        )
+        
+        # Check for tool calls
+        tool_calls = response.get("tool_calls")
+        
+        if tool_calls:
+            # Execute each tool
+            for tc in tool_calls:
+                result = await self.tool_registry.execute(
+                    tc.function.name,
+                    tc.function.arguments
+                )
+                
+                # Add result to messages
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc.id,
+                    "content": result
+                })
+        else:
+            # No tools called — return final response
+            return response.get("response")
+    
+    return "Max iterations reached"
+```
+
+### Key Components
+
+#### 1. Tool Registry (infrastructure/tools/registry.py)
+
+```python
+class ToolRegistry:
+    def __init__(self):
+        self._tools: dict[str, Tool] = {}
+    
+    def register(self, tool: Tool) -> None:
+        """Register a tool."""
+        self._tools[tool.name] = tool
+    
+    def get_definitions(self) -> list[dict]:
+        """Get OpenAI function schemas for all tools."""
+        return [tool.to_schema() for tool in self._tools.values()]
+    
+    async def execute(self, name: str, args: dict) -> str:
+        """Execute a tool by name."""
+        tool = self._tools.get(name)
+        return await tool.execute(**args)
+```
+
+#### 2. Tool Base Class (infrastructure/tools/base.py)
+
+```python
+class Tool(ABC):
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        """Tool name (e.g., 'read_file')"""
+        pass
+    
+    @property
+    @abstractmethod
+    def description(self) -> str:
+        """What the tool does"""
+        pass
+    
+    @property
+    def param_model(self) -> type[BaseModel]:
+        """Pydantic model for parameters"""
+        return None
+    
+    def to_schema(self) -> dict:
+        """Convert to OpenAI function schema"""
+        return {
+            "type": "function",
+            "function": {
+                "name": self.name,
+                "description": self.description,
+                "parameters": self.parameters,  # Auto-generated from Pydantic
+            }
+        }
+    
+    @abstractmethod
+    async def execute(self, **kwargs) -> str:
+        """Execute the tool"""
+        pass
+```
+
+#### 3. LiteLLM Adapter (adapters/llm_providers/litellm_adapter.py)
+
+```python
+class LiteLLMAdapter(LLMClientPort):
+    """Unified interface to 100+ LLM providers via LiteLLM."""
+    
+    def __init__(self, model: str, api_key: str):
+        # Example models:
+        # - "groq/llama-3.1-70b-versatile"
+        # - "openai/gpt-4"
+        # - "anthropic/claude-3-opus-20240229"
+        self.model = model
+        self.api_key = api_key
+    
+    async def chat_completion(
+        self,
+        messages: List[Dict],
+        tools: Optional[List[Dict]] = None,
+    ) -> Dict:
+        """Call LLM with optional tool calling."""
+        from litellm import acompletion
+        
+        kwargs = {
+            "model": self.model,
+            "messages": messages,
+            "api_key": self.api_key,
+        }
+        
+        if tools:
+            kwargs["tools"] = tools
+            kwargs["tool_choice"] = "auto"
+        
+        response = await acompletion(**kwargs)
+        
+        # Return tool calls if present
+        if response.choices[0].message.tool_calls:
+            return {
+                "response": None,
+                "tool_calls": response.choices[0].message.tool_calls,
+            }
+        
+        return {
+            "response": response.choices[0].message.content,
+            "tool_calls": None,
+        }
+```
+
+### What You'll Learn
+
+By studying this codebase, you'll understand:
+
+1. **Tool Calling Protocol**
+   - How tools are converted to JSON schemas
+   - How LLM decides which tool to call
+   - How to execute tools and return results
+
+2. **Agent Loop Mechanics**
+   - Iterative tool execution (not just one-shot)
+   - Message history management
+   - Context building (system prompt + memory + history)
+
+3. **LLM Abstraction**
+   - Why use a Port/Adapter pattern
+   - How to support multiple providers
+   - How to handle provider-specific quirks (e.g., Groq)
+
+4. **Memory Systems**
+   - Two-layer memory (context + history)
+   - When to use what (MEMORY.md for facts, HISTORY.md for events)
+   - Automatic consolidation
+
+5. **Session Management**
+   - Conversation persistence
+   - Session isolation
+   - History windowing
+
+### Comparison: Framework vs. Pure Python
+
+| Aspect | LangChain/LangGraph | Pure Python (This Project) |
+|--------|---------------------|----------------------------|
+| **Learning Curve** | Steep | Gentle |
+| **Lines of Code** | 10-50 | 100-200 |
+| **Debugging** | Abstractions hide issues | Explicit, easy to trace |
+| **Flexibility** | Constrained by framework | Full control |
+| **LLM Calls** | Hidden in framework | Explicit `await llm.chat_completion()` |
+| **Tool Calling** | Managed by framework | Manual loop — you see everything |
+| **Best For** | Complex workflows, production | Learning, simple agents |
+
+### Entry Points
+
+| Entry Point | File | Use Case |
+|-------------|------|----------|
+| **CLI Chat** | `app/interfaces/cli/app.py:352` | Interactive terminal chat |
+| **Main Loop** | `app/main.py` | Telegram bot + message bus |
 
 ---
 </div>
@@ -26,9 +329,9 @@ Powered by **LiteLLM multi-provider support** and **LangGraph orchestration**, N
 - [x] 💬 Markdown-based memory system (MEMORY.md + HISTORY.md)
 - [x] 🧩 Extensible skills system (6 built-in skills)
 - [x] 🛠️ Tool system with 7 built-in tools
-- [x] 🔄 LangGraph workflow orchestration
+- [x] 🔄 Pure Python AgentLoop (framework-less)
 - [x] 🖥️ Interactive CLI interface
-- [x] 🌐 FastAPI REST API with SSE support
+- [x] 📚 Learning documentation (this README)
 
 ### 🛠️ Phase 2 (In Development)
 - [ ] 📱 Telegram bot integration
@@ -48,9 +351,10 @@ Powered by **LiteLLM multi-provider support** and **LangGraph orchestration**, N
 
 ## 🌟 Key Features
 
-### 🧠 Intelligent Architecture
-- **Hexagonal Architecture**: Clean separation of concerns with domain-driven design
-- **LangGraph Orchestration**: Complex workflow management with stateful agents
+### 🏗️ Architecture
+- **Framework-less Design**: Pure Python agent loop — understand every line
+- **Hexagonal Architecture**: Clean separation with domain ports/adapters
+- **Dual Orchestrators**: Choose simplicity (AgentLoop) or complexity (LangGraph)
 - **Multi-Provider Support**: Switch between 100+ LLM providers instantly
 
 ### 💾 Memory System
@@ -68,8 +372,8 @@ Powered by **LiteLLM multi-provider support** and **LangGraph orchestration**, N
 
 ### 🌐 Multiple Interfaces
 - **CLI**: Interactive terminal chat with rich formatting
-- **FastAPI**: REST API with Server-Sent Events (SSE)
-- **Telegram**: Full-featured bot integration (coming soon)
+- **Telegram**: Full-featured bot integration
+- **(REST API archived for simplicity)**
 
 ---
 
@@ -93,14 +397,13 @@ Nova routes tasks to different models depending on complexity and context:
 
 | Component          | Technology / Service                              |
 | ------------------ | ------------------------------------------------- |
-| **Core Framework** | Python 3.11+, FastAPI, LangGraph, LangChain      |
-| **LLM Integration**| LiteLLM (100+ providers)                          |
+| **Core**           | Python 3.11+ (pure Python, minimal dependencies)  |
+| **Agent Loop**    | Pure Python `while` loop (no framework)           |
+| **LLM Integration**| LiteLLM (100+ providers, unified API)            |
 | **Memory System**  | Markdown-based (MEMORY.md, HISTORY.md)            |
-| **Orchestration**  | LangGraph with stateful agents                    |
 | **CLI Interface**  | Typer + Rich                                      |
-| **API Interface**  | FastAPI + SSE Starlette                           |
+| **Telegram Bot**   | python-telegram-bot                               |
 | **Configuration**  | Pydantic Settings + python-dotenv                 |
-| **Testing**        | Pytest + pytest-asyncio                           |
 
 ---
 
@@ -217,17 +520,37 @@ export LITE_LLM_MODEL="anthropic/claude-3-opus-20240229"
 
 ## 📁 Architecture
 
-This project follows **Hexagonal Architecture** with clear separation of concerns:
+This project follows **Hexagonal Architecture** with clean separation of concerns.
+
+### Architecture Philosophy
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        FRAMEWORK-LESS BY DESIGN                              │
+│                                                                              │
+│  "Premature abstraction is the root of all evil"                            │
+│   — Rob Pike                                                                │
+│                                                                              │
+│  We start simple and add complexity only when needed.                       │
+│                                                                              │
+│  Pure Python AgentLoop (~300 lines) handles everything:                     │
+│  - Tool calling loop                                                         │
+│  - Context building                                                          │
+│  - Session management                                                        │
+│  - Memory consolidation                                                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
 
 ### Core Layer (Domain)
-- **Entities**: `AgentState`, `Plan`, `ChatMessage` - Pure business objects
-- **Ports**: Interface definitions (`LLMClientPort`, `MemoryPort`, `ToolPort`)
+- **Entities**: `AgentState`, `Plan`, `ChatMessage` — Pure business objects
+- **Ports**: Interface definitions (`LLMClientPort`, `MemoryPort`)
 - *No external dependencies*
 
 ### Application Layer (Use Cases)
-- **Services**: LangGraph orchestration, enhanced workflow
-- **Use Cases**: Business logic orchestration
-- *Depends only on Core ports*
+- **AgentLoop**: Pure Python tool-calling loop (main orchestrator)
+- **EnhancedLangGraphOrchestrator**: StateGraph-based (optional)
+- **Nodes**: Context building, tool execution (for LangGraph)
+- *Depends only on Domain ports*
 
 ### Adapters Layer (Infrastructure)
 - **LLM Adapters**: LiteLLM multi-provider support
@@ -238,13 +561,14 @@ This project follows **Hexagonal Architecture** with clear separation of concern
 
 ### Infrastructure Layer
 - **Message Bus**: Async communication between channels
-- **Session Management**: Conversation persistence
+- **Session Management**: Conversation persistence (JSON)
 - **Tools & Skills**: Extensible tool and skill systems
+- **Memory**: Two-layer markdown system
 
 ### Interfaces Layer
 - **FastAPI Controllers**: HTTP endpoints with SSE
 - **CLI**: Interactive terminal interface
-- **Telegram Bot**: Polling-based bot (coming soon)
+- **Telegram Bot**: Polling-based bot
 - *Thin layer delegating to Application*
 
 ---
@@ -357,19 +681,29 @@ uv run mypy src/
 src/app/
 ├── adapters/
 │   ├── llm_providers/
-│   │   └── litellm_adapter.py    # LiteLLM multi-provider
+│   │   └── litellm_adapter.py     # ⭐ LiteLLM integration (100+ providers)
 │   └── config.py                  # Configuration
 ├── application/
 │   ├── services/
-│   │   └── langgraph_orchestrator.py  # Workflow orchestration
+│   │   ├── agent_loop.py          # ⭐ Pure Python agent loop
+│   │   ├── enhanced_orchestrator.py  # Optional LangGraph orchestrator
+│   │   └── nodes/                 # LangGraph nodes
 │   └── usecases/
 │       └── chat_service.py        # Chat use cases
 ├── domain/
 │   ├── entities/                  # Business entities
 │   └── ports/                     # Interface definitions
+│       └── llm_client_port.py     # ⭐ LLM abstraction
 ├── infrastructure/
-│   ├── tools/                     # Tool implementations
-│   ├── memory/                    # Memory system
+│   ├── tools/
+│   │   ├── base.py                # ⭐ Tool abstract class
+│   │   ├── registry.py            # ⭐ Tool registry
+│   │   ├── filesystem.py          # File tools
+│   │   ├── shell.py               # Shell tool
+│   │   └── web.py                 # Web tools
+│   ├── memory/
+│   │   ├── store.py               # Memory management
+│   │   └── consolidation.py       # Memory compression
 │   ├── session/                   # Session management
 │   ├── skills/                    # Skills system
 │   ├── bus/                       # Message bus
@@ -378,6 +712,47 @@ src/app/
     ├── api/                       # FastAPI controllers
     └── cli/                       # CLI interface
 ```
+
+### Key Files to Study
+
+| File | What You'll Learn |
+|------|-------------------|
+| `agent_loop.py:142-246` | Core agent loop mechanics |
+| `litellm_adapter.py` | LLM abstraction and tool calling |
+| `tools/registry.py` | Tool registration and execution |
+| `tools/base.py` | How tools define their schemas |
+| `memory/store.py` | Two-layer memory system |
+| `session/manager.py` | Conversation persistence |
+| `cli/app.py:352-503` | CLI entry point |
+| `main.py` | Telegram + message bus setup |
+
+---
+
+## 📦 Archived Components
+
+The following components have been archived in `legacy/archive/` for reference:
+
+### REST API (Archived)
+- **Location**: `legacy/archive/src/app/interfaces/api/`
+- **Files**: `fastapi_app.py`, `endpoints.py`
+- **Reason**: Removed to simplify the codebase and focus on the pure Python agent loop approach
+- **Restoration**: Copy files back to `src/app/interfaces/api/` and restore entry point in `pyproject.toml` if needed
+
+### Enhanced LangGraph Orchestrator (Archived)
+- **Location**: `legacy/archive/src/app/application/services/`
+- **Files**: `enhanced_orchestrator.py`, `nodes/context_builder_node.py`, `nodes/tool_execution_node.py`
+- **Reason**: Optional advanced orchestrator, not needed for pure Python approach
+- **Restoration**: Copy files back and uncomment in `main.py` if you want StateGraph-based orchestration
+
+### FastAPI Dependencies (Archived)
+- **Location**: `legacy/archive/dependencies.py`
+- **Reason**: Used only for FastAPI dependency injection
+- **Restoration**: Restore if re-enabling REST API
+
+### Unused Domain Ports (Archived)
+- **Files**: `planner_port.py`, `executor_port.py`
+- **Reason**: Defined but never implemented or used
+- **Restoration**: Keep archived unless building planning/execution features
 
 ---
 
