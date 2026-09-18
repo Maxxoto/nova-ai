@@ -74,3 +74,34 @@ seam lets the Tauri shell ship now and Rust OS-control modules slot in later wit
 > *Note: the source document was truncated at §4 when it was first saved —
 > sections 5–13 (including the §12 latency budget referenced in §3) still need
 > to be added.*
+
+---
+
+## 5. Component RFC Index
+
+> **Decomposition — 2026-09-18:** instead of finishing this document as a single
+> monolith, the technical design is decomposed into per-component RFCs. Each is
+> Status: Draft for review and traces to the PRD features (F-xx) and acceptance
+> criteria (AC-xx) it covers. This document remains the umbrella: architecture,
+> boundaries, and the cross-cutting risks listed above.
+
+| RFC | Component | Covers (PRD) | Milestone |
+|---|---|---|---|
+| [RFC-0002](RFC-0002-platform-shell.md) | Platform Shell & Lifecycle (Tauri 2) — tray, hotkeys/PTT, overlay, panel, onboarding, IPC | F-01, F-06; AC-01, AC-06, AC-12 | M0 |
+| [RFC-0003](RFC-0003-screen-capture.md) | Screen Capture & Visual Context Pipeline | F-03–F-05, F-08, F-13, F-14; AC-03–AC-05 | M0–M2 |
+| [RFC-0004](RFC-0004-voice-input-stt.md) | Voice Input (Local STT, whisper-rs) | F-02; AC-02, AC-10 | M1 |
+| [RFC-0005](RFC-0005-voice-output-tts.md) | Voice Output (Local TTS) | F-11 | M3 |
+| [RFC-0006](RFC-0006-memory-system.md) ⭐ | Memory System (CoALA three-type, local, human-readable) | F-07, F-10, F-12; AC-07, AC-08 | M2–M3 |
+| [RFC-0007](RFC-0007-agent-brain.md) | Agent Brain — loop, context assembly, LLM routing, latency budget | F-07, F-12; AC-02, AC-07, AC-11 | M1–M3 |
+| [RFC-0008](RFC-0008-base-tools.md) | Base Tool Catalog & Registry (v0) | F-07, F-09; AC-07, AC-09, AC-11 | M1–M2 |
+| [RFC-0009](RFC-0009-privacy-offline.md) | Privacy, Offline Mode & Data Governance | F-09; AC-09, AC-10 | M3 |
+
+Cross-cutting ownership:
+
+- The **latency budget** (the formerly missing §12) is owned by
+  [RFC-0007](RFC-0007-agent-brain.md), decomposed per pipeline stage.
+- The **RAM budget** (< 150 MB idle) is owned by
+  [RFC-0002](RFC-0002-platform-shell.md), with allocations agreed in
+  RFC-0004 (STT) and RFC-0005 (TTS).
+- The five open risks above map primarily to RFC-0002 (risks 1, 2, 3, 5) and
+  jointly to RFC-0002 + RFC-0004 (risk 4, idle RAM with whisper loaded).
