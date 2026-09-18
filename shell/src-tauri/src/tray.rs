@@ -5,7 +5,6 @@
 
 use tauri::menu::{CheckMenuItem, Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
-use tauri::Manager;
 
 use crate::settings;
 

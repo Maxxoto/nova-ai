@@ -20,7 +20,9 @@ fn default_ping_interval_secs() -> u64 {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
+    #[serde(default)]
     pub launch_at_login: bool,
+    #[serde(default)]
     pub pause_captures: bool,
     #[serde(default = "default_sidecar_command")]
     pub sidecar_command: String,
@@ -78,4 +80,38 @@ pub fn get_settings(app: tauri::AppHandle) -> Result<Settings, String> {
 #[tauri::command]
 pub fn set_settings(app: tauri::AppHandle, settings: Settings) -> Result<(), String> {
     save(&app, &settings)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn partial_json_fills_defaults() {
+        let settings: Settings = serde_json::from_str("{}").unwrap();
+        assert_eq!(settings.sidecar_command, "python3");
+        assert_eq!(
+            settings.sidecar_args,
+            vec!["-m".to_string(), "app.interfaces.sidecar".to_string()]
+        );
+        assert_eq!(settings.ping_interval_secs, 5);
+        assert!(!settings.launch_at_login);
+        assert!(!settings.pause_captures);
+    }
+
+    #[test]
+    fn settings_roundtrip_preserves_values() {
+        let settings = Settings {
+            launch_at_login: true,
+            pause_captures: true,
+            sidecar_command: "uv".to_string(),
+            sidecar_args: vec!["run".to_string()],
+            ping_interval_secs: 2,
+        };
+        let text = serde_json::to_string(&settings).unwrap();
+        let back: Settings = serde_json::from_str(&text).unwrap();
+        assert_eq!(back.sidecar_command, "uv");
+        assert_eq!(back.ping_interval_secs, 2);
+        assert!(back.launch_at_login && back.pause_captures);
+    }
 }

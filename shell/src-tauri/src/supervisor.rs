@@ -4,7 +4,6 @@
 use std::process::Stdio;
 use std::time::Duration;
 
-use tauri::Manager;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{Child, Command};
 use tokio::time::{sleep, Instant};
@@ -71,18 +70,34 @@ async fn supervise_once(app: &tauri::AppHandle) {
             next_ping = Instant::now() + interval;
         } else {
             let until_ping = next_ping - now;
-            match tokio::time::timeout(until_ping, lines.next_line()).await {
-                // Idle silence until the next ping slot: healthy.
-                Err(_elapsed) => {}
-                // stdout closed or read error: child is gone.
-                Ok(None) | Ok(Some(Err(_))) => break,
-                // agent.token / other notifications while an ask streams: ignore here.
-                Ok(Some(Ok(_line))) => {}
+            match next_line(&mut lines, until_ping).await {
+                LineState::Idle => {}
+                LineState::Gone => break,
+                LineState::Received(_) => {}
             }
         }
     }
     let _ = child.wait().await;
-    let _ = Exit::Ended;
+}
+
+enum LineState {
+    /// No output before the deadline passed.
+    Idle,
+    /// stdout closed or unreadable: the child is gone.
+    Gone,
+    /// A line arrived within the deadline.
+    Received(String),
+}
+
+async fn next_line(
+    lines: &mut tokio::io::Lines<BufReader<tokio::process::ChildStdout>>,
+    within: Duration,
+) -> LineState {
+    match tokio::time::timeout(within, lines.next_line()).await {
+        Err(_elapsed) => LineState::Idle,
+        Ok(Err(_)) | Ok(Ok(None)) => LineState::Gone,
+        Ok(Ok(Some(line))) => LineState::Received(line),
+    }
 }
 
 async fn wait_pong(
@@ -91,20 +106,20 @@ async fn wait_pong(
 ) -> bool {
     let deadline = Instant::now() + PING_TIMEOUT;
     loop {
-        let remaining = deadline.saturating_sub(Instant::now());
-        if remaining.is_zero() {
+        let now = Instant::now();
+        let remaining = if deadline > now {
+            deadline - now
+        } else {
             return false;
-        }
-        match tokio::time::timeout(remaining, lines.next_line()).await {
-            Err(_elapsed) => return false,
-            Ok(None) | Ok(Some(Err(_))) => return false,
-            Ok(Some(Ok(line))) => {
+        };
+        match next_line(lines, remaining).await {
+            LineState::Idle | LineState::Gone => return false,
+            LineState::Received(line) => {
                 if let Ok(value) = serde_json::from_str::<serde_json::Value>(&line) {
                     if value.get("id").and_then(|v| v.as_u64()) == Some(want_id) {
                         return true;
                     }
                 }
-                // Notifications or stale responses: keep waiting.
             }
         }
     }
