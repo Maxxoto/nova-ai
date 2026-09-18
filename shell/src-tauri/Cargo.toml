@@ -1,0 +1,15 @@
+[package]
+name = "nova-shell"
+version = "0.1.0"
+description = "Ruoxi desktop companion shell (Tauri 2) — M0 scaffold"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-single-instance = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["process", "io-util", "time", "rt-multi-thread", "macros"] }
