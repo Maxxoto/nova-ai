@@ -213,3 +213,6 @@ build/
 dist/
 .bmad
 .opencode
+
+# OpenCode session files
+**/ses_*.json
