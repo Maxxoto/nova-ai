@@ -6,6 +6,7 @@
 //! - Settings persisted as JSON in the app data dir.
 //! - Brain sidecar supervised per RFC-0002 §4.7 (W5 counterpart).
 
+pub mod capture_store;
 pub mod settings;
 pub mod supervisor;
 
