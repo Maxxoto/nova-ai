@@ -1,0 +1,5 @@
+<!-- Ruòxī tray · state: local-only · color: {colors.success} #000000 (dawn green — local/saved) -->
+<!-- Hollow cloud: nothing leaves this machine. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <path d="M35 38H18a14 14 0 1 1 13.42-18h3.58a9 9 0 1 1 0 18Z" fill="none" stroke="#000000" stroke-width="4" stroke-linejoin="round"/>
+</svg>

@@ -1,0 +1,6 @@
+<!-- Ruòxī tray · state: captures-paused · color: {colors.mute} #74655a -->
+<!-- RFC-0009 §4.5: visually obvious the whole time captures are paused. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <rect x="15.5" y="12.5" width="7" height="23" rx="3.5" fill="#74655a"/>
+  <rect x="25.5" y="12.5" width="7" height="23" rx="3.5" fill="#74655a"/>
+</svg>

@@ -1,0 +1,6 @@
+<!-- Ruòxī tray · state: idle (captures active) · color: {colors.mute} #74655a · highlight: {colors.surface-soft} #f4ede4 -->
+<!-- Dawn dot: the orb reduced to its tray silhouette, with a soft inner-highlight crescent. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <circle cx="24" cy="24" r="14" fill="#74655a"/>
+  <path d="M10.48 20.37 A14 14 0 0 1 37.52 20.37 A24 24 0 0 0 10.48 20.37 Z" fill="#f4ede4"/>
+</svg>

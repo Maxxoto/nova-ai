@@ -1,0 +1,214 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ------------------------------------------------------------------ */
+/* Token layer — VERBATIM from docs/DESIGN.md § "Tailwind + shadcn    */
+/* Implementation" (app.css shadcn theme bridge). Do not edit values. */
+/* ------------------------------------------------------------------ */
+:root {
+  --background: 36.0 55.6% 96.5%; /* {colors.canvas} */
+  --foreground: 27.7 17.8% 14.3%; /* {colors.ink} */
+  --card: 30.0 50.0% 99.2%;       /* {colors.surface} */
+  --card-foreground: 27.7 17.8% 14.3%; /* {colors.ink} */
+  --popover: 30.0 50.0% 99.2%;    /* {colors.surface} */
+  --popover-foreground: 27.7 17.8% 14.3%; /* {colors.ink} */
+  --primary: 15.8 67.7% 46.1%;    /* {colors.primary} */
+  --primary-foreground: 0 0% 100.0%; /* {colors.primary-foreground} */
+  --primary-soft: 20.0 71.4% 91.8%; /* {colors.primary-soft} */
+  --primary-active: 15.1 69.5% 34.7%; /* {colors.primary-active} */
+  --thinking-text: 209.5 35.0% 32.0%; /* {colors.thinking-text} */
+  --speaking-text: 15.8 67.7% 46.1%; /* {colors.primary} */
+  --secondary: 204.5 45.8% 90.6%; /* {colors.secondary} */
+  --secondary-foreground: 211.2 38.5% 25.5%; /* {colors.secondary-foreground} */
+  --muted: 33.7 42.1% 92.5%;      /* {colors.surface-soft} */
+  --muted-foreground: 25.4 12.6% 40.4%; /* {colors.mute} */
+  --accent: 40.6 82.3% 84.5%;     /* {colors.accent} */
+  --accent-foreground: 33.9 41.8% 21.6%; /* {colors.accent-foreground} */
+  --destructive: 4.6 71.6% 42.7%; /* {colors.destructive} */
+  --destructive-foreground: 0 0% 100.0%; /* {colors.destructive-foreground} */
+  --success: 120.0 50.3% 30.0%;   /* {colors.success} */
+  --warning: 28.0 94.9% 31.0%;    /* {colors.warning} */
+  --live: 27.9 95.3% 42.0%;       /* {colors.live} */
+  --border: 33.7 21.6% 85.5%;     /* {colors.border} */
+  --input: 33.7 21.6% 85.5%;      /* {colors.border} */
+  --ring: 15.8 67.7% 46.1%;       /* {colors.primary} */
+  --radius: 10px;                 /* {rounded.md} — shadcn default radius */
+}
+.dark {
+  --background: 22.5 16.0% 9.8%;  /* {colors.dark-canvas} */
+  --foreground: 33.0 43.5% 91.0%; /* {colors.dark-ink} */
+  --card: 32.3 20.6% 12.4%;       /* {colors.dark-surface} */
+  --card-foreground: 33.0 43.5% 91.0%; /* {colors.dark-ink} */
+  --popover: 32.3 20.6% 12.4%;    /* {colors.dark-surface} */
+  --popover-foreground: 33.0 43.5% 91.0%; /* {colors.dark-ink} */
+  --primary: 17.9 66.5% 55.5%;    /* {colors.dark-primary} */
+  --primary-foreground: 24.7 41.5% 8.0%; /* {colors.dark-primary-foreground} */
+  --primary-soft: 27.4 60.7% 22.0%; /* {colors.dark-primary-soft} */
+  --primary-active: 20.2 75.3% 71.4%; /* {colors.dark-primary-active} */
+  --thinking-text: 203.7 50.6% 66.7%; /* {colors.dark-thinking} */
+  --speaking-text: 18.1 70.2% 59.2%; /* {colors.dark-speaking} */
+  --secondary: 210.0 30.4% 22.0%; /* {colors.dark-secondary} */
+  --secondary-foreground: 206.4 53.2% 90.8%; /* {colors.dark-secondary-foreground} */
+  --muted: 30.0 17.1% 16.1%;      /* {colors.dark-surface-soft} */
+  --muted-foreground: 26.9 13.6% 58.2%; /* {colors.dark-mute} */
+  --accent: 27.4 60.7% 22.0%;     /* {colors.dark-accent} */
+  --accent-foreground: 37.7 92.1% 85.1%; /* {colors.dark-accent-foreground} */
+  --destructive: 3.0 80.3% 66.1%; /* {colors.dark-destructive} */
+  --destructive-foreground: 24.7 41.5% 8.0%; /* {colors.dark-destructive-foreground} */
+  --success: 131.9 34.5% 46.1%;   /* {colors.dark-success} */
+  --warning: 28.1 95.1% 52.0%;    /* {colors.dark-warning} */
+  --live: 33.4 92.5% 58.4%;       /* {colors.dark-live} */
+  --border: 32.0 14.9% 19.8%;     /* {colors.dark-border} */
+  --input: 32.0 14.9% 19.8%;      /* {colors.dark-border} */
+  --ring: 17.9 66.5% 55.5%;       /* {colors.dark-primary} */
+}
+
+/* ------------------------------------------------------------------ */
+/* Base                                                                */
+/* ------------------------------------------------------------------ */
+html {
+  color-scheme: light;
+}
+html.dark {
+  color-scheme: dark;
+}
+body {
+  @apply bg-background font-ui text-foreground antialiased;
+}
+
+/* Keyframes for tray-mark inner parts (same names/values as the
+   tailwind.config.ts keyframes — these target elements *inside* the
+   injected SVG markup, which utilities can't reach). */
+@keyframes breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.03); }
+}
+@keyframes pulse-ring {
+  0% { transform: scale(1); opacity: 0.5; }
+  100% { transform: scale(1.35); opacity: 0; }
+}
+@keyframes orbit {
+  to { transform: rotate(360deg); }
+}
+@keyframes wave-live {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+/* ------------------------------------------------------------------ */
+/* Tray marks                                                          */
+/* ------------------------------------------------------------------ */
+.tray-mark {
+  display: inline-flex;
+  flex: none;
+  line-height: 0;
+}
+.tray-mark svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Live-state loops — only applied when the board is simulating the
+   live condition AND reduced motion is off. GPU-only properties. */
+.tray-mark[data-anim="breathe"] svg {
+  transform-origin: center;
+  animation: breathe 3s ease-in-out infinite;
+}
+.tray-mark[data-anim="pulse"] .tr-live-ring {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: pulse-ring 1.2s ease-out infinite;
+}
+.tray-mark[data-anim="orbit"] svg {
+  transform-origin: center;
+  animation: orbit 1.6s linear infinite;
+}
+.tray-mark[data-anim="wave"] .tr-wave {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: wave-live 0.9s ease-in-out infinite;
+}
+.tray-mark[data-anim="wave"] .tr-wave-2 { animation-delay: 0.15s; }
+.tray-mark[data-anim="wave"] .tr-wave-3 { animation-delay: 0.3s; }
+
+/* Reduced motion (manual toggle + media query): freeze loops to a
+   static labeled state, halve transition durations. */
+.reduced-motion .tray-mark svg,
+.reduced-motion .tray-mark .tr-live-ring,
+.reduced-motion .tray-mark .tr-wave {
+  animation: none !important;
+}
+.reduced-motion .tray-mark .tr-live-ring {
+  opacity: 0 !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tray-mark svg,
+  .tray-mark .tr-live-ring,
+  .tray-mark .tr-wave {
+    animation: none !important;
+  }
+  .tray-mark .tr-live-ring {
+    opacity: 0 !important;
+  }
+  .rm-halve,
+  .rm-halve * {
+    transition-duration: 100ms !important;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Menu-bar mockup chrome                                              */
+/* ------------------------------------------------------------------ */
+.menubar-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border-radius: 7px;
+  white-space: nowrap;
+}
+.menubar-chip--light {
+  background: rgba(253, 252, 250, 0.92);
+  color: #2b241e; /* {colors.ink} */
+  box-shadow: inset 0 0 0 1px rgba(43, 36, 30, 0.10), 0 1px 2px rgba(43, 36, 30, 0.06);
+}
+.menubar-chip--dark {
+  background: rgba(26, 22, 19, 0.92);
+  color: #f2e9de; /* {colors.dark-ink} */
+  box-shadow: inset 0 0 0 1px rgba(242, 233, 222, 0.10), 0 1px 2px rgba(43, 36, 30, 0.12);
+}
+.menubar-chip .menubar-glyph {
+  opacity: 0.55;
+}
+
+/* Full menu-bar strip — "Dawn-light" and "night-dark" OS chrome. These are
+   platform chrome stand-ins (translucent white / warm near-black), mapped to
+   {colors.ink} / {colors.dark-ink} text; not product surfaces. */
+.menubar-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: 7px;
+  font-size: 13px;
+  line-height: 1;
+}
+.menubar-bar--light {
+  background: rgba(253, 252, 250, 0.94); /* surface over canvas, near {colors.surface} */
+  color: #2b241e; /* {colors.ink} */
+  box-shadow: inset 0 0 0 1px rgba(43, 36, 30, 0.10), 0 1px 2px rgba(43, 36, 30, 0.06);
+}
+.menubar-bar--dark {
+  background: rgba(26, 22, 19, 0.94); /* warm near-black, near {colors.dark-canvas} */
+  color: #f2e9de; /* {colors.dark-ink} */
+  box-shadow: inset 0 0 0 1px rgba(242, 233, 222, 0.10), 0 1px 2px rgba(43, 36, 30, 0.12);
+}
+/* Un-highlighted status item (default tray presentation). */
+.menubar-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  border-radius: 7px;
+}

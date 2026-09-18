@@ -363,6 +363,8 @@ fn day_string(ts_ms: u64) -> String {
     format!("{y:04}-{m:02}-{d:02}")
 }
 
+use crate::RequestRouter;
+
 const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS captures (
     capture_id TEXT PRIMARY KEY,
@@ -384,6 +386,71 @@ CREATE INDEX IF NOT EXISTS idx_captures_ts ON captures (ts);
 CREATE INDEX IF NOT EXISTS idx_captures_day ON captures (day);
 CREATE INDEX IF NOT EXISTS idx_captures_app ON captures (app);
 ";
+
+pub struct CaptureRouter {
+    store: CaptureStore,
+}
+
+impl CaptureRouter {
+    pub fn new(store: CaptureStore) -> Self {
+        Self { store }
+    }
+
+    fn scope_from_wire(raw: &str) -> Option<Scope> {
+        match raw {
+            "region" => Some(Scope::Region),
+            "window" => Some(Scope::Window),
+            "fullscreen" => Some(Scope::Fullscreen),
+            _ => None,
+        }
+    }
+
+    fn lookup(&self, params: &serde_json::Value) -> std::result::Result<serde_json::Value, String> {
+        let id = params
+            .get("id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| "capture.lookup requires string id".to_string())?;
+        match self.store.lookup(id).map_err(|e| e.to_string())? {
+            Some(record) => serde_json::to_value(record).map_err(|e| e.to_string()),
+            None => Err(format!("capture {id} not found")),
+        }
+    }
+
+    fn timeline(&self, params: &serde_json::Value) -> std::result::Result<serde_json::Value, String> {
+        let filter = TimelineFilter {
+            day: params
+                .get("day")
+                .and_then(|v| v.as_str())
+                .map(str::to_string),
+            app: params
+                .get("app")
+                .and_then(|v| v.as_str())
+                .map(str::to_string),
+            scope: params
+                .get("scope")
+                .and_then(|v| v.as_str())
+                .and_then(Self::scope_from_wire),
+            limit: params.get("limit").and_then(|v| v.as_u64()).unwrap_or(50),
+            offset: params.get("offset").and_then(|v| v.as_u64()).unwrap_or(0),
+        };
+        let records = self.store.timeline(&filter).map_err(|e| e.to_string())?;
+        serde_json::to_value(records).map_err(|e| e.to_string())
+    }
+}
+
+impl RequestRouter for CaptureRouter {
+    fn route(
+        &self,
+        method: &str,
+        params: &serde_json::Value,
+    ) -> std::result::Result<serde_json::Value, String> {
+        match method {
+            "capture.lookup" => self.lookup(params),
+            "timeline.query" => self.timeline(params),
+            other => Err(format!("unknown method: {other}")),
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {

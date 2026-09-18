@@ -1,0 +1,8 @@
+<!-- Ruòxī tray · state: listening · color: {colors.live} #d16405 (live states only — never text) -->
+<!-- Mic glyph; .tr-live-ring is the pulse-ring host (opacity 0 — board animation only, never exported). -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <circle class="tr-live-ring" cx="24" cy="24" r="21" fill="none" stroke="#d16405" stroke-width="3" opacity="0"/>
+  <rect x="19.5" y="9" width="9" height="17" rx="4.5" fill="#d16405"/>
+  <path d="M13.5 23.5 A10.5 10.5 0 0 0 34.5 23.5" fill="none" stroke="#d16405" stroke-width="4" stroke-linecap="round"/>
+  <path d="M24 34 V39.5" fill="none" stroke="#d16405" stroke-width="4" stroke-linecap="round"/>
+</svg>

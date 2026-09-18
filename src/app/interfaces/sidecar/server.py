@@ -9,10 +9,12 @@ is wired in M1.
 from __future__ import annotations
 
 import asyncio
+import json
+import os
 import sys
 import time
 import uuid
-from typing import TextIO
+from typing import Any, TextIO
 
 from app.interfaces.sidecar.envelopes import (
     PROTO_VER,
@@ -26,11 +28,12 @@ from app.interfaces.sidecar.envelopes import (
 
 _STARTED_AT = time.monotonic()
 _TOKEN_PAUSE_S = 0.02
-_MAX_CONCURRENT_ASKS = 1
+_UPSTREAM_TIMEOUT_S = float(os.environ.get("RUOXI_UPSTREAM_TIMEOUT_S", "5.0"))
 
 
 class SidecarServer:
-    """Single-reader JSON-RPC dispatcher over stdio."""
+    """JSON-RPC peer over stdio: serves the shell's requests and issues
+    upstream requests (Rust-backed tools) back over the same transport."""
 
     def __init__(self, reader: TextIO, writer: TextIO) -> None:
         self._reader = reader
@@ -39,11 +42,18 @@ class SidecarServer:
         self._ask_task: asyncio.Task[None] | None = None
         self._abort: asyncio.Event = asyncio.Event()
         self._busy = False
+        self._pending: dict[str, asyncio.Future[dict[str, Any]]] = {}
+        self._upstream_seq = 0
 
     async def _send(self, message: RpcResponse | RpcNotification) -> None:
         line = message.model_dump_json(exclude_none=True)
         async with self._write_lock:
             self._writer.write(line + "\n")
+            self._writer.flush()
+
+    async def _send_raw(self, payload: dict[str, Any]) -> None:
+        async with self._write_lock:
+            self._writer.write(json.dumps(payload) + "\n")
             self._writer.flush()
 
     async def _notify_token(self, answer_id: str, delta: str) -> None:
@@ -69,17 +79,25 @@ class SidecarServer:
             await self._ask_task
 
     async def _handle_line(self, line: str) -> None:
-        import json
-
         try:
             raw = json.loads(line)
+        except Exception:
+            return
+        if not isinstance(raw, dict):
+            return
+        if "method" in raw:
+            await self._handle_request(raw)
+        elif "id" in raw:
+            self._resolve_upstream(raw)
+
+    async def _handle_request(self, raw: dict[str, Any]) -> None:
+        try:
             request = RpcRequest.model_validate(raw)
         except Exception:
-            # Not parseable as a request: there is no id to answer, skip.
             return
         try:
             await self._dispatch(request)
-        except Exception as exc:  # internal handler failure
+        except Exception as exc:
             await self._send(
                 RpcResponse(
                     id=request.id,
@@ -88,6 +106,42 @@ class SidecarServer:
                     ),
                 )
             )
+
+    def _resolve_upstream(self, raw: dict[str, Any]) -> None:
+        rid = str(raw.get("id"))
+        future = self._pending.get(rid)
+        if future is not None and not future.done():
+            future.set_result(raw)
+
+    async def _request_upstream(
+        self, method: str, params: dict[str, Any]
+    ) -> dict[str, Any] | None:
+        self._upstream_seq += 1
+        rid = f"py-{self._upstream_seq}"
+        future: asyncio.Future[dict[str, Any]] = (
+            asyncio.get_running_loop().create_future()
+        )
+        self._pending[rid] = future
+        await self._send_raw(
+            {"jsonrpc": "2.0", "id": rid, "method": method, "params": params}
+        )
+        try:
+            return await asyncio.wait_for(future, _UPSTREAM_TIMEOUT_S)
+        except asyncio.TimeoutError:
+            return None
+        finally:
+            self._pending.pop(rid, None)
+
+    async def _lookup_capture(self, capture_id: str) -> str:
+        response = await self._request_upstream(
+            "capture.lookup", {"id": capture_id}
+        )
+        result = response.get("result") if response else None
+        if not isinstance(result, dict):
+            return f"[capture {capture_id} unavailable]"
+        app = result.get("app") or "unknown app"
+        title = result.get("window_title") or "untitled"
+        return f"{app} — {title}"
 
     async def _dispatch(self, request: RpcRequest) -> None:
         method = request.method
@@ -153,19 +207,18 @@ class SidecarServer:
         self, request_id: int, answer_id: str, params: AskParams
     ) -> None:
         try:
+            if self._abort.is_set():
+                await self._send_aborted(request_id)
+                return
+            subjects = [await self._lookup_capture(c) for c in params.capture_ids]
+            about = ", ".join(subjects) if subjects else "no captures"
             canned = (
-                f"[M0 stub] Heard: {params.transcript!r} with "
-                f"{len(params.capture_ids)} capture(s). The real agent loop "
-                "arrives in M1."
+                f"[M0 stub] Heard: {params.transcript!r} about {about}. "
+                "The real agent loop arrives in M1."
             )
             for word in canned.split(" "):
                 if self._abort.is_set():
-                    await self._send(
-                        RpcResponse(
-                            id=request_id,
-                            error=_err(ErrorCode.ABORTED, "aborted by user"),
-                        )
-                    )
+                    await self._send_aborted(request_id)
                     return
                 await self._notify_token(answer_id, word + " ")
                 await asyncio.sleep(_TOKEN_PAUSE_S)
@@ -183,6 +236,11 @@ class SidecarServer:
         finally:
             self._busy = False
             self._ask_task = None
+
+    async def _send_aborted(self, request_id: int) -> None:
+        await self._send(
+            RpcResponse(id=request_id, error=_err(ErrorCode.ABORTED, "aborted by user"))
+        )
 
 
 def _err(code: ErrorCode, message: str) -> RpcError:

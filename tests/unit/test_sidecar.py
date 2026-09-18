@@ -14,7 +14,11 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-ENV = {**os.environ, "PYTHONPATH": str(REPO_ROOT / "src")}
+ENV = {
+    **os.environ,
+    "PYTHONPATH": str(REPO_ROOT / "src"),
+    "RUOXI_UPSTREAM_TIMEOUT_S": "0.5",
+}
 
 
 class SidecarProcess:
@@ -131,6 +135,32 @@ def test_abort_mid_stream_returns_aborted_error() -> None:
         error = final["error"]
         assert isinstance(error, dict)
         assert error["code"] == -32000  # ErrorCode.ABORTED
+    finally:
+        sidecar.close()
+
+
+def test_ask_with_unanswered_upstream_lookup_degrades_gracefully() -> None:
+    sidecar = SidecarProcess()
+    try:
+        sidecar.request(1, "ping")
+        sidecar.send(
+            {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "session.ask",
+                "params": {"transcript": "explain this", "capture_ids": ["cap_missing"]},
+            }
+        )
+        final: dict[str, object] | None = None
+        for _ in range(200):
+            msg = sidecar.read_msg()
+            if msg.get("id") == 2:
+                final = msg
+                break
+        assert final is not None
+        result = final["result"]
+        assert isinstance(result, dict)
+        assert "[capture cap_missing unavailable]" in str(result["answer"])
     finally:
         sidecar.close()
 

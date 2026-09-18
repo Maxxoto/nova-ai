@@ -7,6 +7,7 @@
 
 use std::io;
 use std::process::Stdio;
+use std::sync::Arc;
 use std::time::Duration;
 
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -14,6 +15,7 @@ use tokio::process::{Child, ChildStdin, Command};
 use tokio::time::{sleep, Instant};
 
 use crate::settings;
+use crate::RequestRouter;
 
 const PING_TIMEOUT: Duration = Duration::from_secs(3);
 const MAX_RESTARTS: u32 = 5;
@@ -49,7 +51,7 @@ async fn supervise_once(app: &tauri::AppHandle) {
         if !sidecar.ping(PING_TIMEOUT).await {
             break;
         }
-        match sidecar.next_line(interval).await {
+        match sidecar.next_message(interval).await {
             LineState::Idle => {}
             LineState::Gone => break,
             LineState::Received(_) => {}
@@ -72,6 +74,7 @@ pub struct SidecarProcess {
     stdin: ChildStdin,
     lines: tokio::io::Lines<BufReader<tokio::process::ChildStdout>>,
     next_id: u64,
+    router: Option<Arc<dyn RequestRouter>>,
 }
 
 impl SidecarProcess {
@@ -94,7 +97,13 @@ impl SidecarProcess {
             stdin,
             lines: BufReader::new(stdout).lines(),
             next_id: 0,
+            router: None,
         })
+    }
+
+    pub fn with_router(mut self, router: Arc<dyn RequestRouter>) -> Self {
+        self.router = Some(router);
+        self
     }
 
     /// Sends a request and returns the id used for matching the response.
@@ -128,7 +137,7 @@ impl SidecarProcess {
             } else {
                 return None;
             };
-            match self.next_line(remaining).await {
+            match self.next_message(remaining).await {
                 LineState::Idle | LineState::Gone => return None,
                 LineState::Received(line) => {
                     if let Ok(value) = serde_json::from_str::<serde_json::Value>(&line) {
@@ -141,12 +150,60 @@ impl SidecarProcess {
         }
     }
 
+    /// Yields the next non-request line; inbound JSON-RPC requests from the
+    /// brain are routed and answered inline, never surfaced to the caller.
+    pub async fn next_message(&mut self, within: Duration) -> LineState {
+        loop {
+            match self.next_line(within).await {
+                LineState::Idle => return LineState::Idle,
+                LineState::Gone => return LineState::Gone,
+                LineState::Received(line) => {
+                    if !self.answer_if_request(&line).await {
+                        return LineState::Received(line);
+                    }
+                }
+            }
+        }
+    }
+
     pub async fn next_line(&mut self, within: Duration) -> LineState {
         match tokio::time::timeout(within, self.lines.next_line()).await {
             Err(_elapsed) => LineState::Idle,
             Ok(Err(_)) | Ok(Ok(None)) => LineState::Gone,
             Ok(Ok(Some(line))) => LineState::Received(line),
         }
+    }
+
+    async fn answer_if_request(&mut self, line: &str) -> bool {
+        let Ok(value) = serde_json::from_str::<serde_json::Value>(line) else {
+            return false;
+        };
+        if value.get("method").is_none() || value.get("id").is_none() {
+            return false;
+        }
+        let method = value["method"].as_str().unwrap_or_default().to_string();
+        let params = value.get("params").cloned().unwrap_or(serde_json::Value::Null);
+        let id = value["id"].clone();
+
+        let outcome = match self.router.as_ref() {
+            Some(router) => router.route(&method, &params).map_err(|message| {
+                serde_json::json!({ "code": -32000, "message": message })
+            }),
+            None => Err(serde_json::json!({
+                "code": -32601,
+                "message": format!("unknown method: {method}")
+            })),
+        };
+
+        let response = match outcome {
+            Ok(result) => serde_json::json!({ "jsonrpc": "2.0", "id": id, "result": result }),
+            Err(error) => serde_json::json!({ "jsonrpc": "2.0", "id": id, "error": error }),
+        };
+        let _ = self
+            .stdin
+            .write_all(format!("{response}\n").as_bytes())
+            .await;
+        true
     }
 
     pub async fn kill(&mut self) {

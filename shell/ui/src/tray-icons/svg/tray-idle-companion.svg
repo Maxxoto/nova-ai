@@ -1,0 +1,6 @@
+<!-- Ruòxī tray · idle concept C "Companion Cradle" · mark: {colors.primary} #c55026 · cradle: {colors.mute} #74655a -->
+<!-- A gentle arc cradles the dot — kawaii by shape alone, no face. Ruòxī resting in the menu bar. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <circle cx="24" cy="17" r="11" fill="#c55026"/>
+  <path d="M9.5 29 A18.5 18.5 0 0 0 38.5 29" fill="none" stroke="#74655a" stroke-width="4" stroke-linecap="round"/>
+</svg>

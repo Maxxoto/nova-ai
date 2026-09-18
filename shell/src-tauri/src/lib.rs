@@ -12,6 +12,14 @@ pub mod supervisor;
 
 mod tray;
 
+use serde_json::Value;
+
+/// Routes upstream JSON-RPC methods issued by the Python brain (Rust-backed
+/// tools per RFC-0008): `capture.lookup`, `timeline.query`, …
+pub trait RequestRouter: Send + Sync {
+    fn route(&self, method: &str, params: &Value) -> Result<Value, String>;
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|_app, _args, _cwd| {

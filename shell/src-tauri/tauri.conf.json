@@ -4,7 +4,10 @@
   "version": "0.1.0",
   "identifier": "com.ruoxi.shell",
   "build": {
-    "frontendDist": "../ui"
+    "frontendDist": "../ui/dist",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "pnpm --dir ../ui dev",
+    "beforeBuildCommand": "pnpm --dir ../ui build"
   },
   "app": {
     "windows": [],
