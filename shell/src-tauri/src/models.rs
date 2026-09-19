@@ -258,6 +258,7 @@ fn fetch_to(
     let mut hasher = Sha256::new();
     let mut logged_percent = 0u64;
     eprintln!("ruoxi: downloading {id} ({total} bytes) from {}", model.url);
+    let mut first_emit_logged = false;
     loop {
         let n = reader
             .read(&mut buffer)
@@ -281,10 +282,17 @@ fn fetch_to(
                 downloaded as f64 / 1_000_000.0
             );
         }
-        let _ = app.emit(
+        match app.emit(
             "model:progress",
             serde_json::json!({ "id": id, "downloaded": downloaded, "total": total }),
-        );
+        ) {
+            Ok(()) if !first_emit_logged => {
+                first_emit_logged = true;
+                eprintln!("ruoxi: model:progress events flowing (first emit ok: {downloaded}/{total})");
+            }
+            Err(e) => eprintln!("ruoxi: model:progress emit failed: {e}"),
+            Ok(()) => {}
+        }
     }
     if downloaded == 0 {
         return Err("empty download".to_string());
