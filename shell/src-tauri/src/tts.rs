@@ -131,8 +131,13 @@ static SPEAK_GEN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::n
 pub fn stop_speaking() {
     SPEAK_GEN.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     let taken = SPEAK.lock().map(|mut slot| slot.take()).ok().flatten();
-    if let Some(Speaking::System(mut child)) = taken {
-        let _ = child.kill();
+    match taken {
+        Some(Speaking::System(mut child)) => {
+            let _ = child.kill();
+        }
+        // Closing the sink's stream is what silences Kokoro playback.
+        Some(Speaking::Kokoro(sink)) => drop(sink),
+        None => {}
     }
 }
 
