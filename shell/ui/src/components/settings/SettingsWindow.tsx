@@ -4,11 +4,23 @@ import { getPermissionsStatus } from "../../permissions";
 import type { PermissionKind, PermissionsStatus } from "../../permissions";
 import { invokeTauriAsync, listenTauri } from "../../tauri";
 import { KBD } from "../onboarding/styles";
-import { LlmConfigSection, SttModelSection, TtsVoiceSection } from "./ModelSetup";
-
-/** Focus-visible ring per DESIGN.md — 2px primary, offset 2. */
-const FOCUS_RING =
-  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
+import { ModelsSection } from "./ModelSetup";
+import {
+  AppRow,
+  CHANGE_BUTTON,
+  DANGER_BUTTON,
+  FOCUS_RING,
+  GHOST_BUTTON_SM,
+  PERMISSION_ACTION_BUTTON,
+  PICK_BUTTON,
+  PRIMARY_BUTTON_SM,
+  Row,
+  SECONDARY_BUTTON,
+  Section,
+  Segmented,
+  Tag,
+  Toggle,
+} from "./primitives";
 
 /** Mirrors the cross-window event name in `App.tsx`. */
 const THEME_EVENT = "ruoxi:theme";
@@ -35,6 +47,7 @@ type Settings = {
   answer_length: AnswerLength;
   theme: Theme;
   default_scope: CaptureScope;
+  fullscreen_display_id: number | null;
   ptt_hotkey: string;
   sidecar_command: string;
   sidecar_args: string[];
@@ -49,6 +62,7 @@ const DEFAULT_SETTINGS: Settings = {
   answer_length: "short",
   theme: "system",
   default_scope: "window",
+  fullscreen_display_id: null,
   ptt_hotkey: "F8",
   sidecar_command: "python3",
   sidecar_args: ["-m", "app.interfaces.sidecar"],
@@ -210,6 +224,8 @@ function normalizeSettings(raw: unknown): Settings {
     answer_length: pick(ANSWER_LENGTHS, record.answer_length, DEFAULT_SETTINGS.answer_length),
     theme: pick(THEMES, record.theme, DEFAULT_SETTINGS.theme),
     default_scope: pick(SCOPES, record.default_scope, DEFAULT_SETTINGS.default_scope),
+    fullscreen_display_id:
+      typeof record.fullscreen_display_id === "number" ? record.fullscreen_display_id : null,
     ptt_hotkey:
       typeof record.ptt_hotkey === "string" && record.ptt_hotkey.trim().length > 0
         ? record.ptt_hotkey
@@ -272,181 +288,6 @@ function applyThemeClass(theme: Theme) {
   else if (theme === "dawn") root.classList.remove("dark");
   else root.classList.toggle("dark", window.matchMedia("(prefers-color-scheme: dark)").matches);
   window.dispatchEvent(new CustomEvent(THEME_EVENT, { detail: theme }));
-}
-
-const DANGER_BUTTON = `inline-flex h-7 items-center justify-center rounded border border-destructive bg-card px-2.5 font-ui text-[11px] font-semibold text-destructive transition-colors duration-200 hover:bg-destructive/10 disabled:cursor-default disabled:opacity-45 ${FOCUS_RING}`;
-const PERMISSION_ACTION_BUTTON = `inline-flex h-7 items-center justify-center rounded px-2.5 font-ui text-[11px] font-semibold text-muted-foreground transition-colors duration-200 hover:bg-muted hover:text-foreground ${FOCUS_RING}`;
-const SECONDARY_BUTTON = `inline-flex h-8 items-center justify-center whitespace-nowrap rounded border border-border-strong bg-card px-3 font-ui text-[13px] font-semibold text-foreground transition-colors duration-200 hover:bg-muted ${FOCUS_RING}`;
-const GHOST_BUTTON_SM = `inline-flex h-8 items-center justify-center rounded px-3 font-ui text-[13px] font-semibold text-muted-foreground transition-colors duration-200 hover:bg-muted hover:text-foreground ${FOCUS_RING}`;
-const CHANGE_BUTTON = `inline-flex h-7 items-center justify-center rounded border border-border-strong bg-card px-2.5 font-ui text-[11px] font-semibold text-foreground transition-colors duration-200 hover:bg-muted ${FOCUS_RING}`;
-const PRIMARY_BUTTON_SM = `inline-flex h-8 items-center justify-center whitespace-nowrap rounded bg-primary px-3 font-ui text-[13px] font-semibold text-primary-foreground transition-colors duration-200 hover:bg-primary-active disabled:cursor-default disabled:opacity-50 ${FOCUS_RING}`;
-
-function Toggle({ label, on, onChange }: { label: string; on: boolean; onChange: (next: boolean) => void }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      aria-label={label}
-      onClick={() => onChange(!on)}
-      className={`flex flex-none items-center rounded-pill border border-border bg-card p-[3px] shadow-e1 transition-colors duration-200 hover:border-border-strong ${FOCUS_RING}`}
-    >
-      <span
-        aria-hidden="true"
-        className={`relative inline-block rounded-pill transition-colors duration-200 ${
-          on ? "bg-primary" : "bg-muted"
-        }`}
-        style={{ height: 20, width: 36 }}
-      >
-        <span
-          className="absolute top-0.5 h-4 w-4 rounded-pill bg-card shadow-e1 transition-all duration-200"
-          style={{ left: on ? 18 : 2 }}
-        />
-      </span>
-    </button>
-  );
-}
-
-type TagTone = "neutral" | "ok" | "warn";
-
-function Tag({ children, tone = "neutral" }: { children: ReactNode; tone?: TagTone }) {
-  const toneClass =
-    tone === "ok"
-      ? "border-success text-success"
-      : tone === "warn"
-        ? "border-warning text-warning"
-        : "border-border text-muted-foreground";
-  return (
-    <span
-      className={`inline-flex w-fit flex-none items-center rounded-pill border bg-muted px-2.5 py-1 font-ui text-[11px] font-medium ${toneClass}`}
-    >
-      {children}
-    </span>
-  );
-}
-
-function Section({
-  title,
-  description,
-  headerExtra,
-  children,
-}: {
-  title: string;
-  description?: ReactNode;
-  headerExtra?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <section className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5">
-      <div className="flex flex-col gap-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <h2 className="font-ui text-[17px] font-semibold leading-[1.3] tracking-[-0.01em] text-foreground">
-            {title}
-          </h2>
-          {headerExtra}
-        </div>
-        {description ? (
-          <p className="max-w-[70ch] font-ui text-[14px] font-normal leading-[1.45] text-muted-foreground">
-            {description}
-          </p>
-        ) : null}
-      </div>
-      {children}
-    </section>
-  );
-}
-
-function Row({
-  label,
-  help,
-  side,
-  danger = false,
-}: {
-  label: string;
-  help: ReactNode;
-  side: ReactNode;
-  danger?: boolean;
-}) {
-  return (
-    <div className="flex items-start justify-between gap-6 border-t border-border py-3.5 first:border-t-0">
-      <div className="flex min-w-0 flex-col gap-1">
-        <span
-          className={`font-ui text-[14px] font-semibold leading-[1.4] ${
-            danger ? "text-destructive" : "text-foreground"
-          }`}
-        >
-          {label}
-        </span>
-        <p className="max-w-[70ch] font-ui text-[13px] leading-[1.45] text-muted-foreground">{help}</p>
-      </div>
-      <div className="flex flex-none items-center gap-2">{side}</div>
-    </div>
-  );
-}
-
-function AppRow({
-  mark,
-  name,
-  caption,
-  side,
-}: {
-  mark: string;
-  name: string;
-  caption: ReactNode;
-  side?: ReactNode;
-}) {
-  return (
-    <div className="flex items-center gap-3 rounded border border-border bg-card px-3 py-2.5">
-      <span
-        aria-hidden="true"
-        className="grid h-7 w-7 flex-none place-items-center rounded-[7px] border border-border bg-muted font-mono text-[11px] text-muted-foreground"
-      >
-        {mark}
-      </span>
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="font-ui text-[13px] font-semibold leading-[1.4] text-foreground">{name}</span>
-        <p className="font-ui text-[11px] leading-[1.4] text-muted-foreground">{caption}</p>
-      </div>
-      {side ? <div className="flex flex-none items-center gap-2">{side}</div> : null}
-    </div>
-  );
-}
-
-function Segmented<T extends string>({
-  ariaLabel,
-  value,
-  options,
-  onChange,
-}: {
-  ariaLabel: string;
-  value: T;
-  options: readonly { value: T; label: string }[];
-  onChange: (next: T) => void;
-}) {
-  return (
-    <div
-      role="group"
-      aria-label={ariaLabel}
-      className="inline-flex gap-0.5 rounded border border-border bg-muted p-0.5"
-    >
-      {options.map((option) => {
-        const selected = option.value === value;
-        return (
-          <button
-            key={option.value}
-            type="button"
-            aria-pressed={selected}
-            onClick={() => onChange(option.value)}
-            className={`rounded-sm px-2.5 py-1 font-ui text-[11px] font-semibold transition-colors duration-200 ${FOCUS_RING} ${
-              selected ? "bg-card text-foreground shadow-e1" : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {option.label}
-          </button>
-        );
-      })}
-    </div>
-  );
 }
 
 function ThemeSwatch({
@@ -678,6 +519,49 @@ function displayCaption(display: Display): string {
   return `${role} · ${display.width} × ${display.height} · scale ${display.scale}×${anchor}`;
 }
 
+/** Sidebar order mirrors the design's `side-nav` anchors one-to-one. */
+const SETTINGS_SECTIONS = [
+  { id: "privacy", label: "Privacy & data" },
+  { id: "autocapture", label: "Automatic capture" },
+  { id: "voice", label: "Voice and answers" },
+  { id: "models", label: "Models" },
+  { id: "displays", label: "Capture and displays" },
+  { id: "appearance", label: "Appearance" },
+  { id: "access", label: "Access" },
+  { id: "about", label: "About" },
+] as const;
+
+function SideNav({ active, onJump }: { active: string; onJump: (id: string) => void }) {
+  return (
+    <nav
+      aria-label="Settings sections"
+      className="flex flex-row flex-wrap gap-1 min-[920px]:sticky min-[920px]:top-[78px] min-[920px]:flex-col min-[920px]:flex-nowrap min-[920px]:gap-0.5"
+    >
+      {SETTINGS_SECTIONS.map((section) => {
+        const current = section.id === active;
+        return (
+          <a
+            key={section.id}
+            href={`#${section.id}`}
+            aria-current={current ? "true" : undefined}
+            onClick={(event) => {
+              event.preventDefault();
+              onJump(section.id);
+            }}
+            className={`rounded px-3 py-1.5 font-ui text-[13px] leading-[1.4] transition-colors duration-200 ${FOCUS_RING} ${
+              current
+                ? "bg-primary-soft font-semibold text-foreground"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            }`}
+          >
+            {section.label}
+          </a>
+        );
+      })}
+    </nav>
+  );
+}
+
 type HotkeyCommitResult = { ok: true } | { ok: false; message: string; tone: "error" | "muted" };
 
 function HotkeyKeycaps({ caps }: { caps: readonly string[] }) {
@@ -870,6 +754,7 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
   const [permissions, setPermissions] = useState<PermissionsStatus | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [permissionNote, setPermissionNote] = useState("");
+  const [activeSection, setActiveSection] = useState<string>("privacy");
 
   const apply = (next: Settings) => {
     settingsRef.current = next;
@@ -956,6 +841,31 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
     };
   }, []);
 
+  useEffect(() => {
+    const sections = SETTINGS_SECTIONS.map((section) => document.getElementById(section.id)).filter(
+      (element): element is HTMLElement => element !== null,
+    );
+    if (sections.length === 0) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) setActiveSection(entry.target.id);
+        }
+      },
+      { rootMargin: "-30% 0px -60% 0px" },
+    );
+    for (const element of sections) observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  const jumpToSection = (id: string) => {
+    setActiveSection(id);
+    document.getElementById(id)?.scrollIntoView({
+      behavior: reducedMotion ? "auto" : "smooth",
+      block: "start",
+    });
+  };
+
   /* Optimistic write: apply locally (theme also hits the root immediately),
      then persist the FULL object so untouched fields survive the round-trip. */
   const setField = (patch: Partial<Settings>) => {
@@ -1027,7 +937,7 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
 
   return (
     <div
-      className={`mx-auto flex w-full max-w-[720px] flex-col gap-5 p-8${reducedMotion ? " reduced-motion rm-halve" : ""}`}
+      className={`mx-auto flex w-full max-w-[980px] flex-col gap-5 p-8${reducedMotion ? " reduced-motion rm-halve" : ""}`}
     >
       <header className="flex flex-col gap-1">
         <span className="font-mono text-[11px] font-medium uppercase tracking-[0.09em] text-muted-foreground">
@@ -1043,7 +953,10 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
 
       <OfflineBanner offline={settings.offline} />
 
-      <Section title="Privacy">
+      <div className="grid grid-cols-1 items-start gap-8 min-[920px]:grid-cols-[200px_1fr] min-[920px]:gap-10">
+        <SideNav active={activeSection} onJump={jumpToSection} />
+        <div className="flex min-w-0 flex-col gap-6">
+          <Section id="privacy" title="Privacy">
         <div className="flex flex-col">
           <Row
             label="Offline mode — nothing leaves this Mac"
@@ -1095,6 +1008,7 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
       </Section>
 
       <Section
+        id="autocapture"
         title="Off for every app until you say otherwise."
         headerExtra={<Tag>Coming soon</Tag>}
         description="Each row says what would be stored."
@@ -1124,7 +1038,7 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
         </div>
       </Section>
 
-      <Section title="Voice and answers">
+      <Section id="voice" title="Voice and answers">
         <div className="flex flex-col">
           <PushToTalkRow value={settings.ptt_hotkey} onCommit={commitHotkey} />
           <p className="pt-1 font-ui text-[12px] leading-[1.5] text-muted-foreground">
@@ -1165,14 +1079,15 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
         </div>
       </Section>
 
-      <SttModelSection />
-      <TtsVoiceSection />
-      <LlmConfigSection />
-      <Section title="Displays">
+      <ModelsSection
+        offline={settings.offline}
+        onTurnOffOffline={() => setField({ offline: false })}
+      />
+      <Section id="displays" title="Displays">
         <div className="flex flex-col gap-3">
           <Row
-            label="Displays"
-            help="Full-screen capture uses the display under your cursor."
+            label="Full-screen capture"
+            help="Which display the whole-screen scope uses."
             side={<Tag>{displays === null ? "…" : `${displays.length} connected`}</Tag>}
           />
           {displays !== null && displays.length === 0 ? (
@@ -1180,14 +1095,30 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
           ) : null}
           {displays !== null && displays.length > 0 ? (
             <div className="flex flex-col gap-2">
-              {displays.map((display, index) => (
-                <AppRow
-                  key={display.id || String(index)}
-                  mark={String(index + 1)}
-                  name={display.name || "Display"}
-                  caption={displayCaption(display)}
-                />
-              ))}
+              {displays.map((display, index) => {
+                const displayNumber = Number(display.id);
+                const valid = Number.isInteger(displayNumber) && display.id.trim() !== "";
+                const picked = valid && settings.fullscreen_display_id === displayNumber;
+                return (
+                  <AppRow
+                    key={display.id || String(index)}
+                    mark={String(index + 1)}
+                    name={display.name || "Display"}
+                    caption={displayCaption(display)}
+                    side={
+                      <button
+                        type="button"
+                        aria-pressed={picked}
+                        disabled={!valid}
+                        onClick={() => setField({ fullscreen_display_id: displayNumber })}
+                        className={PICK_BUTTON}
+                      >
+                        Use for full screen
+                      </button>
+                    }
+                  />
+                );
+              })}
             </div>
           ) : null}
         </div>
@@ -1210,7 +1141,7 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
         </div>
       </Section>
 
-      <Section title="Appearance" description="Both themes use the same components.">
+      <Section id="appearance" title="Appearance" description="Both themes use the same components.">
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap gap-3" role="group" aria-label="Theme">
             <ThemeSwatch
@@ -1248,7 +1179,7 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
         </div>
       </Section>
 
-      <Section title="Access" description="Revoking one shows which features stop.">
+      <Section id="access" title="Access" description="Revoking one shows which features stop.">
         <div className="flex flex-col">
           {PERMISSION_ROWS.map((row) => {
             const granted = permissionGranted(row.kind, permissions);
@@ -1279,7 +1210,10 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
         </div>
       </Section>
 
-      <section className="flex items-start gap-4 rounded-xl border border-border bg-card p-5">
+      <section
+        id="about"
+        className="scroll-mt-24 flex items-start gap-4 rounded-xl border border-border bg-card p-5"
+      >
         <span
           aria-hidden="true"
           className="h-11 w-11 flex-none rounded-xl bg-gradient-to-br from-primary to-primary-active shadow-e1"
@@ -1297,6 +1231,8 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
           </div>
         </div>
       </section>
+        </div>
+      </div>
 
       {confirmOpen ? (
         <ConfirmDeleteDialog
