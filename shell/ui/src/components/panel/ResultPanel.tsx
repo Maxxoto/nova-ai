@@ -52,7 +52,13 @@ export default function ResultPanel({
       </div>
       {state === "complete" && (
         <div className="flex items-center justify-end border-t border-border px-4 py-3">
-          <SaveMemoryButton onSaved={onSaveMemory} />
+          {onSaveMemory ? (
+            <SaveMemoryButton onSaved={onSaveMemory} />
+          ) : (
+            <span className="font-mono text-[11px] leading-[1.4] text-muted-foreground">
+              Saving to memory arrives with memory grounding (M2) — nothing is saved yet.
+            </span>
+          )}
         </div>
       )}
     </section>
