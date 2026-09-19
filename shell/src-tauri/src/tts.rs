@@ -284,6 +284,18 @@ pub fn tts_download_kokoro(app: tauri::AppHandle) -> Result<String, String> {
     Ok(crate::models::KOKORO_DEFAULT_ID.to_string())
 }
 
+/// Total download size of the Kokoro bundle (default model + voicepacks) —
+/// the install-state rows read this instead of guessing which catalog
+/// entries the download covers.
+#[tauri::command]
+pub fn tts_bundle_bytes() -> u64 {
+    [crate::models::KOKORO_DEFAULT_ID, crate::models::KOKORO_VOICES_ID]
+        .iter()
+        .filter_map(|id| crate::models::any_entry(id))
+        .map(|model| model.size_bytes)
+        .sum()
+}
+
 #[tauri::command]
 pub async fn tts_synthesize(
     app: tauri::AppHandle,

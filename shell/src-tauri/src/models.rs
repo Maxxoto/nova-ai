@@ -155,10 +155,31 @@ pub fn file_sha256(path: &std::path::Path) -> Result<String, String> {
     Ok(digest.iter().map(|b| format!("{b:02x}")).collect())
 }
 
+static CANCEL_REQUESTS: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
+
+fn cancel_requested(id: &str) -> bool {
+    CANCEL_REQUESTS
+        .lock()
+        .map(|pending| pending.iter().any(|entry| entry == id))
+        .unwrap_or(false)
+}
+
+#[tauri::command]
+pub fn download_cancel(id: String) {
+    if let Ok(mut pending) = CANCEL_REQUESTS.lock() {
+        if !pending.iter().any(|entry| entry == &id) {
+            pending.push(id);
+        }
+    }
+}
+
 fn download(app: tauri::AppHandle, id: String) {
     let Some(model) = any_entry(&id) else {
         return;
     };
+    if let Ok(mut pending) = CANCEL_REQUESTS.lock() {
+        pending.retain(|entry| entry != &id);
+    }
     let dir = match models_dir(&app) {
         Ok(dir) => dir,
         Err(e) => {
@@ -181,7 +202,7 @@ fn download(app: tauri::AppHandle, id: String) {
         );
         return;
     }
-    let part_path = dir.join(format!("{}.part", model.file));
+    let part_path = dir.join(format!("{}.{}.part", model.file, ulid::Ulid::generate()));
     let result = fetch_to(&app, &id, model, &part_path).and_then(|sha256| {
         std::fs::rename(&part_path, &final_path).map_err(|e| format!("finalize download: {e}"))?;
         Ok(sha256)
@@ -228,6 +249,9 @@ fn fetch_to(
             .map_err(|e| format!("download interrupted: {e}"))?;
         if n == 0 {
             break;
+        }
+        if cancel_requested(id) {
+            return Err("cancelled".to_string());
         }
         hasher.update(&buffer[..n]);
         std::io::Write::write_all(&mut file, &buffer[..n])
