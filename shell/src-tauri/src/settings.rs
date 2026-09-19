@@ -48,7 +48,7 @@ fn default_stt() -> SttSettings {
 
 fn default_tts() -> TtsSettings {
     TtsSettings {
-        engine: "system".to_string(),
+        engine: "kokoro".to_string(),
         voice: String::new(),
         model: String::new(),
         rate: default_tts_rate(),
@@ -88,7 +88,7 @@ pub struct TtsSettings {
 }
 
 fn default_tts_engine() -> String {
-    "system".to_string()
+    "kokoro".to_string()
 }
 
 /// Non-secret LLM config; the API key lives in the macOS Keychain and is
