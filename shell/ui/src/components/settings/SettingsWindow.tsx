@@ -197,6 +197,9 @@ function normalizeSettings(raw: unknown): Settings {
   if (!raw || typeof raw !== "object") return DEFAULT_SETTINGS;
   const record = raw as Record<string, unknown>;
   return {
+    /* keep fields this window doesn't know (stt · tts · llm · …) so a toggle
+       never drops settings added elsewhere */
+    ...(record as Partial<Settings>),
     offline: typeof record.offline === "boolean" ? record.offline : DEFAULT_SETTINGS.offline,
     pause_captures:
       typeof record.pause_captures === "boolean" ? record.pause_captures : DEFAULT_SETTINGS.pause_captures,
