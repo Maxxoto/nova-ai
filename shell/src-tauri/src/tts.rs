@@ -66,7 +66,7 @@ pub fn tts_test_voice(app: tauri::AppHandle, voice: String, text: String) -> Res
     #[cfg(target_os = "macos")]
     {
         let phrase = if text.trim().is_empty() {
-            "Hello from Ruòxī."
+            "Hello from Ruo."
         } else {
             text.trim()
         };
@@ -147,8 +147,17 @@ pub fn speak_answer(app: &tauri::AppHandle, text: &str) {
     if !settings.read_aloud || text.trim().is_empty() {
         return;
     }
+    speak_text(app, text);
+}
+
+/// Speaks `text` with the configured engine, rate and voice; any current
+/// speech is cut first. Shared by the read-aloud setting and the panel's
+/// manual Read aloud button.
+pub fn speak_text(app: &tauri::AppHandle, text: &str) {
+    let settings = crate::settings::load(app);
     let voice = settings.tts.voice.clone();
     let engine = settings.tts.engine.clone();
+    let rate = settings.tts.rate;
     let app = app.clone();
     let phrase = text.to_string();
     stop_speaking();
@@ -164,8 +173,9 @@ pub fn speak_answer(app: &tauri::AppHandle, text: &str) {
                 } else {
                     voice
                 };
+                let speed = rate as f32;
                 let samples = tokio::task::spawn_blocking(move || {
-                    engine.synthesize_with_options(&phrase, Some(&voice), 1.0, 1.0, None)
+                    engine.synthesize_with_options(&phrase, Some(&voice), speed, 1.0, None)
                 })
                 .await;
                 let Ok(Ok(samples)) = samples else {
@@ -180,19 +190,42 @@ pub fn speak_answer(app: &tauri::AppHandle, text: &str) {
             }
             _ => {
                 #[cfg(target_os = "macos")]
-                if let Ok(child) = std::process::Command::new("say")
-                    .arg("-v")
-                    .arg(&voice)
-                    .arg(&phrase)
-                    .spawn()
                 {
-                    if let Ok(mut slot) = SPEAK.lock() {
-                        *slot = Some(Speaking::System(child));
+                    let wpm = (SAY_BASE_WPM * rate).round().clamp(80.0, 500.0) as u32;
+                    if let Ok(child) = std::process::Command::new("say")
+                        .arg("-v")
+                        .arg(&voice)
+                        .arg("-r")
+                        .arg(wpm.to_string())
+                        .arg(&phrase)
+                        .spawn()
+                    {
+                        if let Ok(mut slot) = SPEAK.lock() {
+                            *slot = Some(Speaking::System(child));
+                        }
                     }
+                }
+                #[cfg(not(target_os = "macos"))]
+                {
+                    let _ = &voice;
                 }
             }
         }
     });
+}
+
+#[tauri::command]
+pub fn tts_speak_text(app: tauri::AppHandle, text: String) -> Result<(), String> {
+    if text.trim().is_empty() {
+        return Err("nothing to read".to_string());
+    }
+    speak_text(&app, &text);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn tts_stop() {
+    stop_speaking();
 }
 
 /// Loads (and caches) the Kokoro engine from the app-data models. Present
@@ -305,7 +338,7 @@ pub async fn tts_synthesize(
     let engine = kokoro_engine(&app).await?;
     stop_speaking();
     let phrase = if text.trim().is_empty() {
-        "Hello from Ruòxī.".to_string()
+        "Hello from Ruo.".to_string()
     } else {
         text.trim().to_string()
     };

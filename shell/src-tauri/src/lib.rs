@@ -79,6 +79,8 @@ pub fn run() {
             tts::tts_download_kokoro,
             tts::tts_bundle_bytes,
             tts::tts_synthesize,
+            tts::tts_speak_text,
+            tts::tts_stop,
             models::tts_model_catalog,
             models::tts_model_select,
             llm::llm_save_config,

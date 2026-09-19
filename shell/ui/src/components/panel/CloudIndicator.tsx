@@ -1,77 +1,80 @@
 import type { ReactElement } from "react";
 import type { NetState } from "./types";
 
-function CloudHollow(): ReactElement {
+type GlyphProps = { className?: string };
+
+function CloudHollow({ className }: GlyphProps): ReactElement {
   return (
     <svg
       viewBox="0 0 24 24"
-      className="cloud-glyph"
+      className={`cloud-glyph ${className ?? ""}`}
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.8"
+      strokeWidth="1.7"
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
     >
-      <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z" />
+      <path d="M7 18h9a4 4 0 0 0 .6-8A5.5 5.5 0 0 0 6 9.4 3.8 3.8 0 0 0 7 18Z" />
     </svg>
   );
 }
 
-function CloudOff(): ReactElement {
+function CloudOff({ className }: GlyphProps): ReactElement {
   return (
     <svg
       viewBox="0 0 24 24"
-      className="cloud-glyph"
+      className={`cloud-glyph ${className ?? ""}`}
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.8"
+      strokeWidth="1.7"
       strokeLinecap="round"
-      strokeLinejoin="round"
       aria-hidden="true"
     >
-      <path d="M22.61 16.95A5 5 0 0 0 18 10h-1.26a8 8 0 0 0-7.05-6M5 5a8 8 0 0 0 4 15h9a5 5 0 0 0 1.7-.3" />
-      <line x1="1" y1="1" x2="23" y2="23" />
+      <path d="M4 4l16 16" />
+      <path d="M7 18h9a4 4 0 0 0 2-7.5" />
+      <path d="M6 9.4A3.8 3.8 0 0 0 7 18" />
     </svg>
   );
 }
 
-function CloudUpload(): ReactElement {
+function CloudUpload({ className }: GlyphProps): ReactElement {
   return (
     <svg
       viewBox="0 0 24 24"
-      className="cloud-glyph"
+      className={`cloud-glyph ${className ?? ""}`}
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.8"
+      strokeWidth="1.7"
       strokeLinecap="round"
-      strokeLinejoin="round"
       aria-hidden="true"
     >
-      <path d="M20 16.58A5 5 0 0 0 18 7h-1.26A8 8 0 1 0 4 15.25" />
-      <polyline points="16 16 12 12 8 16" />
-      <line x1="12" y1="12" x2="12" y2="21" />
+      <path d="M7 18h9a4 4 0 0 0 .6-8A5.5 5.5 0 0 0 6 9.4 3.8 3.8 0 0 0 7 18Z" />
+      <path d="M12 11v5m0-5-2 2m2-2 2 2" />
     </svg>
   );
 }
 
-const META: Record<NetState, { label: string; tone: string; dot: string; icon: () => ReactElement }> = {
+const META: Record<
+  NetState,
+  { label: string; iconClass: string; dotClass: string; icon: (props: GlyphProps) => ReactElement }
+> = {
   offline: {
-    label: "Offline · nothing leaves this Mac",
-    tone: "text-muted-foreground",
-    dot: "bg-muted-foreground",
+    label: "Offline",
+    iconClass: "text-muted-foreground",
+    dotClass: "bg-muted-foreground",
     icon: CloudOff,
   },
   local_only: {
     label: "Local Only",
-    tone: "text-success",
-    dot: "bg-success",
+    iconClass: "text-success",
+    dotClass: "bg-success",
     icon: CloudHollow,
   },
   calling_cloud: {
     label: "Sending to Cloud",
-    tone: "text-warning",
-    dot: "bg-live animate-pulse-ring",
+    iconClass: "text-live",
+    dotClass: "bg-live animate-pulse-ring",
     icon: CloudUpload,
   },
 };
@@ -81,11 +84,11 @@ export default function CloudIndicator({ net }: { net: NetState }) {
   return (
     <span
       role="status"
-      className={`inline-flex flex-none items-center gap-1.5 whitespace-nowrap rounded-pill border border-border bg-muted px-2 py-[3px] font-ui text-[11px] font-medium ${meta.tone}`}
+      className="inline-flex flex-none items-center gap-1.5 whitespace-nowrap rounded-pill border border-border bg-card px-2.5 py-1 font-ui text-[11px] font-medium text-muted-foreground"
     >
-      <meta.icon />
+      <meta.icon className={`h-[13px] w-[13px] ${meta.iconClass}`} />
+      <span className={`h-[7px] w-[7px] flex-none rounded-full ${meta.dotClass}`} aria-hidden="true" />
       <span>{meta.label}</span>
-      <span className={`h-1.5 w-1.5 rounded-full ${meta.dot}`} aria-hidden="true" />
     </span>
   );
 }

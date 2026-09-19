@@ -321,13 +321,27 @@ export default function App() {
 
   if (panelView) {
     return (
-      <div className={`flex min-h-screen justify-center p-3${reducedMotion ? " reduced-motion rm-halve" : ""}`}>
+      <div
+        className={`flex min-h-screen items-start justify-center p-3${reducedMotion ? " reduced-motion rm-halve" : ""}`}
+      >
         <ResultPanel
           state={isTauri ? liveState : panelViewState}
           net={isTauri ? liveNet : panelViewNet}
           answer={isTauri ? liveAnswer : DEMO_ANSWER}
           capture={isTauri ? liveCapture : DEMO_CAPTURE}
           reducedMotion={reducedMotion}
+          onRetry={
+            isTauri
+              ? () => {
+                  if (!liveCapture) return;
+                  setLiveState("thinking");
+                  invokeTauriAsync("session_ask", {
+                    transcript: LIVE_ASK_TRANSCRIPT,
+                    captureIds: [liveCapture.id],
+                  })?.catch(() => undefined);
+                }
+              : undefined
+          }
           onDismiss={
             isTauri
               ? () => {
@@ -483,6 +497,7 @@ export default function App() {
                   capture={DEMO_CAPTURE}
                   reducedMotion={reducedMotion}
                   onSaveMemory={() => undefined}
+                  onRetry={() => setPanelState("thinking")}
                   onDismiss={() => setPanelVisible(false)}
                 />
               ) : (
@@ -498,6 +513,7 @@ export default function App() {
                   capture={DEMO_CAPTURE}
                   reducedMotion={reducedMotion}
                   onSaveMemory={() => undefined}
+                  onRetry={() => setPanelState("thinking")}
                   onDismiss={() => setPanelVisible(false)}
                 />
               ) : (
@@ -518,6 +534,7 @@ export default function App() {
                     capture={DEMO_CAPTURE}
                     reducedMotion={reducedMotion}
                     onSaveMemory={() => undefined}
+                    onRetry={() => undefined}
                   />
                 </PanelStage>,
                 <PanelStage key={`night-${state}`} label={`${state} · ${net} · night`} dark>
@@ -528,6 +545,7 @@ export default function App() {
                     capture={DEMO_CAPTURE}
                     reducedMotion={reducedMotion}
                     onSaveMemory={() => undefined}
+                    onRetry={() => undefined}
                   />
                 </PanelStage>,
               ])}

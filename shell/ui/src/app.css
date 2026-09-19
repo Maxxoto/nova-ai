@@ -227,9 +227,9 @@ html.panel-view body {
 /* panel-shell surface: DESIGN.md vibrancy — surface at 78% + blur(24px)
    saturate(140%); fallback = 97% opacity, no blur (RFC-0002 risk #3). */
 .panel-surface {
-  background: hsl(var(--card) / 0.78);
-  -webkit-backdrop-filter: blur(24px) saturate(140%);
-  backdrop-filter: blur(24px) saturate(140%);
+  background: hsl(var(--card) / 0.94);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+  backdrop-filter: blur(22px) saturate(140%);
 }
 @supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
   .panel-surface {
@@ -280,50 +280,41 @@ html.panel-view body {
   border-color: hsl(var(--destructive));
   animation: none;
 }
-.orb-wave {
-  position: absolute;
-  inset: 0;
-  border-radius: 9999px;
-  border: 1.5px solid hsl(var(--primary));
-  animation: orb-wave 0.9s ease-out infinite;
+.orb-speaking {
+  animation: orb-speak 0.9s ease-in-out infinite;
 }
-.orb-wave-2 {
-  animation-delay: 0.45s;
-}
-@keyframes orb-wave {
-  0% {
-    transform: scale(0.75);
-    opacity: 0.55;
-  }
+@keyframes orb-speak {
+  0%,
   100% {
-    transform: scale(1.45);
-    opacity: 0;
+    transform: scaleY(0.45);
+  }
+  50% {
+    transform: scaleY(1);
   }
 }
 .orb-orbit {
   position: absolute;
-  inset: 0;
+  inset: -8px;
   animation: orbit 1.6s linear infinite;
 }
 .orb-orbit i {
   position: absolute;
-  width: 4px;
-  height: 4px;
+  top: 50%;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  margin: -3px;
   border-radius: 9999px;
   background: hsl(var(--thinking-text));
 }
 .orb-orbit i:nth-child(1) {
-  top: 0;
-  left: 50%;
-  margin-left: -2px;
+  transform: translate(19px, 0);
 }
 .orb-orbit i:nth-child(2) {
-  bottom: 0;
-  left: 1px;
+  transform: translate(-9px, 16px);
 }
 .orb-orbit i:nth-child(3) {
-  bottom: 0;
-  right: 1px;
+  transform: translate(-9px, -16px);
 }
 .orb-dots {
   position: absolute;
@@ -339,17 +330,11 @@ html.panel-view body {
   border-radius: 9999px;
   background: hsl(var(--primary-foreground) / 0.9);
 }
-.orb-glyph {
-  position: absolute;
-  inset: 22%;
-  color: hsl(var(--primary-foreground) / 0.95);
-}
-
 /* Cloud indicator */
 .cloud-glyph {
   flex: none;
-  width: 12px;
-  height: 12px;
+  width: 13px;
+  height: 13px;
 }
 
 /* Answer stream */
