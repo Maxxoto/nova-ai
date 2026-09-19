@@ -1,0 +1,1302 @@
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
+import { getPermissionsStatus } from "../../permissions";
+import type { PermissionKind, PermissionsStatus } from "../../permissions";
+import { invokeTauriAsync, listenTauri } from "../../tauri";
+import { KBD } from "../onboarding/styles";
+
+/** Focus-visible ring per DESIGN.md — 2px primary, offset 2. */
+const FOCUS_RING =
+  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
+
+/** Mirrors the cross-window event name in `App.tsx`. */
+const THEME_EVENT = "ruoxi:theme";
+
+const THEMES = ["system", "dawn", "night"] as const;
+type Theme = (typeof THEMES)[number];
+const ANSWER_LENGTHS = ["short", "normal"] as const;
+type AnswerLength = (typeof ANSWER_LENGTHS)[number];
+const SCOPES = ["window", "fullscreen"] as const;
+type CaptureScope = (typeof SCOPES)[number];
+
+/** The four modifiers the backend hotkey parser accepts (`global-hotkey`). */
+type HotkeyModifier = "Cmd" | "Ctrl" | "Alt" | "Shift";
+
+/**
+ * Persisted shell settings — mirrors `shell/src-tauri/src/settings.rs`.
+ * `offline` is ON by default: privacy-first, nothing leaves the Mac.
+ */
+type Settings = {
+  offline: boolean;
+  pause_captures: boolean;
+  launch_at_login: boolean;
+  read_aloud: boolean;
+  answer_length: AnswerLength;
+  theme: Theme;
+  default_scope: CaptureScope;
+  ptt_hotkey: string;
+  sidecar_command: string;
+  sidecar_args: string[];
+  ping_interval_secs: number;
+};
+
+const DEFAULT_SETTINGS: Settings = {
+  offline: true,
+  pause_captures: false,
+  launch_at_login: false,
+  read_aloud: false,
+  answer_length: "short",
+  theme: "system",
+  default_scope: "window",
+  ptt_hotkey: "F8",
+  sidecar_command: "python3",
+  sidecar_args: ["-m", "app.interfaces.sidecar"],
+  ping_interval_secs: 5,
+};
+
+type CaptureStats = { count: number; bytes: number; oldest_ms: number | null };
+type Display = { id: string; name: string; width: number; height: number; scale: number; primary: boolean };
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item: unknown) => typeof item === "string");
+}
+
+function pick<T extends string>(values: readonly T[], raw: unknown, fallback: T): T {
+  return typeof raw === "string" && (values as readonly string[]).includes(raw) ? (raw as T) : fallback;
+}
+
+/** Modifier tokens in the stable order the accelerator string is written with. */
+const HOTKEY_MODIFIER_ORDER: readonly HotkeyModifier[] = ["Cmd", "Ctrl", "Alt", "Shift"];
+
+const HOTKEY_MODIFIER_GLYPH: Record<HotkeyModifier, string> = {
+  Cmd: "⌘",
+  Ctrl: "⌃",
+  Alt: "⌥",
+  Shift: "⇧",
+};
+
+const HOTKEY_MODIFIER_CODES: Record<string, HotkeyModifier> = {
+  MetaLeft: "Cmd",
+  MetaRight: "Cmd",
+  ControlLeft: "Ctrl",
+  ControlRight: "Ctrl",
+  AltLeft: "Alt",
+  AltRight: "Alt",
+  ShiftLeft: "Shift",
+  ShiftRight: "Shift",
+};
+
+const HOTKEY_MODIFIER_ALIASES: Record<string, HotkeyModifier> = {
+  cmd: "Cmd",
+  command: "Cmd",
+  super: "Cmd",
+  ctrl: "Ctrl",
+  control: "Ctrl",
+  alt: "Alt",
+  option: "Alt",
+  shift: "Shift",
+};
+
+/** `KeyboardEvent.code` → a key name the backend parser accepts; `null` when unmappable. */
+const HOTKEY_CODE_TOKENS: Record<string, string> = {
+  Space: "Space",
+  ArrowUp: "Up",
+  ArrowDown: "Down",
+  ArrowLeft: "Left",
+  ArrowRight: "Right",
+  Backquote: "Backquote",
+  Backslash: "Backslash",
+  BracketLeft: "BracketLeft",
+  BracketRight: "BracketRight",
+  Comma: "Comma",
+  Equal: "Equal",
+  Minus: "Minus",
+  Period: "Period",
+  Quote: "Quote",
+  Semicolon: "Semicolon",
+  Slash: "Slash",
+  Enter: "Enter",
+  NumpadEnter: "NumpadEnter",
+  Tab: "Tab",
+  Backspace: "Backspace",
+  Delete: "Delete",
+  Home: "Home",
+  End: "End",
+  PageUp: "PageUp",
+  PageDown: "PageDown",
+  Insert: "Insert",
+  NumpadAdd: "NumpadAdd",
+  NumpadSubtract: "NumpadSubtract",
+  NumpadMultiply: "NumpadMultiply",
+  NumpadDivide: "NumpadDivide",
+  NumpadDecimal: "NumpadDecimal",
+  NumpadEqual: "NumpadEqual",
+  AudioVolumeUp: "VolumeUp",
+  AudioVolumeDown: "VolumeDown",
+  AudioVolumeMute: "VolumeMute",
+  MediaPlay: "MediaPlay",
+  MediaPause: "MediaPause",
+  MediaPlayPause: "MediaPlayPause",
+  MediaStop: "MediaStop",
+  MediaTrackNext: "MediaTrackNext",
+  MediaTrackPrevious: "MediaTrackPrevious",
+};
+
+const HOTKEY_KEY_GLYPHS: Record<string, string> = {
+  Space: "Space",
+  Up: "↑",
+  Down: "↓",
+  Left: "←",
+  Right: "→",
+  Enter: "↩",
+  NumpadEnter: "↩",
+  Tab: "⇥",
+  Backspace: "⌫",
+  Delete: "⌦",
+  PageUp: "⇞",
+  PageDown: "⇟",
+  Home: "↖",
+  End: "↘",
+};
+
+function hotkeyKeyToken(code: string): string | null {
+  if (/^Key[A-Z]$/.test(code)) return code.slice(3);
+  if (/^Digit[0-9]$/.test(code)) return code.slice(5);
+  if (/^F([1-9]|1[0-9]|2[0-4])$/.test(code)) return code;
+  if (/^Numpad[0-9]$/.test(code)) return code;
+  return HOTKEY_CODE_TOKENS[code] ?? null;
+}
+
+function hotkeyKeyGlyph(token: string): string {
+  return HOTKEY_KEY_GLYPHS[token] ?? token;
+}
+
+function hotkeyAccelerator(modifiers: readonly HotkeyModifier[], keyToken: string): string {
+  const ordered = HOTKEY_MODIFIER_ORDER.filter((modifier) => modifiers.includes(modifier));
+  return [...ordered, keyToken].join("+");
+}
+
+function hotkeyKeycaps(accelerator: string): string[] {
+  const trimmed = accelerator.trim();
+  if (!trimmed) return [];
+  return trimmed.split("+").map((raw) => {
+    const token = raw.trim();
+    const modifier = HOTKEY_MODIFIER_ALIASES[token.toLowerCase()];
+    if (modifier) return HOTKEY_MODIFIER_GLYPH[modifier];
+    return hotkeyKeyGlyph(token);
+  });
+}
+
+function hotkeyErrorMessage(error: unknown): string {
+  if (typeof error === "string" && error.trim().length > 0) return error;
+  if (error instanceof Error && error.message.trim().length > 0) return error.message;
+  return "That hotkey can't be used — try another.";
+}
+
+function normalizeSettings(raw: unknown): Settings {
+  if (!raw || typeof raw !== "object") return DEFAULT_SETTINGS;
+  const record = raw as Record<string, unknown>;
+  return {
+    offline: typeof record.offline === "boolean" ? record.offline : DEFAULT_SETTINGS.offline,
+    pause_captures:
+      typeof record.pause_captures === "boolean" ? record.pause_captures : DEFAULT_SETTINGS.pause_captures,
+    launch_at_login:
+      typeof record.launch_at_login === "boolean" ? record.launch_at_login : DEFAULT_SETTINGS.launch_at_login,
+    read_aloud: typeof record.read_aloud === "boolean" ? record.read_aloud : DEFAULT_SETTINGS.read_aloud,
+    answer_length: pick(ANSWER_LENGTHS, record.answer_length, DEFAULT_SETTINGS.answer_length),
+    theme: pick(THEMES, record.theme, DEFAULT_SETTINGS.theme),
+    default_scope: pick(SCOPES, record.default_scope, DEFAULT_SETTINGS.default_scope),
+    ptt_hotkey:
+      typeof record.ptt_hotkey === "string" && record.ptt_hotkey.trim().length > 0
+        ? record.ptt_hotkey
+        : DEFAULT_SETTINGS.ptt_hotkey,
+    sidecar_command:
+      typeof record.sidecar_command === "string" ? record.sidecar_command : DEFAULT_SETTINGS.sidecar_command,
+    sidecar_args: isStringArray(record.sidecar_args) ? record.sidecar_args : DEFAULT_SETTINGS.sidecar_args,
+    ping_interval_secs:
+      typeof record.ping_interval_secs === "number"
+        ? record.ping_interval_secs
+        : DEFAULT_SETTINGS.ping_interval_secs,
+  };
+}
+
+function normalizeStats(raw: unknown): CaptureStats {
+  if (!raw || typeof raw !== "object") return { count: 0, bytes: 0, oldest_ms: null };
+  const record = raw as Record<string, unknown>;
+  return {
+    count: typeof record.count === "number" ? record.count : 0,
+    bytes: typeof record.bytes === "number" ? record.bytes : 0,
+    oldest_ms: typeof record.oldest_ms === "number" ? record.oldest_ms : null,
+  };
+}
+
+function normalizeDisplays(raw: unknown): Display[] {
+  if (!Array.isArray(raw)) return [];
+  const displays: Display[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const record = item as Record<string, unknown>;
+    displays.push({
+      id: typeof record.id === "string" ? record.id : "",
+      name: typeof record.name === "string" ? record.name : "",
+      width: typeof record.width === "number" ? record.width : 0,
+      height: typeof record.height === "number" ? record.height : 0,
+      scale: typeof record.scale === "number" ? record.scale : 1,
+      primary: record.primary === true,
+    });
+  }
+  return displays;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes <= 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  const value = bytes / 1024 ** exponent;
+  return `${exponent === 0 ? String(value) : value.toFixed(1)} ${units[exponent]}`;
+}
+
+function ageLabel(oldestMs: number): string {
+  const days = Math.max(0, Math.floor((Date.now() - oldestMs) / 86_400_000));
+  if (days === 0) return "oldest today";
+  return `oldest ${days} day${days === 1 ? "" : "s"}`;
+}
+
+function storeSummary(stats: CaptureStats): string {
+  if (stats.count === 0) return "No captures yet — nothing is stored on this Mac.";
+  const captures = `${stats.count} capture${stats.count === 1 ? "" : "s"}`;
+  const age = stats.oldest_ms === null ? "oldest unknown" : ageLabel(stats.oldest_ms);
+  return `${formatBytes(stats.bytes)} across ${captures} · ${age} · stored per-user, encrypted at rest by the OS.`;
+}
+
+function applyThemeClass(theme: Theme) {
+  const root = document.documentElement;
+  if (theme === "night") root.classList.add("dark");
+  else if (theme === "dawn") root.classList.remove("dark");
+  else root.classList.toggle("dark", window.matchMedia("(prefers-color-scheme: dark)").matches);
+  window.dispatchEvent(new CustomEvent(THEME_EVENT, { detail: theme }));
+}
+
+const DANGER_BUTTON = `inline-flex h-7 items-center justify-center rounded border border-destructive bg-card px-2.5 font-ui text-[11px] font-semibold text-destructive transition-colors duration-200 hover:bg-destructive/10 disabled:cursor-default disabled:opacity-45 ${FOCUS_RING}`;
+const PERMISSION_ACTION_BUTTON = `inline-flex h-7 items-center justify-center rounded px-2.5 font-ui text-[11px] font-semibold text-muted-foreground transition-colors duration-200 hover:bg-muted hover:text-foreground ${FOCUS_RING}`;
+const SECONDARY_BUTTON = `inline-flex h-8 items-center justify-center whitespace-nowrap rounded border border-border-strong bg-card px-3 font-ui text-[13px] font-semibold text-foreground transition-colors duration-200 hover:bg-muted ${FOCUS_RING}`;
+const GHOST_BUTTON_SM = `inline-flex h-8 items-center justify-center rounded px-3 font-ui text-[13px] font-semibold text-muted-foreground transition-colors duration-200 hover:bg-muted hover:text-foreground ${FOCUS_RING}`;
+const CHANGE_BUTTON = `inline-flex h-7 items-center justify-center rounded border border-border-strong bg-card px-2.5 font-ui text-[11px] font-semibold text-foreground transition-colors duration-200 hover:bg-muted ${FOCUS_RING}`;
+const PRIMARY_BUTTON_SM = `inline-flex h-8 items-center justify-center whitespace-nowrap rounded bg-primary px-3 font-ui text-[13px] font-semibold text-primary-foreground transition-colors duration-200 hover:bg-primary-active disabled:cursor-default disabled:opacity-50 ${FOCUS_RING}`;
+
+function Toggle({ label, on, onChange }: { label: string; on: boolean; onChange: (next: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-label={label}
+      onClick={() => onChange(!on)}
+      className={`flex flex-none items-center rounded-pill border border-border bg-card p-[3px] shadow-e1 transition-colors duration-200 hover:border-border-strong ${FOCUS_RING}`}
+    >
+      <span
+        aria-hidden="true"
+        className={`relative inline-block rounded-pill transition-colors duration-200 ${
+          on ? "bg-primary" : "bg-muted"
+        }`}
+        style={{ height: 20, width: 36 }}
+      >
+        <span
+          className="absolute top-0.5 h-4 w-4 rounded-pill bg-card shadow-e1 transition-all duration-200"
+          style={{ left: on ? 18 : 2 }}
+        />
+      </span>
+    </button>
+  );
+}
+
+type TagTone = "neutral" | "ok" | "warn";
+
+function Tag({ children, tone = "neutral" }: { children: ReactNode; tone?: TagTone }) {
+  const toneClass =
+    tone === "ok"
+      ? "border-success text-success"
+      : tone === "warn"
+        ? "border-warning text-warning"
+        : "border-border text-muted-foreground";
+  return (
+    <span
+      className={`inline-flex w-fit flex-none items-center rounded-pill border bg-muted px-2.5 py-1 font-ui text-[11px] font-medium ${toneClass}`}
+    >
+      {children}
+    </span>
+  );
+}
+
+function Section({
+  eyebrow,
+  title,
+  description,
+  headerExtra,
+  children,
+}: {
+  eyebrow: string;
+  title: string;
+  description?: ReactNode;
+  headerExtra?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <section className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5">
+      <div className="flex flex-col gap-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+            {eyebrow}
+          </span>
+          {headerExtra}
+        </div>
+        <h2 className="font-ui text-[17px] font-semibold leading-[1.3] tracking-[-0.01em] text-foreground">
+          {title}
+        </h2>
+        {description ? (
+          <p className="max-w-[70ch] font-ui text-[14px] font-normal leading-[1.45] text-muted-foreground">
+            {description}
+          </p>
+        ) : null}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function Row({
+  label,
+  help,
+  side,
+  danger = false,
+}: {
+  label: string;
+  help: ReactNode;
+  side: ReactNode;
+  danger?: boolean;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-6 border-t border-border py-3.5 first:border-t-0">
+      <div className="flex min-w-0 flex-col gap-1">
+        <span
+          className={`font-ui text-[14px] font-semibold leading-[1.4] ${
+            danger ? "text-destructive" : "text-foreground"
+          }`}
+        >
+          {label}
+        </span>
+        <p className="max-w-[70ch] font-ui text-[13px] leading-[1.45] text-muted-foreground">{help}</p>
+      </div>
+      <div className="flex flex-none items-center gap-2">{side}</div>
+    </div>
+  );
+}
+
+function AppRow({
+  mark,
+  name,
+  caption,
+  side,
+}: {
+  mark: string;
+  name: string;
+  caption: ReactNode;
+  side?: ReactNode;
+}) {
+  return (
+    <div className="flex items-center gap-3 rounded border border-border bg-card px-3 py-2.5">
+      <span
+        aria-hidden="true"
+        className="grid h-7 w-7 flex-none place-items-center rounded-[7px] border border-border bg-muted font-mono text-[11px] text-muted-foreground"
+      >
+        {mark}
+      </span>
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="font-ui text-[13px] font-semibold leading-[1.4] text-foreground">{name}</span>
+        <p className="font-ui text-[11px] leading-[1.4] text-muted-foreground">{caption}</p>
+      </div>
+      {side ? <div className="flex flex-none items-center gap-2">{side}</div> : null}
+    </div>
+  );
+}
+
+function Segmented<T extends string>({
+  ariaLabel,
+  value,
+  options,
+  onChange,
+}: {
+  ariaLabel: string;
+  value: T;
+  options: readonly { value: T; label: string }[];
+  onChange: (next: T) => void;
+}) {
+  return (
+    <div
+      role="group"
+      aria-label={ariaLabel}
+      className="inline-flex gap-0.5 rounded border border-border bg-muted p-0.5"
+    >
+      {options.map((option) => {
+        const selected = option.value === value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            aria-pressed={selected}
+            onClick={() => onChange(option.value)}
+            className={`rounded-sm px-2.5 py-1 font-ui text-[11px] font-semibold transition-colors duration-200 ${FOCUS_RING} ${
+              selected ? "bg-card text-foreground shadow-e1" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function ThemeSwatch({
+  selected,
+  label,
+  caption,
+  preview,
+  onSelect,
+}: {
+  selected: boolean;
+  label: string;
+  caption: string;
+  preview: ReactNode;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      onClick={onSelect}
+      className={`flex min-w-0 flex-1 basis-[30%] flex-col items-start gap-1.5 rounded border bg-card p-3 text-left transition-colors duration-200 ${FOCUS_RING} ${
+        selected ? "border-primary ring-2 ring-primary" : "border-border hover:border-border-strong"
+      }`}
+    >
+      <span className="flex h-11 w-full overflow-hidden rounded-sm border border-border">{preview}</span>
+      <span className="font-ui text-[13px] font-semibold leading-[1.4] text-foreground">{label}</span>
+      <span className="font-ui text-[11px] leading-[1.4] text-muted-foreground">{caption}</span>
+    </button>
+  );
+}
+
+const DAWN_PREVIEW = (
+  <>
+    <span className="flex-1 bg-background" />
+    <span className="flex-1 bg-card" />
+    <span className="flex-1 bg-primary" />
+  </>
+);
+
+const NIGHT_PREVIEW = (
+  <span className="dark flex h-full flex-1">
+    <span className="flex-1 bg-background" />
+    <span className="flex-1 bg-card" />
+    <span className="flex-1 bg-primary" />
+  </span>
+);
+
+const SYSTEM_PREVIEW = (
+  <>
+    <span className="flex flex-1">
+      <span className="flex-1 bg-background" />
+      <span className="flex-1 bg-card" />
+      <span className="flex-1 bg-primary" />
+    </span>
+    <span className="dark flex flex-1">
+      <span className="flex-1 bg-background" />
+      <span className="flex-1 bg-card" />
+      <span className="flex-1 bg-primary" />
+    </span>
+  </>
+);
+
+function CloudOffGlyph({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.7}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M4 4l16 16" />
+      <path d="M7 18h9a4 4 0 0 0 2-7.5" />
+      <path d="M6 9.4A3.8 3.8 0 0 0 7 18" />
+    </svg>
+  );
+}
+
+function CloudGlyph({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.7}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M7 18h9a4 4 0 0 0 .6-8A5.5 5.5 0 0 0 6 9.4 3.8 3.8 0 0 0 7 18Z" />
+    </svg>
+  );
+}
+
+function OfflineBanner({ offline }: { offline: boolean }) {
+  return (
+    <div className="flex items-center gap-3 rounded border border-border bg-muted p-3.5">
+      <span
+        aria-hidden="true"
+        className={`grid h-[30px] w-[30px] flex-none place-items-center rounded-[9px] border border-border bg-card ${
+          offline ? "text-muted-foreground" : "text-success"
+        }`}
+      >
+        {offline ? <CloudOffGlyph className="h-4 w-4" /> : <CloudGlyph className="h-4 w-4" />}
+      </span>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <span className="font-ui text-[14px] font-semibold leading-[1.4] text-foreground">
+          {offline ? "Offline mode is on" : "Cloud answers are allowed on request"}
+        </span>
+        <p className="font-ui text-[13px] leading-[1.45] text-muted-foreground">
+          {offline
+            ? "Zero network calls. Captures, answers and memory all stay on this Mac — the only thing that would change that is you turning this off."
+            : "Requests may reach the cloud when an answer needs it. The chip beside this line says what is happening at this second, and the tray shows the same."}
+        </p>
+      </div>
+      <span className="inline-flex flex-none items-center gap-1.5 rounded-pill border border-border bg-card px-2.5 py-1 font-ui text-[11px] font-medium text-muted-foreground">
+        <span
+          aria-hidden="true"
+          className={`h-[7px] w-[7px] rounded-pill ${offline ? "bg-muted-foreground" : "bg-success"}`}
+        />
+        {offline ? "offline" : "local only"}
+      </span>
+    </div>
+  );
+}
+
+function ConfirmDeleteDialog({
+  count,
+  onCancel,
+  onConfirm,
+}: {
+  count: number;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const [typed, setTyped] = useState("");
+  const inputId = useId();
+  const titleId = useId();
+  const canDelete = typed === "DELETE";
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onCancel();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onCancel]);
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center p-6">
+      <div aria-hidden="true" className="absolute inset-0 bg-foreground/40" onClick={onCancel} />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="relative w-[440px] max-w-full rounded-lg border border-border bg-card p-6 shadow-e3"
+      >
+        <h3 id={titleId} className="font-ui text-[17px] font-semibold leading-[1.3] text-foreground">
+          {count === 0 ? "Delete all captures?" : `Delete all ${count} capture${count === 1 ? "" : "s"}?`}
+        </h3>
+        <p className="mt-2 font-ui text-[13px] leading-[1.45] text-muted-foreground">
+          This removes every stored capture from this Mac. It cannot be undone. Type{" "}
+          <span className="font-mono font-medium text-foreground">DELETE</span> to confirm.
+        </p>
+        <div className="mt-4 flex flex-col gap-1.5">
+          <label htmlFor={inputId} className="font-ui text-[13px] text-muted-foreground">
+            Confirmation
+          </label>
+          <input
+            id={inputId}
+            value={typed}
+            autoFocus
+            spellCheck={false}
+            autoComplete="off"
+            onChange={(event) => setTyped(event.target.value)}
+            className={`rounded border border-border bg-card px-3 py-2 font-ui text-[13px] text-foreground focus:border-primary ${FOCUS_RING}`}
+          />
+        </div>
+        <div className="mt-5 flex justify-end gap-2">
+          <button type="button" onClick={onCancel} className={GHOST_BUTTON_SM}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={!canDelete}
+            onClick={onConfirm}
+            className={`inline-flex h-8 items-center justify-center rounded border border-destructive bg-card px-3 font-ui text-[13px] font-semibold text-destructive transition-colors duration-200 hover:bg-destructive/10 disabled:cursor-default disabled:opacity-50 ${FOCUS_RING}`}
+          >
+            Delete all
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const PERMISSION_ROWS: { kind: PermissionKind; name: string; help: string }[] = [
+  {
+    kind: "screen_recording",
+    name: "Screen Recording",
+    help: "Needed for region, window and full-screen capture. Without it, only voice questions work.",
+  },
+  {
+    kind: "microphone",
+    name: "Microphone",
+    help: "Needed for push-to-talk. Without it, the pill still appears but asks you to type.",
+  },
+  {
+    kind: "accessibility",
+    name: "Accessibility",
+    help: "Needed for the global hotkeys only. Ruòxī never clicks or types on your behalf.",
+  },
+];
+
+function permissionGranted(kind: PermissionKind, status: PermissionsStatus | null): boolean {
+  if (!status) return false;
+  if (kind === "screen_recording") return status.screen_recording;
+  if (kind === "microphone") return status.microphone === "granted";
+  return status.accessibility;
+}
+
+function displayCaption(display: Display): string {
+  const role = display.primary ? "Primary" : "Secondary";
+  const anchor = display.primary ? " · panel anchor" : "";
+  return `${role} · ${display.width} × ${display.height} · scale ${display.scale}×${anchor}`;
+}
+
+type HotkeyCommitResult = { ok: true } | { ok: false; message: string; tone: "error" | "muted" };
+
+function HotkeyKeycaps({ caps }: { caps: readonly string[] }) {
+  return (
+    <span className="flex flex-none items-center gap-1">
+      {caps.map((cap, index) => (
+        <kbd
+          key={`${cap}-${String(index)}`}
+          className={`${KBD} inline-flex min-w-[1.75rem] items-center justify-center`}
+        >
+          {cap}
+        </kbd>
+      ))}
+    </span>
+  );
+}
+
+function PushToTalkRow({
+  value,
+  onCommit,
+}: {
+  value: string;
+  onCommit: (accel: string) => Promise<HotkeyCommitResult>;
+}) {
+  const [recording, setRecording] = useState(false);
+  const [captured, setCaptured] = useState<string | null>(null);
+  const [held, setHeld] = useState<HotkeyModifier[]>([]);
+  const [feedback, setFeedback] = useState<{ message: string; tone: "error" | "muted" } | null>(null);
+  const [saving, setSaving] = useState(false);
+  const surfaceRef = useRef<HTMLDivElement | null>(null);
+  const changeRef = useRef<HTMLButtonElement | null>(null);
+
+  const closeRecorder = useCallback((refocus: boolean) => {
+    setRecording(false);
+    setCaptured(null);
+    setHeld([]);
+    setFeedback(null);
+    setSaving(false);
+    if (refocus) requestAnimationFrame(() => changeRef.current?.focus());
+  }, []);
+
+  const openRecorder = () => {
+    setCaptured(null);
+    setHeld([]);
+    setFeedback(null);
+    setSaving(false);
+    setRecording(true);
+  };
+
+  useEffect(() => {
+    if (recording) surfaceRef.current?.focus();
+  }, [recording]);
+
+  useEffect(() => {
+    if (!recording) return;
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      closeRecorder(true);
+    };
+    window.addEventListener("keydown", onEscape, true);
+    return () => window.removeEventListener("keydown", onEscape, true);
+  }, [recording, closeRecorder]);
+
+  const onSurfaceKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Tab") return;
+    event.preventDefault();
+    event.stopPropagation();
+    const modifier = HOTKEY_MODIFIER_CODES[event.code];
+    if (modifier) {
+      setHeld((prev) => (prev.includes(modifier) ? prev : [...prev, modifier]));
+      return;
+    }
+    const keyToken = hotkeyKeyToken(event.code);
+    if (!keyToken) {
+      setFeedback({ tone: "error", message: "That key can't be used for a hotkey — try another." });
+      return;
+    }
+    const modifiers: HotkeyModifier[] = [];
+    if (event.metaKey) modifiers.push("Cmd");
+    if (event.ctrlKey) modifiers.push("Ctrl");
+    if (event.altKey) modifiers.push("Alt");
+    if (event.shiftKey) modifiers.push("Shift");
+    setCaptured(hotkeyAccelerator(modifiers, keyToken));
+    setFeedback(null);
+  };
+
+  const onSurfaceKeyUp = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    const modifier = HOTKEY_MODIFIER_CODES[event.code];
+    if (modifier) setHeld((prev) => prev.filter((item) => item !== modifier));
+  };
+
+  const useThis = () => {
+    if (!captured || saving) return;
+    const accel = captured;
+    setSaving(true);
+    void onCommit(accel).then((result) => {
+      if (result.ok) {
+        closeRecorder(true);
+        return;
+      }
+      setSaving(false);
+      setFeedback({ tone: result.tone, message: result.message });
+    });
+  };
+
+  if (recording) {
+    const caps = captured ? hotkeyKeycaps(captured) : held.map((modifier) => HOTKEY_MODIFIER_GLYPH[modifier]);
+    return (
+      <div
+        ref={surfaceRef}
+        tabIndex={0}
+        role="group"
+        aria-label="Press the key you want to hold to talk. Modifiers optional. Escape cancels."
+        onKeyDown={onSurfaceKeyDown}
+        onKeyUp={onSurfaceKeyUp}
+        onBlur={() => setHeld([])}
+        className={`flex flex-col gap-3 rounded-lg border-2 border-primary bg-muted p-4 ${FOCUS_RING}`}
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 flex-col gap-1">
+            <span className="font-ui text-[14px] font-semibold leading-[1.4] text-foreground">
+              Press the key you want to hold to talk
+            </span>
+            <span className="font-mono text-[11px] leading-[1.4] text-muted-foreground">
+              Modifiers optional · Tab moves on · Esc cancels
+            </span>
+          </div>
+          {caps.length > 0 ? (
+            <HotkeyKeycaps caps={caps} />
+          ) : (
+            <span className="font-mono text-[11px] text-muted-foreground">waiting…</span>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p
+            aria-live="polite"
+            className={`min-h-[1.05rem] font-ui text-[13px] leading-[1.4] ${
+              feedback?.tone === "error" ? "text-destructive" : "text-muted-foreground"
+            }`}
+          >
+            {feedback?.message ?? ""}
+          </p>
+          <div className="flex flex-none items-center gap-2">
+            <button type="button" disabled={!captured || saving} onClick={useThis} className={PRIMARY_BUTTON_SM}>
+              Use this
+            </button>
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => closeRecorder(true)}
+              className={GHOST_BUTTON_SM}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const caps = hotkeyKeycaps(value);
+  return (
+    <Row
+      label="Push-to-talk hotkey"
+      help="Hold to talk; release to send. The pill appears within 100ms and disappears 300ms after the transcript finalises."
+      side={
+        <>
+          {caps.length > 0 ? (
+            <HotkeyKeycaps caps={caps} />
+          ) : (
+            <span className="font-mono text-[11px] text-muted-foreground">unset</span>
+          )}
+          <button ref={changeRef} type="button" onClick={openRecorder} className={CHANGE_BUTTON}>
+            Change
+          </button>
+        </>
+      }
+    />
+  );
+}
+
+export default function SettingsWindow({ reducedMotion = false }: { reducedMotion?: boolean }) {
+  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  /** Latest settings for event handlers, so writes never race a re-render. */
+  const settingsRef = useRef<Settings>(DEFAULT_SETTINGS);
+  const [stats, setStats] = useState<CaptureStats | null>(null);
+  const [displays, setDisplays] = useState<Display[] | null>(null);
+  const [permissions, setPermissions] = useState<PermissionsStatus | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  const apply = (next: Settings) => {
+    settingsRef.current = next;
+    setSettings(next);
+  };
+
+  const refreshStats = () => {
+    const pending = invokeTauriAsync("capture_store_stats");
+    if (!pending) {
+      setStats({ count: 0, bytes: 0, oldest_ms: null });
+      return;
+    }
+    pending.then(
+      (raw) => setStats(normalizeStats(raw)),
+      () => undefined,
+    );
+  };
+
+  useEffect(() => {
+    let off: (() => void) | null = null;
+    void (async () => {
+      off = await listenTauri<unknown>("settings:changed", (payload) => {
+        apply(normalizeSettings(payload));
+      });
+    })();
+    return () => {
+      off?.();
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    const pendingSettings = invokeTauriAsync("get_settings");
+    if (pendingSettings) {
+      pendingSettings.then(
+        (raw) => {
+          if (!active) return;
+          const next = normalizeSettings(raw);
+          applyThemeClass(next.theme);
+          apply(next);
+        },
+        () => undefined,
+      );
+    }
+
+    const pendingStats = invokeTauriAsync("capture_store_stats");
+    if (pendingStats) {
+      pendingStats.then(
+        (raw) => {
+          if (active) setStats(normalizeStats(raw));
+        },
+        () => {
+          if (active) setStats({ count: 0, bytes: 0, oldest_ms: null });
+        },
+      );
+    } else {
+      setStats({ count: 0, bytes: 0, oldest_ms: null });
+    }
+
+    const pendingDisplays = invokeTauriAsync("list_displays");
+    if (pendingDisplays) {
+      pendingDisplays.then(
+        (raw) => {
+          if (active) setDisplays(normalizeDisplays(raw));
+        },
+        () => {
+          if (active) setDisplays([]);
+        },
+      );
+    } else {
+      setDisplays([]);
+    }
+
+    getPermissionsStatus().then(
+      (status) => {
+        if (active) setPermissions(status);
+      },
+      () => undefined,
+    );
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  /* Optimistic write: apply locally (theme also hits the root immediately),
+     then persist the FULL object so untouched fields survive the round-trip. */
+  const setField = (patch: Partial<Settings>) => {
+    const next = { ...settingsRef.current, ...patch };
+    if (patch.theme) applyThemeClass(patch.theme);
+    apply(next);
+    invokeTauriAsync("set_settings", { settings: next })?.catch(() => undefined);
+  };
+
+  /* Push-to-talk rebinding is not optimistic: validate first, then persist the
+     FULL object and only apply locally once the write resolves. */
+  const commitHotkey = async (accel: string): Promise<HotkeyCommitResult> => {
+    const validation = invokeTauriAsync("validate_hotkey", { accel });
+    if (!validation) {
+      return {
+        ok: false,
+        tone: "muted",
+        message: "Saving a hotkey needs the desktop app — this preview can't validate or persist it.",
+      };
+    }
+    try {
+      await validation;
+    } catch (error) {
+      return { ok: false, tone: "error", message: hotkeyErrorMessage(error) };
+    }
+    const next = { ...settingsRef.current, ptt_hotkey: accel };
+    const write = invokeTauriAsync("set_settings", { settings: next });
+    if (!write) return { ok: false, tone: "muted", message: "Saving a hotkey needs the desktop app." };
+    try {
+      await write;
+    } catch {
+      return {
+        ok: false,
+        tone: "error",
+        message: "Couldn't save that hotkey — your previous shortcut is unchanged.",
+      };
+    }
+    apply(next);
+    return { ok: true };
+  };
+
+  const handleDeleteAll = () => {
+    setConfirmOpen(false);
+    const pending = invokeTauriAsync("capture_delete_all");
+    if (!pending) {
+      refreshStats();
+      return;
+    }
+    pending.then(
+      () => refreshStats(),
+      () => refreshStats(),
+    );
+  };
+
+  const openPane = (kind: PermissionKind) => {
+    invokeTauriAsync("open_privacy_pane", { kind })?.catch(() => undefined);
+  };
+
+  const runOnboarding = () => {
+    invokeTauriAsync("show_onboarding")?.catch(() => undefined);
+  };
+
+  const storeHelp = stats === null ? "Reading the local store…" : storeSummary(stats);
+
+  return (
+    <div
+      className={`mx-auto flex w-full max-w-[720px] flex-col gap-5 p-8${reducedMotion ? " reduced-motion rm-halve" : ""}`}
+    >
+      <header className="flex flex-col gap-1">
+        <h1 className="font-ui text-[22px] font-bold leading-[1.2] tracking-[-0.02em] text-foreground">
+          Trust is a setting, not a promise.
+        </h1>
+        <p className="font-ui text-[14px] leading-[1.45] text-muted-foreground">
+          Everything that could expose you lives here in plain language — what is stored, what is sent, what is
+          deleted, and how to stop all of it.
+        </p>
+      </header>
+
+      <OfflineBanner offline={settings.offline} />
+
+      <Section eyebrow="Privacy & data" title="What leaves this machine, and what never does.">
+        <div className="flex flex-col">
+          <Row
+            label="Offline mode — nothing leaves this Mac"
+            help="Instant, no restart. The moment it flips, the trust chip moves to offline in the panel, the tray and here. Answers that need the cloud will say so instead of silently sending."
+            side={
+              <Toggle
+                label="Offline mode"
+                on={settings.offline}
+                onChange={(next) => setField({ offline: next })}
+              />
+            }
+          />
+          <Row
+            label="Voice audio"
+            help="Ephemeral by design: the temporary audio is deleted about a minute after a session ends, and no replay surface exists anywhere in the app. Only the live mic level is ever drawn."
+            side={<Tag tone="ok">deleted ≈1 min</Tag>}
+          />
+          <Row
+            label="Local store"
+            help={storeHelp}
+            side={
+              <button type="button" onClick={() => setConfirmOpen(true)} className={DANGER_BUTTON}>
+                Delete all…
+              </button>
+            }
+          />
+          <Row
+            label="Send diagnostics"
+            help="Off. Crash reports stay local unless you export them yourself — the app is MIT-licensed and open source, so you can read what would be sent."
+            side={<Tag>off</Tag>}
+          />
+        </div>
+      </Section>
+
+      <Section
+        eyebrow="Auto-capture"
+        title="Off for every app until you say otherwise."
+        headerExtra={<Tag>Phase 2 · not shipped</Tag>}
+        description="Each row states plainly what would be stored and when it would capture. Nothing here is on by default, and the tray shows a paused state whenever capture is off for everything."
+      >
+        <div className="flex flex-col gap-2">
+          <AppRow
+            mark="Sa"
+            name="Safari"
+            caption="Would capture the active tab's visible area after 30s of stillness · text only, no images from pages"
+            side={<Tag>off</Tag>}
+          />
+          <AppRow
+            mark="Pv"
+            name="Preview"
+            caption="Would capture the open page region when you highlight text · never a full-screen grab"
+            side={<Tag>off</Tag>}
+          />
+          <AppRow
+            mark="VS"
+            name="VS Code"
+            caption="Would capture the visible editor only when an error appears · excludes terminals and secrets panes"
+            side={<Tag>off</Tag>}
+          />
+          <p className="pt-1 font-mono text-[11px] leading-[1.4] text-muted-foreground">
+            Capture is off everywhere. The tray glyph stays in the paused state.
+          </p>
+        </div>
+      </Section>
+
+      <Section eyebrow="Voice & answers" title="How she listens and how she answers.">
+        <div className="flex flex-col">
+          <PushToTalkRow value={settings.ptt_hotkey} onCommit={commitHotkey} />
+          <p className="pt-1 font-mono text-[11px] leading-[1.4] text-muted-foreground">
+            Applies after the next app start — the listener is bound for the life of this run.
+          </p>
+          <Row
+            label="Read answers aloud"
+            help="Off by default. When it ships, the panel will show the live speaking waveform and Esc will always stop the audio."
+            side={
+              <>
+                <Tag>not shipped</Tag>
+                <Toggle
+                  label="Read answers aloud"
+                  on={settings.read_aloud}
+                  onChange={(next) => setField({ read_aloud: next })}
+                />
+              </>
+            }
+          />
+          <Row
+            label="Answer length"
+            help="Short answers by default. Long-form answers never replace the short one."
+            side={
+              <>
+                <Tag>not active yet</Tag>
+                <Segmented
+                  ariaLabel="Answer length"
+                  value={settings.answer_length}
+                  onChange={(next) => setField({ answer_length: next })}
+                  options={[
+                    { value: "short", label: "Short" },
+                    { value: "normal", label: "Normal" },
+                  ]}
+                />
+              </>
+            }
+          />
+        </div>
+      </Section>
+
+      <Section eyebrow="Capture & displays" title="Which screen, and how precise.">
+        <div className="flex flex-col gap-3">
+          <Row
+            label="Displays"
+            help="The panel is positioned on the display under your cursor and re-clamps when displays change."
+            side={<Tag>{displays === null ? "…" : `${displays.length} connected`}</Tag>}
+          />
+          {displays !== null && displays.length === 0 ? (
+            <p className="font-mono text-[11px] leading-[1.4] text-muted-foreground">
+              No displays reported on this platform.
+            </p>
+          ) : null}
+          {displays !== null && displays.length > 0 ? (
+            <div className="flex flex-col gap-2">
+              {displays.map((display, index) => (
+                <AppRow
+                  key={display.id || String(index)}
+                  mark={String(index + 1)}
+                  name={display.name || "Display"}
+                  caption={displayCaption(display)}
+                />
+              ))}
+            </div>
+          ) : null}
+        </div>
+        <div className="flex flex-col">
+          <Row
+            label="Default capture scope"
+            help="What a voice ask captures when you do not box anything."
+            side={
+              <Segmented
+                ariaLabel="Default capture scope"
+                value={settings.default_scope}
+                onChange={(next) => setField({ default_scope: next })}
+                options={[
+                  { value: "window", label: "Active window" },
+                  { value: "fullscreen", label: "Whole screen" },
+                ]}
+              />
+            }
+          />
+        </div>
+      </Section>
+
+      <Section
+        eyebrow="Appearance"
+        title="Dawn by day, night after dusk."
+        description="Both themes carry the same tokens — no component is designed for one and tolerated in the other."
+      >
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-wrap gap-3" role="group" aria-label="Theme">
+            <ThemeSwatch
+              selected={settings.theme === "dawn"}
+              label="Dawn sky"
+              caption="Cool paper canvas, dawn-blue accent"
+              preview={DAWN_PREVIEW}
+              onSelect={() => setField({ theme: "dawn" })}
+            />
+            <ThemeSwatch
+              selected={settings.theme === "night"}
+              label="Night before dawn"
+              caption="Deep night-blue, brighter blue accent"
+              preview={NIGHT_PREVIEW}
+              onSelect={() => setField({ theme: "night" })}
+            />
+            <ThemeSwatch
+              selected={settings.theme === "system"}
+              label="Follow the system"
+              caption="Switches with macOS appearance"
+              preview={SYSTEM_PREVIEW}
+              onSelect={() => setField({ theme: "system" })}
+            />
+          </div>
+          <p className="font-mono text-[11px] leading-[1.4] text-muted-foreground">
+            Choosing a theme here applies immediately — the same tokens every screen uses.
+          </p>
+        </div>
+        <div className="flex flex-col">
+          <Row
+            label="Reduce motion"
+            help="Follows the OS setting. Loops stop, durations halve, and the live waveform freezes into a labelled static icon."
+            side={<Tag>{reducedMotion ? "reduce" : "system"}</Tag>}
+          />
+        </div>
+      </Section>
+
+      <Section
+        eyebrow="Permissions"
+        title="Re-run the setup ritual any time."
+        description="Each permission keeps the reason it was granted for, and revoking one explains exactly which features stop working."
+      >
+        <div className="flex flex-col">
+          {PERMISSION_ROWS.map((row) => {
+            const granted = permissionGranted(row.kind, permissions);
+            return (
+              <Row
+                key={row.kind}
+                label={row.name}
+                help={row.help}
+                side={
+                  <>
+                    <Tag tone={granted ? "ok" : "neutral"}>{granted ? "granted" : "not granted"}</Tag>
+                    <button type="button" onClick={() => openPane(row.kind)} className={PERMISSION_ACTION_BUTTON}>
+                      {granted ? "Revoke" : "Grant"}
+                    </button>
+                  </>
+                }
+              />
+            );
+          })}
+          <div className="flex flex-wrap items-center gap-3 pt-4">
+            <button type="button" onClick={runOnboarding} className={SECONDARY_BUTTON}>
+              Run the setup ritual again
+            </button>
+            <span className="font-mono text-[11px] leading-[1.4] text-muted-foreground">
+              Grant and Revoke both open the matching pane in System Settings; nothing changes from here.
+            </span>
+          </div>
+        </div>
+      </Section>
+
+      <Section eyebrow="About" title="Ruòxī 若曦">
+        <div className="flex items-start gap-4 rounded-lg border border-border bg-muted p-4">
+          <span
+            aria-hidden="true"
+            className="h-11 w-11 flex-none rounded-xl bg-gradient-to-br from-primary to-primary-active shadow-e1"
+          />
+          <div className="flex min-w-0 flex-1 flex-col gap-2">
+            <p className="font-ui text-[13px] leading-[1.45] text-muted-foreground">
+              A tray-resident desktop companion for macOS and Windows. MIT licensed and open source, so the
+              privacy claims on this page are auditable rather than aspirational.
+            </p>
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="font-mono text-[11px] font-medium text-foreground">M0 · v0.1</span>
+              <span className="font-mono text-[11px] font-medium text-muted-foreground">云思考，本地记忆</span>
+            </div>
+          </div>
+        </div>
+      </Section>
+
+      {confirmOpen ? (
+        <ConfirmDeleteDialog
+          count={stats?.count ?? 0}
+          onCancel={() => setConfirmOpen(false)}
+          onConfirm={handleDeleteAll}
+        />
+      ) : null}
+    </div>
+  );
+}
