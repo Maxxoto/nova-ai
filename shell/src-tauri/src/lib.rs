@@ -29,9 +29,9 @@ mod tray;
 #[cfg(target_os = "macos")]
 fn tray_state_icon(listening: bool) -> tauri::image::Image<'static> {
     let bytes: &[u8] = if listening {
-        include_bytes!("../icons/tray/tray-listening-template.png")
+        include_bytes!("../icons/tray/tray-listening-template@2x.png")
     } else {
-        include_bytes!("../icons/tray/tray-idle-template.png")
+        include_bytes!("../icons/tray/tray-idle-template@2x.png")
     };
     tauri::image::Image::from_bytes(bytes).expect("decoded tray icon")
 }
@@ -47,6 +47,10 @@ pub trait RequestRouter: Send + Sync {
 pub fn run() {
     #[cfg(target_os = "macos")]
     let (intent_tx, intent_rx) = std::sync::mpsc::channel::<hotkeys::CaptureIntent>();
+    #[cfg(target_os = "macos")]
+    let tray_intents = Some(intent_tx.clone());
+    #[cfg(not(target_os = "macos"))]
+    let tray_intents = None;
     let brain = brain::BrainLink::new();
     let supervisor_brain = brain.clone();
 
@@ -102,7 +106,7 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
-            tray::install(app.handle())?;
+            tray::install(app.handle(), tray_intents)?;
             tray::refresh_icon(app.handle());
 
             #[cfg(target_os = "macos")]

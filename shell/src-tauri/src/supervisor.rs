@@ -35,7 +35,8 @@ pub async fn run(app: tauri::AppHandle, link: BrainLink) {
         supervise_once(&app, &link, &mut requests).await;
         restarts += 1;
         if restarts > MAX_RESTARTS {
-            set_tooltip(&app, "Ruoxi — brain offline (restart app)");
+            crate::tray::show_degraded(&app);
+            set_tooltip(&app, "Ruoxi — resting (brain offline — restart app)");
             return;
         }
         let backoff_secs = 1u64 << (restarts - 1).min(5);
