@@ -263,6 +263,12 @@ export default function App() {
     };
     const start = async () => {
       track(
+        await listenTauri("panel:transcribing", () => {
+          setLiveAnswer("");
+          setLiveState("transcribing");
+        }),
+      );
+      track(
         await listenTauri<CapturePayload>("panel:capture", (p) => {
           setLiveCapture({ id: p.id, time: formatHHMM(p.at_ms) });
           setLiveAnswer("");

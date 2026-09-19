@@ -20,6 +20,7 @@ pub mod settings;
 pub mod supervisor;
 pub mod timeline;
 pub mod tts;
+pub mod voice;
 
 #[cfg(target_os = "macos")]
 pub mod ptt;
@@ -126,11 +127,13 @@ pub fn run() {
                 };
                 let mods = hotkeys::ptt_modifiers(&configured);
                 eprintln!("ruoxi: ptt modifiers bitmask {mods:#x}");
+                let voice_handle = app.handle().clone();
                 match ptt::spawn_listener(keycode, mods, tx) {
                     Ok(_) => {
                         eprintln!("ruoxi: ptt listener active (keycode {keycode})");
                         let handle = app.handle().clone();
                         std::thread::spawn(move || {
+                            let mut recording: Option<voice::Recording> = None;
                             while let Ok(pressed) = rx.recv() {
                                 eprintln!(
                                     "ruoxi: ptt {}",
@@ -138,6 +141,12 @@ pub fn run() {
                                 );
                                 let app = handle.clone();
                                 if pressed {
+                                    if recording.is_none() {
+                                        match voice::Recording::start() {
+                                            Ok(session) => recording = Some(session),
+                                            Err(e) => eprintln!("ruoxi: microphone: {e}"),
+                                        }
+                                    }
                                     tray::show_listening(&app);
                                     let runner = app.clone();
                                     let _ = runner.run_on_main_thread(move || {
@@ -154,6 +163,20 @@ pub fn run() {
                                                 tray.set_tooltip(Some("Ruoxi — brain connected"));
                                         }
                                     });
+                                    if let Some(session) = recording.take() {
+                                        let samples = session.stop();
+                                        eprintln!(
+                                            "ruoxi: captured {} samples ({:.1}s)",
+                                            samples.len(),
+                                            samples.len() as f64 / voice::TARGET_RATE as f64
+                                        );
+                                        if !samples.is_empty() {
+                                            let voice_handle = voice_handle.clone();
+                                            std::thread::spawn(move || {
+                                                run_ptt_transcription(voice_handle, samples);
+                                            });
+                                        }
+                                    }
                                 }
                             }
                         });
@@ -283,5 +306,25 @@ pub(crate) fn emit_capture(handle: &tauri::AppHandle, record: &capture_store::Ca
         serde_json::json!({ "id": &record.capture_id, "at_ms": record.ts }),
     ) {
         eprintln!("ruoxi: panel:capture emit failed: {e}");
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn run_ptt_transcription(handle: tauri::AppHandle, samples: Vec<f32>) {
+    use tauri::Emitter;
+    let _ = handle.emit("panel:transcribing", serde_json::json!({}));
+    match voice::transcribe(&handle, &samples) {
+        Ok(transcript) if !transcript.is_empty() => {
+            eprintln!("ruoxi: transcript: {transcript}");
+            use tauri::Manager;
+            let brain = handle.state::<brain::BrainLink>();
+            let _ = brain.send(
+                "session.ask",
+                serde_json::json!({ "transcript": transcript, "capture_ids": [] }),
+            );
+            panel::show(&handle);
+        }
+        Ok(_) => eprintln!("ruoxi: no speech detected"),
+        Err(e) => eprintln!("ruoxi: transcription: {e}"),
     }
 }

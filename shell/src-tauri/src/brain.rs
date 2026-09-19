@@ -48,7 +48,7 @@ impl BrainLink {
         self.online.load(Ordering::Relaxed)
     }
 
-    fn send(&self, method: &str, params: Value) -> Result<(), String> {
+    pub fn send(&self, method: &str, params: Value) -> Result<(), String> {
         if !self.is_online() {
             return Err("brain offline".to_string());
         }
