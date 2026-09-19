@@ -202,6 +202,14 @@ pub fn run() {
                 std::thread::spawn(move || capture_worker(handle, rx));
             }
 
+            #[cfg(target_os = "macos")]
+            {
+                panel::apply_macos_panel_style(app.handle());
+                if let Err(e) = panel::spawn_esc_dismiss(app.handle().clone()) {
+                    eprintln!("ruoxi: esc dismiss unavailable: {e}");
+                }
+            }
+
             let handle = app.handle().clone();
             let brain = supervisor_brain.clone();
             tauri::async_runtime::spawn(async move {

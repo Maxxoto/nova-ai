@@ -129,7 +129,7 @@ timeboxed. If a spike blows its box, we take the fallback and move on.
 | S1 PTT key-up | **PASS** (macOS 26.0.1; Windows pending) | key-down+key-up delivered, latency 332–405 µs p50 (target <50 ms) | raw route = listen-only `CGEventTap` (Session, default-mode runloop source); toggle fallback not needed | 2026-09-19 |
 | S2 idle RAM | **PASS** (macOS 26.0.1, M-series, release build) | idle 147.6 MB (shell 96.1 + sidecar 51.5); panel-open +3.6 MB; base q5_1 per-call: load 29 ms, peak +219 MB released to ~37 MB; small q5_1: load 58 ms, peak +458 MB | default STT = `base q5_1`; keep per-call load/drop (no resident cache — 29 ms penalty imperceptible); `small` stays opt-in (decode ~1.4 s/s audio, 458 MB transient) | 2026-09-20 |
 | S3 Win overlay | | | | |
-| S4 panel focus | | | | |
+| S4 panel focus | **PASS** (macOS 26.0.1, release build, automated) | focus retained (TextEdit frontmost while panel visible); typing unbroken ("abc"+panel+"def" → "abcdef"); Esc pass-through hides panel; accessory+nonactivating+ignoresCycle keeps it out of cmd-tab | ship non-activating panel (style mask bit 7) + listen-only Esc tap; drop `set_focus()` from `panel::show` | 2026-09-20 |
 | S5 STT latency/zh | | | | |
 
 ### S2 findings (macOS, probe: `shell/src-tauri/examples/ram_probe.rs` + release app)
@@ -167,6 +167,29 @@ App envelope (release, no model resident — `voice.rs` loads per utterance):
   speech in S5.
 - Parakeet not measurable this pass (download incomplete); revisit after
   the S5 corpus exists.
+
+### S4 findings (macOS, automated harness: release app + TextEdit + System Events)
+
+`panel::show` no longer calls `set_focus()`. At setup the panel window gets
+`NSWindowStyleMaskNonactivatingPanel` plus
+`canJoinAllSpaces | ignoresCycle | fullScreenAuxiliary`; a second listen-only
+CGEventTap (same S1 pattern) hides the panel on bare Esc (keycode 53) while
+`PANEL_VISIBLE` is set, never consuming the key.
+
+| Check | Result |
+|---|---|
+| frontmost app while panel visible | TextEdit (never Ruoxi) |
+| typing during panel-open | "abc" before + "def" after → "abcdef", no drops |
+| Esc (bare) | panel hides; underlying app stays frontmost |
+| Esc consumption | pass-through (ListenOnly tap) — editor's own Esc unaffected |
+| cmd-tab / window cycle | excluded by construction (accessory policy + nonactivating + ignoresCycle); manual spot-check pending |
+| fullscreen spaces | `fullScreenAuxiliary` allows overlay; not yet exercised |
+
+- The webview's own Esc handler remains as a fallback for when the panel
+  does hold focus (e.g., after a click inside it).
+- Clicks/scrolling inside the non-activating panel work without activating
+  the app (standard NSPanel behavior); text-selection inside the webview
+  while the owner app is inactive is the one path to watch post-M0.
 
 ### S1 findings (macOS, probe: `spikes/s1-ptt`)
 
