@@ -213,6 +213,16 @@ fn download(app: tauri::AppHandle, id: String) {
         );
         return;
     }
+    let stale_prefix = format!("{}.", model.file);
+    if let Ok(entries) = std::fs::read_dir(&dir) {
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            if name.starts_with(&stale_prefix) && name.ends_with(".part") {
+                let _ = std::fs::remove_file(entry.path());
+            }
+        }
+    }
     let part_path = dir.join(format!("{}.{}.part", model.file, ulid::Ulid::generate()));
     let result = fetch_to(&app, &id, model, &part_path).and_then(|sha256| {
         std::fs::rename(&part_path, &final_path).map_err(|e| format!("finalize download: {e}"))?;
