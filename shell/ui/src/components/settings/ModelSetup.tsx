@@ -231,62 +231,238 @@ export function SttModelSection() {
 type SystemVoice = { name: string; lang: string };
 
 export function TtsVoiceSection() {
-  const [voices, setVoices] = useState<SystemVoice[]>([]);
+  const [engine, setEngine] = useState("system");
+  const [systemVoices, setSystemVoices] = useState<SystemVoice[]>([]);
+  const [kokoroVoices, setKokoroVoices] = useState<string[]>([]);
+  const [kokoroNote, setKokoroNote] = useState<string>();
+  const [kokoroModels, setKokoroModels] = useState<SttModel[]>([]);
+  const [progress, setProgress] = useState<Record<string, number>>({});
   const [filter, setFilter] = useState("");
   const [selected, setSelected] = useState("");
 
-  useEffect(() => {
+  const refresh = () => {
     invokeTauriAsync("get_settings")?.then((raw) => {
-      const tts = (raw as { tts?: { voice?: string } } | null)?.tts;
+      const tts = (raw as { tts?: { engine?: string; voice?: string } } | null)?.tts;
+      setEngine(tts?.engine ?? "system");
       setSelected(tts?.voice ?? "");
     });
-    invokeTauriAsync("tts_list_voices")?.then(
-      (raw) => setVoices((raw as SystemVoice[]) ?? []),
-      () => setVoices([]),
+    invokeTauriAsync("tts_model_catalog")?.then(
+      (raw) => setKokoroModels((raw as SttModel[]) ?? []),
+      () => setKokoroModels([]),
     );
+  };
+
+  const refreshKokoroVoices = () => {
+    invokeTauriAsync("tts_kokoro_voices")?.then(
+      (raw) => {
+        setKokoroVoices((raw as string[]) ?? []);
+        setKokoroNote(undefined);
+      },
+      (err) => {
+        setKokoroVoices([]);
+        setKokoroNote(String(err ?? "Kokoro not downloaded yet"));
+      },
+    );
+  };
+
+  useEffect(() => {
+    refresh();
+    refreshKokoroVoices();
+    invokeTauriAsync("tts_list_voices")?.then(
+      (raw) => setSystemVoices((raw as SystemVoice[]) ?? []),
+      () => setSystemVoices([]),
+    );
+    let active = true;
+    const offs: Array<() => void> = [];
+    const track = (off: () => void) => {
+      if (active) offs.push(off);
+      else off();
+    };
+    void (async () => {
+      track(
+        await listenTauri<ModelProgress>("model:progress", (p) => {
+          if (!p || p.total <= 0) return;
+          setProgress((prev) => ({ ...prev, [p.id]: p.downloaded / p.total }));
+        }),
+      );
+      track(
+        await listenTauri<{ id: string }>("model:done", () => {
+          setProgress({});
+          refresh();
+          refreshKokoroVoices();
+        }),
+      );
+    })();
+    return () => {
+      active = false;
+      offs.forEach((off) => off());
+    };
   }, []);
 
-  const shown = useMemo(() => {
+  const chosenModel =
+    kokoroModels.find((m) => m.selected) ?? kokoroModels.find((m) => m.id.startsWith("kokoro-onnx"));
+  const voicesPack = kokoroModels.find((m) => m.id === "kokoro-voices");
+  const kokoroReady = Boolean(chosenModel?.downloaded && voicesPack?.downloaded);
+
+  const shownSystem = useMemo(() => {
     const needle = filter.trim().toLowerCase();
-    if (!needle) return voices;
-    return voices.filter(
+    if (!needle) return systemVoices;
+    return systemVoices.filter(
       (v) => v.name.toLowerCase().includes(needle) || v.lang.toLowerCase().includes(needle),
     );
-  }, [voices, filter]);
+  }, [systemVoices, filter]);
+  const shownKokoro = useMemo(() => {
+    const needle = filter.trim().toLowerCase();
+    if (!needle) return kokoroVoices;
+    return kokoroVoices.filter((v) => v.toLowerCase().includes(needle));
+  }, [kokoroVoices, filter]);
+
+  const pickEngine = (next: string) => {
+    setEngine(next);
+    setSelected("");
+    invokeTauriAsync("tts_save_engine", { engine: next });
+  };
+
+  const testVoice = () => {
+    if (engine === "kokoro") {
+      invokeTauriAsync("tts_synthesize", { text: "", voice: selected })?.catch(() => undefined);
+    } else {
+      invokeTauriAsync("tts_test_voice", { voice: selected, text: "" })?.catch(() => undefined);
+    }
+  };
 
   return (
     <SectionCard
       eyebrow="Voice output · TTS"
-      title="Read-aloud uses this system voice."
-      description="Uses your Mac's built-in voices — all local. A richer voice engine arrives later; try a voice before you pick."
+      title="Read-aloud voice."
+      description="Fully local. System voices work out of the box; Kokoro (82M, neural) downloads once with consent and runs on this Mac — per RFC-0005."
     >
-      <div className="flex flex-col gap-3">
-        <Field label="Filter voices" value={filter} onChange={setFilter} placeholder="name or locale, e.g. zh or Ava" />
-        <div className="flex max-h-56 flex-col gap-1 overflow-y-auto">
-          {shown.slice(0, 80).map((voice) => (
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center gap-2">
+          {["system", "kokoro"].map((option) => (
             <button
-              key={`${voice.name}-${voice.lang}`}
+              key={option}
               type="button"
-              onClick={() => {
-                setSelected(voice.name);
-                invokeTauriAsync("tts_save_voice", { voice: voice.name });
-              }}
-              className={`flex items-center justify-between rounded-lg border px-3 py-1.5 text-left transition-colors duration-200 ${
-                selected === voice.name
-                  ? "border-primary bg-primary-soft"
-                  : "border-border bg-background hover:bg-muted"
+              onClick={() => pickEngine(option)}
+              className={`rounded-pill border px-3 py-1 font-ui text-[12px] font-semibold transition-colors duration-200 ${
+                engine === option
+                  ? "border-primary bg-primary-soft text-foreground"
+                  : "border-border bg-card text-muted-foreground hover:bg-muted"
               }`}
             >
-              <span className="font-ui text-[13px] font-semibold text-foreground">{voice.name}</span>
-              <span className="font-mono text-[11px] text-muted-foreground">{voice.lang}</span>
+              {option === "system" ? "System voices" : "Kokoro (neural)"}
             </button>
           ))}
         </div>
+
+        {engine === "kokoro" ? (
+          <div className="flex flex-col gap-2">
+            {kokoroModels.map((model) => {
+              const pct = progress[model.id];
+              return (
+                <div
+                  key={model.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-background px-4 py-3"
+                >
+                  <div className="flex min-w-0 flex-col gap-0.5">
+                    <span className="font-ui text-[14px] font-semibold text-foreground">
+                      {model.name}
+                      {model.selected ? (
+                        <span className="ml-2 rounded-pill border border-primary bg-primary-soft px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide text-foreground">
+                          selected
+                        </span>
+                      ) : null}
+                    </span>
+                    <span className="font-mono text-[11px] text-muted-foreground">
+                      {mb(model.size_bytes)} · {model.zh} · {model.note}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {pct !== undefined ? (
+                      <span className="font-mono text-[11px] text-muted-foreground">
+                        {Math.round(pct * 100)}%
+                      </span>
+                    ) : null}
+                    {model.downloaded ? (
+                      model.id !== "kokoro-voices" && !model.selected ? (
+                        <ActionButton
+                          tone="primary"
+                          onClick={() =>
+                            invokeTauriAsync("tts_model_select", { id: model.id })?.then(refresh)
+                          }
+                        >
+                          Select
+                        </ActionButton>
+                      ) : null
+                    ) : (
+                      <ActionButton
+                        disabled={pct !== undefined}
+                        onClick={() => invokeTauriAsync("stt_download", { id: model.id })}
+                      >
+                        {pct !== undefined ? "Downloading…" : `Download · ${mb(model.size_bytes)}`}
+                      </ActionButton>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+            {!kokoroReady ? (
+              <span className="font-mono text-[11px] text-muted-foreground">
+                Download a model and the voicepacks, then pick a voice.
+              </span>
+            ) : kokoroNote ? (
+              <span className="font-mono text-[11px] text-destructive">{kokoroNote}</span>
+            ) : null}
+          </div>
+        ) : null}
+
+        <Field
+          label="Filter voices"
+          value={filter}
+          onChange={setFilter}
+          placeholder={engine === "kokoro" ? "e.g. zh or af_heart" : "name or locale, e.g. zh or Ava"}
+        />
+        <div className="flex max-h-56 flex-col gap-1 overflow-y-auto">
+          {engine === "kokoro"
+            ? shownKokoro.slice(0, 80).map((voice) => (
+                <button
+                  key={voice}
+                  type="button"
+                  disabled={!kokoroReady}
+                  onClick={() => {
+                    setSelected(voice);
+                    invokeTauriAsync("tts_save_voice", { voice });
+                  }}
+                  className={`flex items-center justify-between rounded-lg border px-3 py-1.5 text-left transition-colors duration-200 ${
+                    selected === voice
+                      ? "border-primary bg-primary-soft"
+                      : "border-border bg-background hover:bg-muted"
+                  } disabled:opacity-40`}
+                >
+                  <span className="font-ui text-[13px] font-semibold text-foreground">{voice}</span>
+                </button>
+              ))
+            : shownSystem.slice(0, 80).map((voice) => (
+                <button
+                  key={`${voice.name}-${voice.lang}`}
+                  type="button"
+                  onClick={() => {
+                    setSelected(voice.name);
+                    invokeTauriAsync("tts_save_voice", { voice: voice.name });
+                  }}
+                  className={`flex items-center justify-between rounded-lg border px-3 py-1.5 text-left transition-colors duration-200 ${
+                    selected === voice.name
+                      ? "border-primary bg-primary-soft"
+                      : "border-border bg-background hover:bg-muted"
+                  }`}
+                >
+                  <span className="font-ui text-[13px] font-semibold text-foreground">{voice.name}</span>
+                  <span className="font-mono text-[11px] text-muted-foreground">{voice.lang}</span>
+                </button>
+              ))}
+        </div>
         <div>
-          <ActionButton
-            disabled={!selected}
-            onClick={() => invokeTauriAsync("tts_test_voice", { voice: selected, text: "" })}
-          >
+          <ActionButton disabled={!selected} onClick={testVoice}>
             Test voice
           </ActionButton>
         </div>

@@ -84,9 +84,95 @@ pub fn tts_test_voice(voice: String, text: String) -> Result<(), String> {
 #[tauri::command]
 pub fn tts_save_voice(app: tauri::AppHandle, voice: String) -> Result<(), String> {
     let mut current = crate::settings::load(&app);
-    current.tts.engine = "system".to_string();
     current.tts.voice = voice;
     crate::settings::save(&app, &current)
+}
+
+#[tauri::command]
+pub fn tts_save_engine(app: tauri::AppHandle, engine: String) -> Result<(), String> {
+    if engine != "system" && engine != "kokoro" {
+        return Err(format!("unknown engine: {engine}"));
+    }
+    let mut current = crate::settings::load(&app);
+    current.tts.engine = engine;
+    crate::settings::save(&app, &current)
+}
+
+static KOKORO: tokio::sync::OnceCell<kokoro_micro::TtsEngine> = tokio::sync::OnceCell::const_new();
+
+/// Loads (and caches) the Kokoro engine from the app-data models. Present
+/// files mean its own downloader never runs — ours owns the artifacts.
+async fn kokoro_engine(app: &tauri::AppHandle) -> Result<&'static kokoro_micro::TtsEngine, String> {
+    let settings = crate::settings::load(app);
+    let dir = crate::models::models_dir(app)?;
+    let model_id = if settings.tts.model.is_empty() {
+        "kokoro-onnx-fp32"
+    } else {
+        settings.tts.model.as_str()
+    };
+    let model_file = crate::models::any_entry(model_id)
+        .filter(|m| m.id.starts_with("kokoro-onnx"))
+        .ok_or_else(|| format!("unknown kokoro model: {model_id}"))?
+        .file;
+    let voices_file = crate::models::any_entry("kokoro-voices")
+        .ok_or("kokoro voicepacks missing from catalog")?
+        .file;
+    let model_path = dir.join(model_file);
+    let voices_path = dir.join(voices_file);
+    if !model_path.is_file() || !voices_path.is_file() {
+        return Err("Kokoro not downloaded — Settings → Voice output".to_string());
+    }
+    KOKORO
+        .get_or_try_init(|| async {
+            kokoro_micro::TtsEngine::with_paths(
+                model_path.to_str().unwrap_or_default(),
+                voices_path.to_str().unwrap_or_default(),
+            )
+            .await
+        })
+        .await
+}
+
+#[tauri::command]
+pub async fn tts_kokoro_voices(app: tauri::AppHandle) -> Result<Vec<String>, String> {
+    Ok(kokoro_engine(&app).await?.voices())
+}
+
+#[tauri::command]
+pub async fn tts_synthesize(
+    app: tauri::AppHandle,
+    text: String,
+    voice: String,
+) -> Result<(), String> {
+    let engine = kokoro_engine(&app).await?;
+    let phrase = if text.trim().is_empty() {
+        "Hello from Ruòxī.".to_string()
+    } else {
+        text.trim().to_string()
+    };
+    let samples = tokio::task::spawn_blocking(move || {
+        engine.synthesize_with_options(&phrase, Some(&voice), 1.0, 1.0, None)
+    })
+    .await
+    .map_err(|e| format!("synthesis task failed: {e}"))?
+    .map_err(|e| format!("synthesis failed: {e}"))?;
+    std::thread::spawn(move || {
+        if let Err(e) = play_samples(samples) {
+            eprintln!("ruoxi: playback failed: {e}");
+        }
+    });
+    Ok(())
+}
+
+fn play_samples(samples: Vec<f32>) -> Result<(), String> {
+    use rodio::{buffer::SamplesBuffer, DeviceSinkBuilder, Player};
+    let sink = DeviceSinkBuilder::open_default_sink().map_err(|e| format!("audio device: {e}"))?;
+    let player = Player::connect_new(&sink.mixer());
+    let channels = std::num::NonZeroU16::new(1).expect("nonzero channels");
+    let rate = std::num::NonZeroU32::new(24_000).expect("nonzero rate");
+    player.append(SamplesBuffer::new(channels, rate, samples));
+    player.sleep_until_end();
+    Ok(())
 }
 
 #[cfg(test)]

@@ -50,6 +50,7 @@ fn default_tts() -> TtsSettings {
     TtsSettings {
         engine: "system".to_string(),
         voice: String::new(),
+        model: String::new(),
     }
 }
 
@@ -74,6 +75,8 @@ pub struct TtsSettings {
     pub engine: String,
     #[serde(default)]
     pub voice: String,
+    #[serde(default)]
+    pub model: String,
 }
 
 fn default_tts_engine() -> String {
@@ -334,8 +337,9 @@ mod tests {
                 model: "whisper-base-q5".to_string(),
             },
             tts: TtsSettings {
-                engine: "system".to_string(),
+                engine: "kokoro".to_string(),
                 voice: "Tingting".to_string(),
+                model: "kokoro-onnx-int8".to_string(),
             },
             llm: LlmSettings {
                 base_url: "https://api.example.com/v1".to_string(),
@@ -357,6 +361,8 @@ mod tests {
         assert_eq!(back.ptt_hotkey, "Cmd+Shift+Space");
         assert_eq!(back.stt.model, "whisper-base-q5");
         assert_eq!(back.tts.voice, "Tingting");
+        assert_eq!(back.tts.engine, "kokoro");
+        assert_eq!(back.tts.model, "kokoro-onnx-int8");
         assert_eq!(back.llm.base_url, "https://api.example.com/v1");
         assert_eq!(back.llm.model, "gpt-test");
         assert!(back.llm.api_key_set);

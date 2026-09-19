@@ -52,6 +52,36 @@ pub const CATALOG: &[SttModel] = &[
     },
 ];
 
+pub const TTS_CATALOG: &[SttModel] = &[
+    SttModel {
+        id: "kokoro-onnx-fp32",
+        name: "Kokoro 82M (fp32)",
+        file: "kokoro-v1.0.onnx",
+        url: "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.1/kokoro-v1.0.onnx",
+        size_bytes: 325_505_369,
+        zh: "8 zh voices (v1.0)",
+        note: "neural TTS, RFC-0005 primary engine; CoreML-capable",
+    },
+    SttModel {
+        id: "kokoro-onnx-int8",
+        name: "Kokoro 82M (int8)",
+        file: "kokoro-v1.0.int8.onnx",
+        url: "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.1/kokoro-v1.0.int8.onnx",
+        size_bytes: 114_119_327,
+        zh: "8 zh voices (v1.0)",
+        note: "smaller download; CPU only (CoreML needs fp32)",
+    },
+    SttModel {
+        id: "kokoro-voices",
+        name: "Kokoro voicepacks",
+        file: "voices-v1.0.bin",
+        url: "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.1/voices-v1.0.bin",
+        size_bytes: 28_214_398,
+        zh: "54 voices",
+        note: "required by either Kokoro model",
+    },
+];
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SttModelInfo {
     pub id: String,
@@ -74,6 +104,14 @@ pub fn models_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
 
 pub fn catalog_entry(id: &str) -> Option<&'static SttModel> {
     CATALOG.iter().find(|m| m.id == id)
+}
+
+/// Any downloadable artifact (STT or TTS) by id — downloads are shared.
+pub fn any_entry(id: &str) -> Option<&'static SttModel> {
+    CATALOG
+        .iter()
+        .chain(TTS_CATALOG.iter())
+        .find(|m| m.id == id)
 }
 
 pub fn file_sha256(path: &std::path::Path) -> Result<String, String> {
@@ -167,8 +205,16 @@ fn fetch_to(
 
 #[tauri::command]
 pub fn stt_catalog(app: tauri::AppHandle) -> Result<Vec<SttModelInfo>, String> {
-    let dir = models_dir(&app)?;
-    let selected = settings::load(&app).stt.model;
+    catalog(&app, &settings::load(&app).stt.model)
+}
+
+#[tauri::command]
+pub fn tts_model_catalog(app: tauri::AppHandle) -> Result<Vec<SttModelInfo>, String> {
+    catalog(&app, &settings::load(&app).tts.model)
+}
+
+fn catalog(app: &tauri::AppHandle, selected: &str) -> Result<Vec<SttModelInfo>, String> {
+    let dir = models_dir(app)?;
     Ok(CATALOG
         .iter()
         .map(|m| SttModelInfo {
@@ -185,10 +231,11 @@ pub fn stt_catalog(app: tauri::AppHandle) -> Result<Vec<SttModelInfo>, String> {
 }
 
 /// Starts the download in the background; progress streams as
-/// `model:progress` / `model:done` / `model:error` events.
+/// `model:progress` / `model:done` / `model:error` events. Shared by the STT
+/// and TTS catalogs.
 #[tauri::command]
 pub fn stt_download(app: tauri::AppHandle, id: String) -> Result<(), String> {
-    if catalog_entry(&id).is_none() {
+    if any_entry(&id).is_none() {
         return Err(format!("unknown model: {id}"));
     }
     std::thread::spawn(move || download(app, id));
@@ -215,16 +262,49 @@ pub fn stt_delete(app: tauri::AppHandle, id: String) -> Result<(), String> {
         let _ = std::fs::remove_file(path.with_extension("sha256"));
     }
     let mut current = settings::load(&app);
+    let mut changed = false;
     if current.stt.model == id {
         current.stt.model = String::new();
+        changed = true;
+    }
+    if current.tts.model == id {
+        current.tts.model = String::new();
+        changed = true;
+    }
+    if changed {
         settings::save(&app, &current)?;
     }
     Ok(())
 }
 
+#[tauri::command]
+pub fn tts_model_select(app: tauri::AppHandle, id: String) -> Result<(), String> {
+    if !TTS_CATALOG.iter().any(|m| m.id == id) {
+        return Err(format!("unknown tts model: {id}"));
+    }
+    let mut current = settings::load(&app);
+    current.tts.model = id;
+    settings::save(&app, &current)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ids_are_unique_across_stt_and_tts_catalogs() {
+        let mut ids: Vec<&str> = CATALOG
+            .iter()
+            .chain(TTS_CATALOG.iter())
+            .map(|m| m.id)
+            .collect();
+        ids.sort_unstable();
+        let count = ids.len();
+        ids.dedup();
+        assert_eq!(ids.len(), count);
+        assert!(any_entry("kokoro-voices").is_some());
+        assert!(any_entry("whisper-base-q5").is_some());
+    }
 
     #[test]
     fn catalog_ids_are_unique_and_files_map_back() {
