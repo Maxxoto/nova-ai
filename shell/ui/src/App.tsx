@@ -59,7 +59,7 @@ function parseOverlaySelection(raw: string | null): OverlaySelection | undefined
 }
 
 const DEMO_ANSWER =
-  "Here's what the capture shows: the test suite is failing on the sidecar handshake — the JSON-RPC read loop times out before the first ping returns. Same class as the earlier respawn failure, which points at the supervisor's restart backoff rather than the protocol itself.";
+  "Here's what the capture shows: the test suite is failing on the **sidecar handshake** — the JSON-RPC read loop times out before the first ping returns. Same class as the earlier respawn failure, which points at the supervisor's **restart backoff** rather than the protocol itself.";
 
 const DEMO_CAPTURE = { id: "cap_01J8ZF5Q2W9R3T4", time: "14:02" };
 

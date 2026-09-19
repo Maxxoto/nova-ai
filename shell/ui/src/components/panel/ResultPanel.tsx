@@ -97,7 +97,7 @@ export default function ResultPanel({
       aria-label="Ruòxī result panel"
       data-state={state}
       style={{ transitionDuration: "120ms" }}
-      className={`panel-surface w-[400px] max-w-full overflow-hidden rounded-lg border border-border shadow-e3 transition-opacity ${
+      className={`panel-surface w-[400px] max-w-full overflow-hidden rounded-[14px] border border-border shadow-e3 transition-opacity ${
         closing ? "opacity-0" : "opacity-100"
       }${reducedMotion ? " reduced-motion rm-halve" : ""}`}
     >

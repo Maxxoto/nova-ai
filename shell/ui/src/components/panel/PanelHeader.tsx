@@ -9,7 +9,7 @@ const LABELS: Record<PanelState, string> = {
   thinking: "Thinking",
   speaking: "Speaking",
   streaming: "Streaming",
-  complete: "Done",
+  complete: "Complete",
   error: "Error",
   degraded: "Resting",
 };
