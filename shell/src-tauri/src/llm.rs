@@ -27,11 +27,18 @@ pub fn stored_api_key() -> Option<String> {
 
 /// Env vars injected at sidecar spawn; empty when unconfigured.
 pub fn env_for_sidecar(settings: &crate::settings::Settings) -> Vec<(String, String)> {
+    env_from_parts(settings, stored_api_key())
+}
+
+fn env_from_parts(
+    settings: &crate::settings::Settings,
+    stored_key: Option<String>,
+) -> Vec<(String, String)> {
     let mut env = vec![(ENV_OFFLINE.to_string(), settings.offline.to_string())];
     if !settings.llm.base_url.is_empty() {
         env.push((ENV_BASE_URL.to_string(), settings.llm.base_url.clone()));
     }
-    if let Some(key) = stored_api_key() {
+    if let Some(key) = stored_key {
         env.push((ENV_API_KEY.to_string(), key));
     }
     if !settings.llm.model.is_empty() {
@@ -116,8 +123,20 @@ mod tests {
     fn env_carries_only_the_offline_flag_until_configured() {
         let settings = crate::settings::Settings::default();
         assert_eq!(
-            env_for_sidecar(&settings),
+            env_from_parts(&settings, None),
             vec![(ENV_OFFLINE.to_string(), "true".to_string())]
+        );
+    }
+
+    #[test]
+    fn env_carries_the_stored_key_when_configured() {
+        let settings = crate::settings::Settings::default();
+        assert_eq!(
+            env_from_parts(&settings, Some("k".to_string())),
+            vec![
+                (ENV_OFFLINE.to_string(), "true".to_string()),
+                (ENV_API_KEY.to_string(), "k".to_string()),
+            ]
         );
     }
 }
