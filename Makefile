@@ -23,9 +23,7 @@ test:
 	uv run pytest
 
 shell:
-	pnpm --dir shell/ui install
-	pnpm --dir shell/ui build
-	cd shell/src-tauri && cargo run
+	./shell/dev.sh
 
 shell-dev:
 	pnpm --dir shell/ui install
