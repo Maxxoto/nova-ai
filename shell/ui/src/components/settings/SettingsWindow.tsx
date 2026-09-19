@@ -4,6 +4,7 @@ import { getPermissionsStatus } from "../../permissions";
 import type { PermissionKind, PermissionsStatus } from "../../permissions";
 import { invokeTauriAsync, listenTauri } from "../../tauri";
 import { KBD } from "../onboarding/styles";
+import { LlmConfigSection, SttModelSection, TtsVoiceSection } from "./ModelSetup";
 
 /** Focus-visible ring per DESIGN.md — 2px primary, offset 2. */
 const FOCUS_RING =
@@ -1153,6 +1154,9 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
         </div>
       </Section>
 
+      <SttModelSection />
+      <TtsVoiceSection />
+      <LlmConfigSection />
       <Section eyebrow="Capture & displays" title="Which screen, and how precise.">
         <div className="flex flex-col gap-3">
           <Row

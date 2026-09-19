@@ -165,6 +165,9 @@ class SidecarServer:
             )
         elif method == "session.ask":
             await self._start_ask(request)
+        elif method == "config.test":
+            result = await asyncio.to_thread(llm_config_test, request.params if isinstance(request.params, dict) else None)
+            await self._send(RpcResponse(id=request.id, result=result))
         elif method == "session.abort":
             self._abort.set()
             await self._send(
@@ -241,6 +244,32 @@ class SidecarServer:
         await self._send(
             RpcResponse(id=request_id, error=_err(ErrorCode.ABORTED, "aborted by user"))
         )
+
+
+def llm_config_test(params: dict | None = None) -> dict[str, object]:
+    """One-token LiteLLM call against the BYOK config — explicit params
+    (typed in the UI) override the env-injected values; no built-in keys."""
+    params = params or {}
+    base_url = str(params.get("base_url") or "").strip() or os.environ.get("RUOXI_LLM_BASE_URL", "").strip()
+    api_key = str(params.get("api_key") or "").strip() or os.environ.get("RUOXI_LLM_API_KEY", "").strip()
+    model = str(params.get("model") or "").strip() or os.environ.get("RUOXI_LLM_MODEL", "").strip()
+    if not base_url or not api_key:
+        return {"ok": False, "message": "LLM not configured — set base URL and API key in Settings"}
+    try:
+        import litellm
+
+        response = litellm.completion(
+            model=f"openai/{model or 'gpt-4o-mini'}",
+            api_base=base_url,
+            api_key=api_key,
+            messages=[{"role": "user", "content": "ping"}],
+            max_tokens=1,
+            timeout=15,
+        )
+        reply = (response.choices[0].message.content or "")[:40]
+        return {"ok": True, "model": model, "reply": reply}
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "model": model, "message": str(exc)[:300]}
 
 
 def _err(code: ErrorCode, message: str) -> RpcError:

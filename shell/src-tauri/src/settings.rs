@@ -40,6 +40,60 @@ fn default_ptt_hotkey() -> String {
     "F8".to_string()
 }
 
+fn default_stt() -> SttSettings {
+    SttSettings {
+        model: String::new(),
+    }
+}
+
+fn default_tts() -> TtsSettings {
+    TtsSettings {
+        engine: "system".to_string(),
+        voice: String::new(),
+    }
+}
+
+fn default_llm() -> LlmSettings {
+    LlmSettings {
+        base_url: String::new(),
+        model: String::new(),
+        vision_model: String::new(),
+        api_key_set: false,
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SttSettings {
+    #[serde(default)]
+    pub model: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TtsSettings {
+    #[serde(default = "default_tts_engine")]
+    pub engine: String,
+    #[serde(default)]
+    pub voice: String,
+}
+
+fn default_tts_engine() -> String {
+    "system".to_string()
+}
+
+/// Non-secret LLM config; the API key lives in the macOS Keychain and is
+/// injected as an env var when the brain sidecar spawns (RFC-0007 §BrainConfig).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct LlmSettings {
+    #[serde(default)]
+    pub base_url: String,
+    #[serde(default)]
+    pub model: String,
+    #[serde(default)]
+    pub vision_model: String,
+    #[serde(default)]
+    pub api_key_set: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
     #[serde(default)]
@@ -64,6 +118,12 @@ pub struct Settings {
     pub sidecar_args: Vec<String>,
     #[serde(default = "default_ping_interval_secs")]
     pub ping_interval_secs: u64,
+    #[serde(default = "default_stt")]
+    pub stt: SttSettings,
+    #[serde(default = "default_tts")]
+    pub tts: TtsSettings,
+    #[serde(default = "default_llm")]
+    pub llm: LlmSettings,
 }
 
 impl Settings {
@@ -99,6 +159,9 @@ impl Default for Settings {
             sidecar_command: default_sidecar_command(),
             sidecar_args: default_sidecar_args(),
             ping_interval_secs: default_ping_interval_secs(),
+            stt: default_stt(),
+            tts: default_tts(),
+            llm: default_llm(),
         }
     }
 }
@@ -185,6 +248,14 @@ pub fn show_settings(app: tauri::AppHandle) {
     show(&app);
 }
 
+#[tauri::command]
+pub fn hide_onboarding(app: tauri::AppHandle) {
+    use tauri::Manager;
+    if let Some(win) = app.get_webview_window(ONBOARDING_LABEL) {
+        let _ = win.hide();
+    }
+}
+
 pub const ONBOARDING_LABEL: &str = "onboarding";
 
 /// Opens the onboarding window, focusing the existing one if it is already up.
@@ -259,6 +330,19 @@ mod tests {
             sidecar_command: "uv".to_string(),
             sidecar_args: vec!["run".to_string()],
             ping_interval_secs: 2,
+            stt: SttSettings {
+                model: "whisper-base-q5".to_string(),
+            },
+            tts: TtsSettings {
+                engine: "system".to_string(),
+                voice: "Tingting".to_string(),
+            },
+            llm: LlmSettings {
+                base_url: "https://api.example.com/v1".to_string(),
+                model: "gpt-test".to_string(),
+                vision_model: "vision-test".to_string(),
+                api_key_set: true,
+            },
         };
         let text = serde_json::to_string(&settings).unwrap();
         let back: Settings = serde_json::from_str(&text).unwrap();
@@ -271,6 +355,11 @@ mod tests {
         assert_eq!(back.theme, "night");
         assert_eq!(back.default_scope, "fullscreen");
         assert_eq!(back.ptt_hotkey, "Cmd+Shift+Space");
+        assert_eq!(back.stt.model, "whisper-base-q5");
+        assert_eq!(back.tts.voice, "Tingting");
+        assert_eq!(back.llm.base_url, "https://api.example.com/v1");
+        assert_eq!(back.llm.model, "gpt-test");
+        assert!(back.llm.api_key_set);
     }
 
     #[test]

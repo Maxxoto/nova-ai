@@ -165,6 +165,18 @@ def test_ask_with_unanswered_upstream_lookup_degrades_gracefully() -> None:
         sidecar.close()
 
 
+def test_config_test_reports_unconfigured_as_not_ok() -> None:
+    sidecar = SidecarProcess()
+    try:
+        response = sidecar.request(1, "config.test", {})
+        result = response["result"]
+        assert isinstance(result, dict)
+        assert result["ok"] is False
+        assert "not configured" in str(result["message"])
+    finally:
+        sidecar.close()
+
+
 def test_unknown_method_is_reported_not_fatal() -> None:
     sidecar = SidecarProcess()
     try:
