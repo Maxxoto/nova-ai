@@ -127,10 +127,46 @@ timeboxed. If a spike blows its box, we take the fallback and move on.
 | Spike | Verdict | Key numbers | Decision | Date |
 |---|---|---|---|---|
 | S1 PTT key-up | **PASS** (macOS 26.0.1; Windows pending) | key-down+key-up delivered, latency 332–405 µs p50 (target <50 ms) | raw route = listen-only `CGEventTap` (Session, default-mode runloop source); toggle fallback not needed | 2026-09-19 |
-| S2 idle RAM | | | | |
+| S2 idle RAM | **PASS** (macOS 26.0.1, M-series, release build) | idle 147.6 MB (shell 96.1 + sidecar 51.5); panel-open +3.6 MB; base q5_1 per-call: load 29 ms, peak +219 MB released to ~37 MB; small q5_1: load 58 ms, peak +458 MB | default STT = `base q5_1`; keep per-call load/drop (no resident cache — 29 ms penalty imperceptible); `small` stays opt-in (decode ~1.4 s/s audio, 458 MB transient) | 2026-09-20 |
 | S3 Win overlay | | | | |
 | S4 panel focus | | | | |
 | S5 STT latency/zh | | | | |
+
+### S2 findings (macOS, probe: `shell/src-tauri/examples/ram_probe.rs` + release app)
+
+Method: `ps -o rss=` on the release binary (tray resident, panel closed,
+45 s settle) summed with the spawned python sidecar; probe loads the model
+with the exact `voice.rs` params (`use_gpu = true`, Greedy best-of-1) and
+samples RSS around load / 1 s & 5 s synthetic passes / drop. whisper.cpp
+prints a 96 MB CPU compute buffer at state init; Metal-resident weights are
+partially invisible to RSS (undercount noted).
+
+| Measurement | base q5_1 (59.7 MB) | small q5_1 (190 MB) |
+|---|---|---|
+| load time (lazy) | 29 ms | 58 ms |
+| RSS after load | 69.6 MB | 194.1 MB |
+| peak during decode | 219 MB | 458 MB |
+| after drop | 37 MB | 54 MB |
+| decode, 1 s audio | ~460 ms | ~1.4 s |
+
+App envelope (release, no model resident — `voice.rs` loads per utterance):
+
+| State | shell | sidecar | sum |
+|---|---|---|---|
+| idle, panel closed | 96.1 MB | 51.5 MB | **147.6 MB** |
+| idle, panel open | 99.7 MB | 51.5 MB | 151.2 MB |
+
+- Idle 147.6 MB ≤ 150 MB target → PASS; default STT = `base q5_1`.
+- Panel-open 151.2 MB is a transient state by design (AC-01); accepted.
+- The spike's "model loaded while idle" premise is obsolete: per-call
+  load/drop means idle never holds weights, and the 29 ms lazy-load
+  penalty removes any need for a resident cache. RFC-0001 risk #4
+  (memory floor) closes for macOS.
+- Decode-speed preview for S5: base ≈ 0.46 RTF vs small ≈ 1.4 RTF on
+  synthetic noise — small likely too slow for PTT UX; confirm with real
+  speech in S5.
+- Parakeet not measurable this pass (download incomplete); revisit after
+  the S5 corpus exists.
 
 ### S1 findings (macOS, probe: `spikes/s1-ptt`)
 

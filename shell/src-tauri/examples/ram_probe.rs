@@ -66,8 +66,8 @@ fn main() {
     for seconds in [1usize, 5] {
         let samples = lcg_noise(seconds);
         let t1 = Instant::now();
-        state.full(full, &samples).expect("transcribe");
-        let segments = state.full_n_segments().unwrap_or(0);
+        state.full(full.clone(), &samples).expect("transcribe");
+        let segments = state.full_n_segments();
         println!(
             "rss after {seconds}s pass : {:>7.1} MB  (decode {} ms, {segments} segments)",
             rss_mb(),
