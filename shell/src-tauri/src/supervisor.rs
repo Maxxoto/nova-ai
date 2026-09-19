@@ -3,27 +3,36 @@
 //!
 //! `SidecarProcess` is the transport core (spawn + JSON-RPC over stdio) and is
 //! exercised by the cross-language integration tests in `tests/`; `run` is the
-//! tray-facing supervision loop.
+//! tray-facing pump: it pings on a cadence and writes requests queued by the
+//! Tauri commands (`crate::brain`), streaming `session.ask` back as panel events.
 
+use std::collections::VecDeque;
 use std::io;
 use std::process::Stdio;
 use std::sync::Arc;
 use std::time::Duration;
 
+use serde_json::Value;
+use tauri::Emitter;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{Child, ChildStdin, Command};
+use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::time::{sleep, Instant};
 
+use crate::brain::{BrainLink, BrainRequest};
 use crate::settings;
 use crate::RequestRouter;
 
 const PING_TIMEOUT: Duration = Duration::from_secs(3);
+const ASK_TIMEOUT: Duration = Duration::from_secs(30);
 const MAX_RESTARTS: u32 = 5;
 
-pub async fn run(app: tauri::AppHandle) {
+pub async fn run(app: tauri::AppHandle, link: BrainLink) {
     let mut restarts: u32 = 0;
+    // Taken once so queued requests survive sidecar respawns.
+    let mut requests = link.take_receiver();
     loop {
-        supervise_once(&app).await;
+        supervise_once(&app, &link, &mut requests).await;
         restarts += 1;
         if restarts > MAX_RESTARTS {
             set_tooltip(&app, "Ruoxi — brain offline (restart app)");
@@ -34,10 +43,16 @@ pub async fn run(app: tauri::AppHandle) {
     }
 }
 
-async fn supervise_once(app: &tauri::AppHandle) {
+/// One sidecar generation: spawn, pump until it dies, then kill it.
+async fn supervise_once(
+    app: &tauri::AppHandle,
+    link: &BrainLink,
+    requests: &mut Option<UnboundedReceiver<BrainRequest>>,
+) {
     let settings = settings::load(app);
     let interval = Duration::from_secs(settings.ping_interval_secs.max(1));
 
+    link.set_online(false);
     let mut sidecar = match SidecarProcess::spawn(&settings) {
         Ok(sidecar) => sidecar,
         Err(e) => {
@@ -45,19 +60,182 @@ async fn supervise_once(app: &tauri::AppHandle) {
             return;
         }
     };
+    link.set_online(true);
     set_tooltip(app, "Ruoxi — brain connected");
 
+    let mut ping = tokio::time::interval(interval);
+    ping.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    let mut deferred: VecDeque<BrainRequest> = VecDeque::new();
+
     loop {
-        if !sidecar.ping(PING_TIMEOUT).await {
+        let event = match deferred.pop_front() {
+            Some(request) => PumpEvent::Request(request),
+            None => tokio::select! {
+                _ = ping.tick() => PumpEvent::Ping,
+                maybe = recv(requests) => match maybe {
+                    Some(request) => PumpEvent::Request(request),
+                    None => PumpEvent::Closed,
+                },
+            },
+        };
+
+        let alive = match event {
+            PumpEvent::Ping => sidecar.ping(PING_TIMEOUT).await,
+            PumpEvent::Closed => false,
+            PumpEvent::Request(request) => {
+                handle_request(app, &mut sidecar, requests, &mut deferred, request).await
+            }
+        };
+        if !alive {
             break;
         }
-        match sidecar.next_message(interval).await {
-            LineState::Idle => {}
-            LineState::Gone => break,
-            LineState::Received(_) => {}
+    }
+
+    link.set_online(false);
+    sidecar.kill().await;
+}
+
+enum PumpEvent {
+    Ping,
+    Request(BrainRequest),
+    Closed,
+}
+
+/// Writes one queued request; `session.ask` streams back as panel events.
+/// Returns `false` once the sidecar is gone and supervision should restart.
+async fn handle_request(
+    app: &tauri::AppHandle,
+    sidecar: &mut SidecarProcess,
+    requests: &mut Option<UnboundedReceiver<BrainRequest>>,
+    deferred: &mut VecDeque<BrainRequest>,
+    request: BrainRequest,
+) -> bool {
+    if request.method == "session.ask" {
+        stream_ask(app, sidecar, requests, deferred, &request.params).await
+    } else {
+        let _ = sidecar
+            .request(&request.method, &request.params.to_string())
+            .await;
+        true
+    }
+}
+
+/// Writes `session.ask` then pumps its stream: `agent.token` → `panel:token`,
+/// the final response → `panel:complete`, errors/timeouts → `panel:error`.
+/// Aborts queued meanwhile are written immediately; other requests defer until
+/// the ask ends.
+async fn stream_ask(
+    app: &tauri::AppHandle,
+    sidecar: &mut SidecarProcess,
+    requests: &mut Option<UnboundedReceiver<BrainRequest>>,
+    deferred: &mut VecDeque<BrainRequest>,
+    params: &Value,
+) -> bool {
+    let ask_id = sidecar.request("session.ask", &params.to_string()).await;
+    let deadline = Instant::now() + ASK_TIMEOUT;
+    loop {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            emit(app, "panel:error", serde_json::json!({ "message": "brain timed out" }));
+            return true;
+        }
+        let event = tokio::select! {
+            state = sidecar.next_message(remaining) => AskEvent::Line(state),
+            maybe = recv(requests) => match maybe {
+                Some(request) if request.method == "session.abort" => AskEvent::Abort(request),
+                Some(request) => AskEvent::Defer(request),
+                None => AskEvent::Closed,
+            },
+        };
+        match event {
+            AskEvent::Line(LineState::Gone) => {
+                emit(app, "panel:error", serde_json::json!({ "message": "brain restarted" }));
+                return false;
+            }
+            AskEvent::Line(LineState::Idle) => {
+                emit(app, "panel:error", serde_json::json!({ "message": "brain timed out" }));
+                return true;
+            }
+            AskEvent::Line(LineState::Received(line)) => match classify_ask_line(&line, ask_id) {
+                AskSignal::Token(delta) => {
+                    emit(app, "panel:token", serde_json::json!({ "delta": delta }))
+                }
+                AskSignal::Complete(answer) => {
+                    emit(app, "panel:complete", serde_json::json!({ "answer": answer }));
+                    return true;
+                }
+                AskSignal::Failed(message) => {
+                    emit(app, "panel:error", serde_json::json!({ "message": message }));
+                    return true;
+                }
+                AskSignal::Ignored => {}
+            },
+            AskEvent::Abort(request) => {
+                let _ = sidecar
+                    .request(&request.method, &request.params.to_string())
+                    .await;
+            }
+            AskEvent::Defer(request) => deferred.push_back(request),
+            AskEvent::Closed => return true,
         }
     }
-    sidecar.kill().await;
+}
+
+enum AskEvent {
+    Line(LineState),
+    Abort(BrainRequest),
+    Defer(BrainRequest),
+    Closed,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum AskSignal {
+    Token(String),
+    Complete(String),
+    Failed(String),
+    Ignored,
+}
+
+/// Classifies one sidecar line seen while waiting for ask `ask_id`.
+fn classify_ask_line(line: &str, ask_id: u64) -> AskSignal {
+    let Ok(value) = serde_json::from_str::<Value>(line) else {
+        return AskSignal::Ignored;
+    };
+    if value.get("id").and_then(Value::as_u64) == Some(ask_id) {
+        if let Some(result) = value.get("result") {
+            let answer = result
+                .get("answer")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            return AskSignal::Complete(answer.to_string());
+        }
+        let message = value
+            .pointer("/error/message")
+            .and_then(Value::as_str)
+            .unwrap_or("brain error");
+        return AskSignal::Failed(message.to_string());
+    }
+    if value.get("method").and_then(Value::as_str) == Some("agent.token") {
+        if let Some(delta) = value.pointer("/params/delta").and_then(Value::as_str) {
+            return AskSignal::Token(delta.to_string());
+        }
+    }
+    AskSignal::Ignored
+}
+
+/// Awaits the next queued request, or stays pending forever when the supervisor
+/// never received the link.
+async fn recv(rx: &mut Option<UnboundedReceiver<BrainRequest>>) -> Option<BrainRequest> {
+    match rx {
+        Some(rx) => rx.recv().await,
+        None => std::future::pending().await,
+    }
+}
+
+fn emit(app: &tauri::AppHandle, event: &str, payload: Value) {
+    if let Err(e) = app.emit(event, payload) {
+        eprintln!("ruoxi: {event} emit failed: {e}");
+    }
 }
 
 pub enum LineState {
@@ -215,5 +393,45 @@ impl SidecarProcess {
 fn set_tooltip(app: &tauri::AppHandle, text: &str) {
     if let Some(tray) = app.tray_by_id("main") {
         let _ = tray.set_tooltip(Some(text));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn token_notification_is_extracted() {
+        let line = r#"{"jsonrpc":"2.0","method":"agent.token","params":{"answer_id":"ans_1","delta":"hi "}}"#;
+        assert_eq!(
+            classify_ask_line(line, 7),
+            AskSignal::Token("hi ".to_string())
+        );
+    }
+
+    #[test]
+    fn matching_response_is_complete_and_errors_are_failed() {
+        let done = r#"{"jsonrpc":"2.0","id":7,"result":{"answer_id":"ans_1","answer":"done","steps":[],"aborted":false}}"#;
+        assert_eq!(
+            classify_ask_line(done, 7),
+            AskSignal::Complete("done".to_string())
+        );
+        let aborted = r#"{"jsonrpc":"2.0","id":7,"error":{"code":-32000,"message":"aborted by user"}}"#;
+        assert_eq!(
+            classify_ask_line(aborted, 7),
+            AskSignal::Failed("aborted by user".to_string())
+        );
+    }
+
+    #[test]
+    fn other_ids_and_junk_are_ignored() {
+        let other = r#"{"jsonrpc":"2.0","id":8,"result":{"answer":"nope"}}"#;
+        assert_eq!(classify_ask_line(other, 7), AskSignal::Ignored);
+        assert_eq!(classify_ask_line("not json", 7), AskSignal::Ignored);
+        let other_notification = r#"{"jsonrpc":"2.0","method":"agent.other","params":{}}"#;
+        assert_eq!(
+            classify_ask_line(other_notification, 7),
+            AskSignal::Ignored
+        );
     }
 }

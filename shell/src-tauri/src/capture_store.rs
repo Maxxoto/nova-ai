@@ -452,9 +452,111 @@ impl RequestRouter for CaptureRouter {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CaptureStats {
+    pub count: u64,
+    pub bytes: u64,
+    pub oldest_ms: Option<u64>,
+}
+
+/// Summarizes timeline rows + on-disk image sizes without touching the index.
+/// `root` is the store root that `record.path` is relative to.
+pub fn stats_from(records: &[CaptureRecord], root: &Path) -> CaptureStats {
+    let mut bytes = 0u64;
+    let mut oldest_ms: Option<u64> = None;
+    for record in records {
+        if let Ok(meta) = fs::metadata(root.join(&record.path)) {
+            bytes = bytes.saturating_add(meta.len());
+        }
+        oldest_ms = Some(match oldest_ms {
+            Some(current) => current.min(record.ts),
+            None => record.ts,
+        });
+    }
+    CaptureStats {
+        count: records.len() as u64,
+        bytes,
+        oldest_ms,
+    }
+}
+
+#[tauri::command]
+pub fn capture_store_stats(
+    app: tauri::AppHandle,
+) -> std::result::Result<CaptureStats, String> {
+    use tauri::Manager;
+    let data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("app data dir unavailable: {e}"))?;
+    let store = CaptureStore::open(&data_dir).map_err(|e| e.to_string())?;
+    let filter = TimelineFilter {
+        limit: i64::MAX as u64,
+        ..Default::default()
+    };
+    let records = store.timeline(&filter).map_err(|e| e.to_string())?;
+    Ok(stats_from(&records, &data_dir))
+}
+
+#[tauri::command]
+pub fn capture_delete_all(app: tauri::AppHandle) -> std::result::Result<(), String> {
+    use tauri::Manager;
+    let data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("app data dir unavailable: {e}"))?;
+    let store = CaptureStore::open(&data_dir).map_err(|e| e.to_string())?;
+    store
+        .delete_all()
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn stats_sum_sizes_and_track_oldest() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let root = dir.path();
+        fs::write(root.join("a.png"), vec![0u8; 10]).expect("write a");
+        fs::write(root.join("b.png"), vec![0u8; 25]).expect("write b");
+        let record = |path: &str, ts: u64| CaptureRecord {
+            capture_id: path.to_string(),
+            ts,
+            day: "1970-01-01".to_string(),
+            scope: "window".to_string(),
+            display_id: "1".to_string(),
+            app: None,
+            window_title: None,
+            path: path.to_string(),
+            w_px: 1,
+            h_px: 1,
+            scale: 1.0,
+            sha256: path.to_string(),
+            retention: "default".to_string(),
+            auto: false,
+        };
+        let records = vec![record("a.png", 200), record("b.png", 100)];
+        let stats = stats_from(&records, root);
+        assert_eq!(stats.count, 2);
+        assert_eq!(stats.bytes, 35);
+        assert_eq!(stats.oldest_ms, Some(100));
+
+        let missing = stats_from(&[record("gone.png", 5)], root);
+        assert_eq!(missing.bytes, 0);
+        assert_eq!(missing.oldest_ms, Some(5));
+    }
+
+    #[test]
+    fn stats_empty_is_zeroed() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let stats = stats_from(&[], dir.path());
+        assert_eq!(stats.count, 0);
+        assert_eq!(stats.bytes, 0);
+        assert_eq!(stats.oldest_ms, None);
+    }
 
     #[test]
     fn day_string_known_dates() {

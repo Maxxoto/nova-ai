@@ -144,7 +144,9 @@ mod mac {
     use crate::capture_store::Scope;
     use xcap::{Monitor, Window};
 
-    fn cursor_point() -> (i32, i32) {
+    /// Cursor position in the global display coordinate space (logical points,
+    /// top-left origin) — shared with the region overlay.
+    pub(crate) fn cursor_point() -> (i32, i32) {
         use core_graphics::event::CGEvent;
         use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
         let src = CGEventSource::new(CGEventSourceStateID::CombinedSessionState);
@@ -255,6 +257,9 @@ mod mac {
 
 #[cfg(target_os = "macos")]
 pub use mac::{capture_fullscreen, capture_region_interactive, capture_window};
+
+#[cfg(target_os = "macos")]
+pub(crate) use mac::cursor_point;
 
 #[cfg(not(target_os = "macos"))]
 pub fn capture_fullscreen() -> Result<Captured, CaptureError> {
