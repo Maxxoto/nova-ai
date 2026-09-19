@@ -13,6 +13,7 @@ pub const TARGET_RATE: u32 = 16_000;
 pub struct Recording {
     samples: Arc<std::sync::Mutex<Vec<f32>>>,
     stop: Arc<std::sync::atomic::AtomicBool>,
+    callbacks: Arc<std::sync::atomic::AtomicUsize>,
     finished: std::sync::mpsc::Receiver<()>,
 }
 
@@ -42,9 +43,11 @@ impl Recording {
         };
         let samples = Arc::new(std::sync::Mutex::new(Vec::<f32>::new()));
         let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let callbacks = Arc::new(std::sync::atomic::AtomicUsize::new(0));
         let (done_tx, done_rx) = std::sync::mpsc::channel::<()>();
         let sink_samples = Arc::clone(&samples);
         let sink_stop = Arc::clone(&stop);
+        let sink_callbacks = Arc::clone(&callbacks);
 
         let input_rate = config.sample_rate as f64;
         let mut resample_cursor = 0.0f64;
@@ -52,6 +55,7 @@ impl Recording {
             if sink_stop.load(std::sync::atomic::Ordering::Relaxed) {
                 return;
             }
+            sink_callbacks.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             let mut buffer = sink_samples.lock().expect("sample lock");
             for &sample in data {
                 resample_cursor += TARGET_RATE as f64 / input_rate;
@@ -73,32 +77,48 @@ impl Recording {
             .play()
             .map_err(|e| format!("start microphone: {e}"))?;
 
-        // Keep the stream alive until stop is requested; the callback then
-        // goes quiet and this thread drops the stream (closing the device).
+        // Keep the stream alive until stop is requested, then drop the
+        // stream BEFORE signalling — releasing the device and the callback's
+        // sample handle so the final read sees a quiesced buffer.
         let guard_stop = Arc::clone(&stop);
         std::thread::spawn(move || {
-            let _stream = stream;
             while !guard_stop.load(std::sync::atomic::Ordering::Relaxed) {
                 std::thread::sleep(std::time::Duration::from_millis(50));
             }
+            drop(stream);
             let _ = done_tx.send(());
         });
 
         Ok(Self {
             samples,
             stop,
+            callbacks,
             finished: done_rx,
         })
     }
 
-    /// Stops capture and returns the recorded samples.
+    /// Stops capture and returns the recorded samples. Empty with zero
+    /// callbacks usually means macOS microphone permission is missing.
     pub fn stop(self) -> Vec<f32> {
         self.stop.store(true, std::sync::atomic::Ordering::Relaxed);
         let _ = self.finished.recv_timeout(std::time::Duration::from_secs(2));
-        match Arc::try_unwrap(self.samples) {
-            Ok(guard) => guard.into_inner().expect("sample lock"),
-            Err(_) => Vec::new(),
+        let samples = self
+            .samples
+            .lock()
+            .map(|mut buffer| std::mem::take(&mut *buffer))
+            .unwrap_or_default();
+        if samples.is_empty()
+            && self
+                .callbacks
+                .load(std::sync::atomic::Ordering::Relaxed)
+                == 0
+        {
+            eprintln!(
+                "ruoxi: no audio arrived from the device — check Microphone permission \
+                 (System Settings → Privacy & Security → Microphone) and the input device"
+            );
         }
+        samples
     }
 }
 
