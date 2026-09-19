@@ -11,12 +11,15 @@ pub mod capture;
 pub mod capture_store;
 pub mod displays;
 pub mod hotkeys;
+pub mod llm;
+pub mod models;
 pub mod overlay;
 pub mod panel;
 pub mod permissions;
 pub mod settings;
 pub mod supervisor;
 pub mod timeline;
+pub mod tts;
 
 #[cfg(target_os = "macos")]
 pub mod ptt;
@@ -61,11 +64,22 @@ pub fn run() {
             settings::set_settings,
             settings::show_settings,
             settings::show_onboarding,
+            settings::hide_onboarding,
             hotkeys::validate_hotkey,
             panel::show_panel,
             panel::hide_panel,
             brain::session_ask,
             brain::session_abort,
+            models::stt_catalog,
+            models::stt_download,
+            models::stt_select,
+            models::stt_delete,
+            tts::tts_list_voices,
+            tts::tts_test_voice,
+            tts::tts_save_voice,
+            llm::llm_save_config,
+            llm::llm_clear_api_key,
+            llm::llm_test,
             permissions::permissions_status,
             permissions::permissions_request,
             permissions::open_privacy_pane,
@@ -107,7 +121,9 @@ pub fn run() {
                         ptt::DEFAULT_PTT_KEYCODE
                     }
                 };
-                match ptt::spawn_listener(keycode, tx) {
+                let mods = hotkeys::ptt_modifiers(&configured);
+                eprintln!("ruoxi: ptt modifiers bitmask {mods:#x}");
+                match ptt::spawn_listener(keycode, mods, tx) {
                     Ok(_) => {
                         eprintln!("ruoxi: ptt listener active (keycode {keycode})");
                         let handle = app.handle().clone();

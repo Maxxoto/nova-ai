@@ -74,6 +74,31 @@ pub fn ptt_keycode(accel: &str) -> Option<i64> {
     keycode_for_key(&ptt_key_token(accel)?)
 }
 
+pub const MOD_SHIFT: u32 = 1 << 0;
+pub const MOD_ALT: u32 = 1 << 1;
+pub const MOD_CTRL: u32 = 1 << 2;
+pub const MOD_CMD: u32 = 1 << 3;
+pub const MOD_FN: u32 = 1 << 4;
+
+/// Modifier bitmask of `accel` — the enforcement side of [`ptt_keycode`].
+/// `"Alt+Shift+V"` → `MOD_ALT | MOD_SHIFT`; `"F8"` → `0` (bare key).
+pub fn ptt_modifiers(accel: &str) -> u32 {
+    accelerator_tokens(accel)
+        .into_iter()
+        .filter(|token| PTT_MODIFIERS.contains(&token.as_str()))
+        .fold(0u32, |mask, token| {
+            mask
+                | match token.as_str() {
+                    "shift" => MOD_SHIFT,
+                    "alt" | "option" => MOD_ALT,
+                    "ctrl" | "control" => MOD_CTRL,
+                    "cmd" | "command" | "meta" | "super" => MOD_CMD,
+                    "fn" => MOD_FN,
+                    _ => 0,
+                }
+        })
+}
+
 /// The lone non-modifier token of `accel`, normalized (`"KeyR"` → `"r"`,
 /// `"Digit1"` → `"1"`). `None` when there is no key or more than one.
 fn ptt_key_token(accel: &str) -> Option<String> {

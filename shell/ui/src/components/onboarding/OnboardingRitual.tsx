@@ -128,6 +128,7 @@ export default function OnboardingRitual({ initialStep, reducedMotion }: Onboard
   const handleContinue = () => {
     if (step === "ready") {
       setCompleted(true);
+      window.setTimeout(() => invokeTauriAsync("hide_onboarding"), 900);
       return;
     }
     go(stepIndex + 1);
