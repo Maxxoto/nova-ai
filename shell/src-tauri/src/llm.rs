@@ -15,6 +15,7 @@ pub const ENV_BASE_URL: &str = "RUOXI_LLM_BASE_URL";
 pub const ENV_API_KEY: &str = "RUOXI_LLM_API_KEY";
 pub const ENV_MODEL: &str = "RUOXI_LLM_MODEL";
 pub const ENV_VISION_MODEL: &str = "RUOXI_LLM_VISION_MODEL";
+pub const ENV_OFFLINE: &str = "RUOXI_OFFLINE";
 
 fn keychain_entry() -> Result<Entry, String> {
     Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_USER).map_err(|e| format!("keychain unavailable: {e}"))
@@ -26,7 +27,7 @@ pub fn stored_api_key() -> Option<String> {
 
 /// Env vars injected at sidecar spawn; empty when unconfigured.
 pub fn env_for_sidecar(settings: &crate::settings::Settings) -> Vec<(String, String)> {
-    let mut env = Vec::new();
+    let mut env = vec![(ENV_OFFLINE.to_string(), settings.offline.to_string())];
     if !settings.llm.base_url.is_empty() {
         env.push((ENV_BASE_URL.to_string(), settings.llm.base_url.clone()));
     }
@@ -112,8 +113,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn env_is_empty_until_configured() {
+    fn env_carries_only_the_offline_flag_until_configured() {
         let settings = crate::settings::Settings::default();
-        assert!(env_for_sidecar(&settings).is_empty());
+        assert_eq!(
+            env_for_sidecar(&settings),
+            vec![(ENV_OFFLINE.to_string(), "true".to_string())]
+        );
     }
 }

@@ -6,10 +6,8 @@
 
 use std::path::PathBuf;
 use std::process::Command as StdCommand;
-use std::sync::Arc;
 use std::time::Duration;
 
-use nova_shell::capture_store::{CaptureRouter, CaptureStore, NewCapture, Scope};
 use nova_shell::settings::Settings;
 use nova_shell::supervisor::{LineState, SidecarProcess};
 
@@ -33,7 +31,8 @@ fn system_python_has_pydantic() -> bool {
 
 fn test_sidecar_settings() -> Settings {
     std::env::set_var("PYTHONPATH", repo_root().join("src"));
-    if system_python_has_pydantic() {
+    std::env::set_var("RUOXI_LLM_MOCK", "1");
+    let mut settings = if system_python_has_pydantic() {
         Settings::default()
     } else {
         Settings {
@@ -49,7 +48,10 @@ fn test_sidecar_settings() -> Settings {
             ],
             ..Settings::default()
         }
-    }
+    };
+    // The privacy-first default gates answers; the mock path must not be gated.
+    settings.offline = false;
+    settings
 }
 
 async fn spawn_test_sidecar() -> SidecarProcess {
@@ -127,66 +129,3 @@ async fn python_sidecar_can_be_respawned_after_kill() {
     );
 }
 
-#[tokio::test]
-async fn ask_pulls_capture_metadata_from_the_store() {
-    let work = tokio::time::timeout(ASK_TIMEOUT, async {
-        let root = tempfile::tempdir().expect("tempdir");
-        let store = CaptureStore::open(root.path()).expect("store");
-        let (record, _) = store
-            .insert(&NewCapture {
-                scope: Scope::Region,
-                ts_ms: 1_758_211_353_000,
-                display_id: "display-1".to_string(),
-                app: Some("Preview".to_string()),
-                window_title: Some("lecture-7.pdf".to_string()),
-                w_px: 1280,
-                h_px: 960,
-                scale: 2.0,
-                image: vec![1, 2, 3],
-                ext: "png".to_string(),
-                auto: false,
-            })
-            .expect("insert");
-
-        let settings = test_sidecar_settings();
-        let mut sidecar = SidecarProcess::spawn(&settings)
-            .expect("spawn")
-            .with_router(Arc::new(CaptureRouter::new(store)));
-
-        let id = sidecar
-            .request(
-                "session.ask",
-                &format!(
-                    r#"{{"transcript":"explain this","capture_ids":["{}"]}}"#,
-                    record.capture_id
-                ),
-            )
-            .await;
-        let mut tokens = 0u32;
-        loop {
-            match sidecar.next_message(Duration::from_secs(10)).await {
-                LineState::Received(line) => {
-                    let value: serde_json::Value =
-                        serde_json::from_str(&line).expect("valid json");
-                    if value.get("id").and_then(|v| v.as_u64()) == Some(id) {
-                        sidecar.kill().await;
-                        return value["result"]["answer"].as_str().map(str::to_string);
-                    }
-                    if value.get("method").and_then(|m| m.as_str()) == Some("agent.token") {
-                        tokens += 1;
-                    }
-                }
-                _ => {
-                    sidecar.kill().await;
-                    return None;
-                }
-            }
-        }
-    });
-    let answer = work
-        .await
-        .expect("ask completes within timeout")
-        .expect("final answer");
-    assert!(answer.contains("Preview"));
-    assert!(answer.contains("lecture-7.pdf"));
-}

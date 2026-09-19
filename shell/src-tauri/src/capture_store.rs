@@ -411,7 +411,12 @@ impl CaptureRouter {
             .and_then(|v| v.as_str())
             .ok_or_else(|| "capture.lookup requires string id".to_string())?;
         match self.store.lookup(id).map_err(|e| e.to_string())? {
-            Some(record) => serde_json::to_value(record).map_err(|e| e.to_string()),
+            Some(record) => {
+                let mut value = serde_json::to_value(&record).map_err(|e| e.to_string())?;
+                let abs_path = self.store.root.join(&record.path);
+                value["abs_path"] = serde_json::json!(abs_path.display().to_string());
+                Ok(value)
+            }
             None => Err(format!("capture {id} not found")),
         }
     }

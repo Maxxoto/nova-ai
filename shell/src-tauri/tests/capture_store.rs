@@ -4,8 +4,9 @@
 use std::fs;
 use std::path::Path;
 
+use nova_shell::RequestRouter;
 use nova_shell::capture_store::{
-    CaptureStore, NewCapture, Scope, StoreError, TimelineFilter,
+    CaptureRouter, CaptureStore, NewCapture, Scope, StoreError, TimelineFilter,
 };
 
 fn temp_root() -> tempfile::TempDir {
@@ -198,6 +199,26 @@ fn index_rebuilds_from_sidecars() {
     assert_eq!(records.len(), 1);
     assert!(records[0].capture_id.starts_with("cap_"));
     assert_eq!(records[0].app.as_deref(), Some("Preview"));
+}
+
+#[test]
+fn router_lookup_returns_abs_path_for_real_files() {
+    let root = temp_root();
+    let store = CaptureStore::open(root.path()).expect("open");
+    let (record, _) = store
+        .insert(&capture(1_758_211_353_000, vec![4, 2], Some("Preview")))
+        .expect("insert");
+    let router = CaptureRouter::new(store);
+    let value = router
+        .route(
+            "capture.lookup",
+            &serde_json::json!({ "id": record.capture_id }),
+        )
+        .expect("lookup routes");
+    let abs = value["abs_path"].as_str().expect("abs_path present");
+    assert!(abs.ends_with(&record.path));
+    assert!(std::path::Path::new(abs).is_file());
+    assert_eq!(value["app"], "Preview");
 }
 
 #[test]

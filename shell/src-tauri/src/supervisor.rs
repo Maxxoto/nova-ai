@@ -55,7 +55,10 @@ async fn supervise_once(
 
     link.set_online(false);
     let mut sidecar = match SidecarProcess::spawn(&settings) {
-        Ok(sidecar) => sidecar,
+        Ok(sidecar) => match capture_router(app) {
+            Some(router) => sidecar.with_router(router),
+            None => sidecar,
+        },
         Err(e) => {
             eprintln!("ruoxi: brain sidecar failed to spawn: {e}");
             return;
@@ -256,6 +259,13 @@ async fn recv(rx: &mut Option<UnboundedReceiver<BrainRequest>>) -> Option<BrainR
         Some(rx) => rx.recv().await,
         None => std::future::pending().await,
     }
+}
+
+fn capture_router(app: &tauri::AppHandle) -> Option<Arc<dyn RequestRouter>> {
+    use tauri::Manager;
+    let dir = app.path().app_data_dir().ok()?;
+    let store = crate::capture_store::CaptureStore::open(&dir).ok()?;
+    Some(Arc::new(crate::capture_store::CaptureRouter::new(store)))
 }
 
 fn emit(app: &tauri::AppHandle, event: &str, payload: Value) {

@@ -18,18 +18,21 @@ ENV = {
     **os.environ,
     "PYTHONPATH": str(REPO_ROOT / "src"),
     "RUOXI_UPSTREAM_TIMEOUT_S": "0.5",
+    # Deterministic streamed answers with no network: the agent loop's mock path.
+    "RUOXI_LLM_MOCK": "1",
 }
 
 
 class SidecarProcess:
-    def __init__(self) -> None:
+    def __init__(self, env_overrides: dict[str, str] | None = None) -> None:
+        env = {**ENV, **(env_overrides or {})}
         self.proc = subprocess.Popen(
             [sys.executable, "-m", "app.interfaces.sidecar"],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            env=ENV,
+            env=env,
             cwd=REPO_ROOT,
         )
 
@@ -139,7 +142,7 @@ def test_abort_mid_stream_returns_aborted_error() -> None:
         sidecar.close()
 
 
-def test_ask_with_unanswered_upstream_lookup_degrades_gracefully() -> None:
+def test_ask_with_unresolvable_capture_still_completes() -> None:
     sidecar = SidecarProcess()
     try:
         sidecar.request(1, "ping")
@@ -157,10 +160,72 @@ def test_ask_with_unanswered_upstream_lookup_degrades_gracefully() -> None:
             if msg.get("id") == 2:
                 final = msg
                 break
+        assert final is not None, "ask must answer even when a capture cannot resolve"
+        result = final["result"]
+        assert isinstance(result, dict)
+        assert "[mock]" in str(result["answer"])
+        assert sidecar.request(3, "ping")["result"]["pong"] is True
+    finally:
+        sidecar.close()
+
+
+def test_ask_offline_gate_refuses_without_llm_call() -> None:
+    sidecar = SidecarProcess(
+        {"RUOXI_LLM_MOCK": "", "RUOXI_OFFLINE": "true"}
+    )
+    try:
+        sidecar.request(1, "ping")
+        sidecar.send(
+            {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "session.ask",
+                "params": {"transcript": "hello", "capture_ids": []},
+            }
+        )
+        final: dict[str, object] | None = None
+        for _ in range(200):
+            msg = sidecar.read_msg()
+            if msg.get("id") == 2:
+                final = msg
+                break
         assert final is not None
         result = final["result"]
         assert isinstance(result, dict)
-        assert "[capture cap_missing unavailable]" in str(result["answer"])
+        assert "Offline mode" in str(result["answer"])
+    finally:
+        sidecar.close()
+
+
+def test_ask_unconfigured_reports_setup_hint() -> None:
+    sidecar = SidecarProcess(
+        {
+            "RUOXI_LLM_MOCK": "",
+            "RUOXI_OFFLINE": "false",
+            "RUOXI_LLM_BASE_URL": "",
+            "RUOXI_LLM_API_KEY": "",
+        }
+    )
+    try:
+        sidecar.request(1, "ping")
+        sidecar.send(
+            {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "session.ask",
+                "params": {"transcript": "hello", "capture_ids": []},
+            }
+        )
+        final: dict[str, object] | None = None
+        for _ in range(200):
+            msg = sidecar.read_msg()
+            if msg.get("id") == 2:
+                final = msg
+                break
+        assert final is not None
+        result = final["result"]
+        assert isinstance(result, dict)
+        assert "isn't configured" in str(result["answer"])
     finally:
         sidecar.close()
 

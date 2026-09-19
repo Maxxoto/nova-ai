@@ -9,6 +9,7 @@ is wired in M1.
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import os
 import sys
@@ -27,6 +28,10 @@ from app.interfaces.sidecar.envelopes import (
 )
 
 _STARTED_AT = time.monotonic()
+
+
+def offline_mode() -> bool:
+    return os.environ.get("RUOXI_OFFLINE", "").strip().lower() in ("1", "true", "yes")
 _TOKEN_PAUSE_S = 0.02
 _UPSTREAM_TIMEOUT_S = float(os.environ.get("RUOXI_UPSTREAM_TIMEOUT_S", "5.0"))
 
@@ -132,6 +137,110 @@ class SidecarServer:
         finally:
             self._pending.pop(rid, None)
 
+    async def _lookup_capture_record(self, capture_id: str) -> dict | None:
+        response = await self._request_upstream("capture.lookup", {"id": capture_id})
+        if not response or "result" not in response:
+            return None
+        result = response["result"]
+        return result if isinstance(result, dict) else None
+
+    async def _stream_text(self, answer_id: str, text: str) -> None:
+        for word in text.split(" "):
+            if self._abort.is_set():
+                return
+            await self._notify_token(answer_id, word + " ")
+            await asyncio.sleep(_TOKEN_PAUSE_S)
+
+    async def _build_messages(self, params: AskParams) -> list[dict[str, object]]:
+        content: list[dict[str, object]] = [{"type": "text", "text": params.transcript}]
+        for capture_id in params.capture_ids:
+            record = await self._lookup_capture_record(capture_id)
+            path = str(record.get("abs_path") or "") if record else ""
+            if path and os.path.isfile(path):
+                with open(path, "rb") as handle:
+                    encoded = base64.b64encode(handle.read()).decode("ascii")
+                content.append(
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/png;base64,{encoded}"},
+                    }
+                )
+        system = (
+            "You are Ruòxī (若曦), a concise zh/en study companion. "
+            "Answer in the user's language; when a screenshot is attached, "
+            "read it and answer about what matters in it."
+        )
+        return [
+            {"role": "system", "content": system},
+            {"role": "user", "content": content},
+        ]
+
+    def _complete_streaming(
+        self, messages: list[dict[str, object]], answer_id: str, loop: asyncio.AbstractEventLoop
+    ) -> tuple[bool, str]:
+        import litellm
+
+        base_url = os.environ.get("RUOXI_LLM_BASE_URL", "").strip()
+        api_key = os.environ.get("RUOXI_LLM_API_KEY", "").strip()
+        model = os.environ.get("RUOXI_LLM_MODEL", "").strip() or "gpt-4o-mini"
+        vision_model = os.environ.get("RUOXI_LLM_VISION_MODEL", "").strip() or model
+        has_image = any(
+            isinstance(message.get("content"), list)
+            and any(part.get("type") == "image_url" for part in message["content"])
+            for message in messages
+        )
+        stream = litellm.completion(
+            model=f"openai/{vision_model if has_image else model}",
+            api_base=base_url,
+            api_key=api_key,
+            messages=messages,
+            stream=True,
+            timeout=90,
+        )
+        parts: list[str] = []
+        for chunk in stream:
+            if self._abort.is_set():
+                return True, "".join(parts)
+            try:
+                delta = chunk.choices[0].delta.content or ""
+            except (AttributeError, IndexError):
+                delta = ""
+            if delta:
+                parts.append(delta)
+                asyncio.run_coroutine_threadsafe(
+                    self._notify_token(answer_id, delta), loop
+                )
+        return False, "".join(parts)
+
+    async def _agent_answer(self, params: AskParams, answer_id: str) -> str | None:
+        mock = os.environ.get("RUOXI_LLM_MOCK", "").strip()
+        if offline_mode():
+            text = "Offline mode is on — answers stay off until you disable it in Settings."
+            await self._stream_text(answer_id, text)
+            return None if self._abort.is_set() else text
+        if mock:
+            text = (
+                f"[mock] Heard: {params.transcript!r} about "
+                f"{len(params.capture_ids)} capture(s)."
+            )
+            await self._stream_text(answer_id, text)
+            return None if self._abort.is_set() else text
+        base_url = os.environ.get("RUOXI_LLM_BASE_URL", "").strip()
+        api_key = os.environ.get("RUOXI_LLM_API_KEY", "").strip()
+        if not base_url or not api_key:
+            text = (
+                "The brain isn't configured yet — add your endpoint and API key "
+                "in Settings → Brain (LLM)."
+            )
+            await self._stream_text(answer_id, text)
+            return None if self._abort.is_set() else text
+        messages = await self._build_messages(params)
+        loop = asyncio.get_running_loop()
+        aborted, text = await asyncio.to_thread(
+            self._complete_streaming, messages, answer_id, loop
+        )
+        return None if aborted else text
+
     async def _lookup_capture(self, capture_id: str) -> str:
         response = await self._request_upstream(
             "capture.lookup", {"id": capture_id}
@@ -213,27 +322,26 @@ class SidecarServer:
             if self._abort.is_set():
                 await self._send_aborted(request_id)
                 return
-            subjects = [await self._lookup_capture(c) for c in params.capture_ids]
-            about = ", ".join(subjects) if subjects else "no captures"
-            canned = (
-                f"[M0 stub] Heard: {params.transcript!r} about {about}. "
-                "The real agent loop arrives in M1."
-            )
-            for word in canned.split(" "):
-                if self._abort.is_set():
-                    await self._send_aborted(request_id)
-                    return
-                await self._notify_token(answer_id, word + " ")
-                await asyncio.sleep(_TOKEN_PAUSE_S)
+            answer = await self._agent_answer(params, answer_id)
+            if answer is None:
+                await self._send_aborted(request_id)
+                return
             await self._send(
                 RpcResponse(
                     id=request_id,
                     result={
                         "answer_id": answer_id,
-                        "answer": canned,
+                        "answer": answer,
                         "steps": [],
                         "aborted": False,
                     },
+                )
+            )
+        except Exception as exc:
+            await self._send(
+                RpcResponse(
+                    id=request_id,
+                    error=_err(ErrorCode.INTERNAL, f"agent: {exc}"),
                 )
             )
         finally:
