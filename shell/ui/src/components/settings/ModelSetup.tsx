@@ -15,6 +15,7 @@ type ModelKind = "stt" | "tts_model" | "tts_voices";
 type CatalogModel = {
   id: string;
   kind: ModelKind;
+  family: string;
   name: string;
   file: string;
   size_bytes: number;
@@ -45,6 +46,11 @@ function hostLabel(url: string): string {
   } catch {
     return "the configured endpoint";
   }
+}
+
+function familyLabel(family: string): string {
+  if (!family) return "Models";
+  return family.charAt(0).toUpperCase() + family.slice(1);
 }
 
 type PickerOption = { value: string; label: string; disabled?: boolean };
@@ -388,6 +394,21 @@ export function ModelsSection({
     },
   ];
 
+  const sttGroups: PickerGroup[] = [];
+  for (const entry of sttModels) {
+    const label = familyLabel(entry.family);
+    const group = sttGroups.find((item) => item.label === label);
+    const option: PickerOption = {
+      value: entry.id,
+      label: entry.downloaded ? entry.name : `${entry.name} — download ${mb(entry.size_bytes)}`,
+    };
+    if (group) group.options.push(option);
+    else sttGroups.push({ label, options: [option] });
+  }
+  if (!sttSelected && sttGroups.length > 0) {
+    sttGroups[0].options.unshift({ value: "", label: "Choose a model", disabled: true });
+  }
+
   const sttOnDevice = sttModels.find((m) => m.downloaded && m.selected);
   const kokoroBytes =
     (kokoroModelEntry?.downloaded ? kokoroModelEntry.size_bytes : 0) +
@@ -404,7 +425,7 @@ export function ModelsSection({
       <div className="flex flex-col">
         <Row
           label="Speech to text"
-          help="Local speech models — files download only with your consent."
+          help="Whisper or Parakeet, running on this Mac."
           side={
             <>
               <Tag>on-device</Tag>
@@ -413,22 +434,7 @@ export function ModelsSection({
                   ariaLabel="Speech to text model"
                   value={sttSelected?.id ?? ""}
                   onChange={pickSttModel}
-                  groups={[
-                    {
-                      label: "Models",
-                      options: [
-                        ...(sttSelected
-                          ? []
-                          : [{ value: "", label: "Choose a model", disabled: true }]),
-                        ...sttModels.map((entry) => ({
-                          value: entry.id,
-                          label: entry.downloaded
-                            ? entry.name
-                            : `${entry.name} — download ${mb(entry.size_bytes)}`,
-                        })),
-                      ],
-                    },
-                  ]}
+                  groups={sttGroups}
                 />
               ) : (
                 <span className="font-ui text-[12px] text-muted-foreground">
@@ -520,7 +526,7 @@ export function ModelsSection({
           label="On-device models"
           help={
             onDeviceEntries.length > 0
-              ? `${onDeviceEntries.map((entry) => `${entry.label} ${sizeLabel(entry.bytes)}`).join(" · ")}. Downloaded once, kept on this Mac.`
+              ? `${onDeviceEntries.map((entry) => `${entry.label} ${sizeLabel(entry.bytes)}`).join(" · ")}. Switching models downloads the new one once.`
               : "Nothing downloaded yet — files arrive only with your consent."
           }
           side={<Tag>{onDeviceTotal > 0 ? sizeLabel(onDeviceTotal) : "0 MB"}</Tag>}

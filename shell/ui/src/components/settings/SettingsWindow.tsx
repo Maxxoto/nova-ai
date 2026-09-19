@@ -519,49 +519,6 @@ function displayCaption(display: Display): string {
   return `${role} · ${display.width} × ${display.height} · scale ${display.scale}×${anchor}`;
 }
 
-/** Sidebar order mirrors the design's `side-nav` anchors one-to-one. */
-const SETTINGS_SECTIONS = [
-  { id: "privacy", label: "Privacy & data" },
-  { id: "autocapture", label: "Automatic capture" },
-  { id: "voice", label: "Voice and answers" },
-  { id: "models", label: "Models" },
-  { id: "displays", label: "Capture and displays" },
-  { id: "appearance", label: "Appearance" },
-  { id: "access", label: "Access" },
-  { id: "about", label: "About" },
-] as const;
-
-function SideNav({ active, onJump }: { active: string; onJump: (id: string) => void }) {
-  return (
-    <nav
-      aria-label="Settings sections"
-      className="flex flex-row flex-wrap gap-1 min-[920px]:sticky min-[920px]:top-[78px] min-[920px]:flex-col min-[920px]:flex-nowrap min-[920px]:gap-0.5"
-    >
-      {SETTINGS_SECTIONS.map((section) => {
-        const current = section.id === active;
-        return (
-          <a
-            key={section.id}
-            href={`#${section.id}`}
-            aria-current={current ? "true" : undefined}
-            onClick={(event) => {
-              event.preventDefault();
-              onJump(section.id);
-            }}
-            className={`rounded px-3 py-1.5 font-ui text-[13px] leading-[1.4] transition-colors duration-200 ${FOCUS_RING} ${
-              current
-                ? "bg-primary-soft font-semibold text-foreground"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground"
-            }`}
-          >
-            {section.label}
-          </a>
-        );
-      })}
-    </nav>
-  );
-}
-
 type HotkeyCommitResult = { ok: true } | { ok: false; message: string; tone: "error" | "muted" };
 
 function HotkeyKeycaps({ caps }: { caps: readonly string[] }) {
@@ -754,7 +711,6 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
   const [permissions, setPermissions] = useState<PermissionsStatus | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [permissionNote, setPermissionNote] = useState("");
-  const [activeSection, setActiveSection] = useState<string>("privacy");
 
   const apply = (next: Settings) => {
     settingsRef.current = next;
@@ -841,31 +797,6 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
     };
   }, []);
 
-  useEffect(() => {
-    const sections = SETTINGS_SECTIONS.map((section) => document.getElementById(section.id)).filter(
-      (element): element is HTMLElement => element !== null,
-    );
-    if (sections.length === 0) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) setActiveSection(entry.target.id);
-        }
-      },
-      { rootMargin: "-30% 0px -60% 0px" },
-    );
-    for (const element of sections) observer.observe(element);
-    return () => observer.disconnect();
-  }, []);
-
-  const jumpToSection = (id: string) => {
-    setActiveSection(id);
-    document.getElementById(id)?.scrollIntoView({
-      behavior: reducedMotion ? "auto" : "smooth",
-      block: "start",
-    });
-  };
-
   /* Optimistic write: apply locally (theme also hits the root immediately),
      then persist the FULL object so untouched fields survive the round-trip. */
   const setField = (patch: Partial<Settings>) => {
@@ -937,7 +868,7 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
 
   return (
     <div
-      className={`mx-auto flex w-full max-w-[980px] flex-col gap-5 p-8${reducedMotion ? " reduced-motion rm-halve" : ""}`}
+      className={`mx-auto flex w-full max-w-[820px] flex-col gap-5 p-8${reducedMotion ? " reduced-motion rm-halve" : ""}`}
     >
       <header className="flex flex-col gap-1">
         <span className="font-mono text-[11px] font-medium uppercase tracking-[0.09em] text-muted-foreground">
@@ -953,10 +884,7 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
 
       <OfflineBanner offline={settings.offline} />
 
-      <div className="grid grid-cols-1 items-start gap-8 min-[920px]:grid-cols-[200px_1fr] min-[920px]:gap-10">
-        <SideNav active={activeSection} onJump={jumpToSection} />
-        <div className="flex min-w-0 flex-col gap-6">
-          <Section id="privacy" title="Privacy">
+      <Section id="privacy" title="Privacy">
         <div className="flex flex-col">
           <Row
             label="Offline mode — nothing leaves this Mac"
@@ -1231,8 +1159,6 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
           </div>
         </div>
       </section>
-        </div>
-      </div>
 
       {confirmOpen ? (
         <ConfirmDeleteDialog

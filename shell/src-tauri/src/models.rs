@@ -20,9 +20,18 @@ pub enum ModelKind {
     TtsVoices,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ModelFamily {
+    Whisper,
+    Parakeet,
+    Kokoro,
+}
+
 pub struct SttModel {
     pub id: &'static str,
     pub kind: ModelKind,
+    pub family: ModelFamily,
     pub name: &'static str,
     pub file: &'static str,
     pub url: &'static str,
@@ -35,6 +44,7 @@ pub const CATALOG: &[SttModel] = &[
     SttModel {
         id: "whisper-base-q5",
         kind: ModelKind::Stt,
+        family: ModelFamily::Whisper,
         name: "Whisper base (q5_0)",
         file: "ggml-base-q5_0.bin",
         url: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base-q5_0.bin",
@@ -45,6 +55,7 @@ pub const CATALOG: &[SttModel] = &[
     SttModel {
         id: "whisper-small-q5",
         kind: ModelKind::Stt,
+        family: ModelFamily::Whisper,
         name: "Whisper small (q5_0)",
         file: "ggml-small-q5_0.bin",
         url: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small-q5_0.bin",
@@ -55,6 +66,7 @@ pub const CATALOG: &[SttModel] = &[
     SttModel {
         id: "parakeet-tdt-0.6b",
         kind: ModelKind::Stt,
+        family: ModelFamily::Parakeet,
         name: "Parakeet TDT 0.6B",
         file: "parakeet-tdt-0.6b-v2.ggml",
         url: "https://huggingface.co/just-parakite-ml/parakeet-tdt-0.6b-v2-ggml/resolve/main/model.ggml",
@@ -71,6 +83,7 @@ pub const TTS_CATALOG: &[SttModel] = &[
     SttModel {
         id: "kokoro-onnx-fp32",
         kind: ModelKind::TtsModel,
+        family: ModelFamily::Kokoro,
         name: "Kokoro 82M (fp32)",
         file: "kokoro-v1.0.onnx",
         url: "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.1/kokoro-v1.0.onnx",
@@ -81,6 +94,7 @@ pub const TTS_CATALOG: &[SttModel] = &[
     SttModel {
         id: "kokoro-onnx-int8",
         kind: ModelKind::TtsModel,
+        family: ModelFamily::Kokoro,
         name: "Kokoro 82M (int8)",
         file: "kokoro-v1.0.int8.onnx",
         url: "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.1/kokoro-v1.0.int8.onnx",
@@ -91,6 +105,7 @@ pub const TTS_CATALOG: &[SttModel] = &[
     SttModel {
         id: "kokoro-voices",
         kind: ModelKind::TtsVoices,
+        family: ModelFamily::Kokoro,
         name: "Kokoro voicepacks",
         file: "voices-v1.0.bin",
         url: "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.1/voices-v1.0.bin",
@@ -104,6 +119,7 @@ pub const TTS_CATALOG: &[SttModel] = &[
 pub struct SttModelInfo {
     pub id: String,
     pub kind: ModelKind,
+    pub family: ModelFamily,
     pub name: String,
     pub file: String,
     pub size_bytes: u64,
@@ -250,6 +266,7 @@ fn catalog_list(
         .map(|m| SttModelInfo {
             id: m.id.to_string(),
             kind: m.kind,
+            family: m.family,
             name: m.name.to_string(),
             file: m.file.to_string(),
             size_bytes: m.size_bytes,
@@ -342,9 +359,13 @@ mod tests {
     #[test]
     fn catalogs_partition_by_kind() {
         assert!(CATALOG.iter().all(|m| m.kind == ModelKind::Stt));
+        assert!(CATALOG
+            .iter()
+            .all(|m| matches!(m.family, ModelFamily::Whisper | ModelFamily::Parakeet)));
         assert!(TTS_CATALOG
             .iter()
             .all(|m| matches!(m.kind, ModelKind::TtsModel | ModelKind::TtsVoices)));
+        assert!(TTS_CATALOG.iter().all(|m| m.family == ModelFamily::Kokoro));
         assert!(TTS_CATALOG
             .iter()
             .any(|m| m.id == KOKORO_DEFAULT_ID && m.kind == ModelKind::TtsModel));

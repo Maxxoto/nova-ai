@@ -249,7 +249,7 @@ pub fn show(app: &tauri::AppHandle) {
         WebviewUrl::App("index.html?view=settings".into()),
     )
     .title("Ruòxī — Settings")
-    .inner_size(980.0, 700.0)
+    .inner_size(900.0, 700.0)
     .min_inner_size(640.0, 480.0)
     .resizable(true)
     .decorations(true)
