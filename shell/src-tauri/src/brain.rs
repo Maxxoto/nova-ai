@@ -12,6 +12,9 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 pub struct BrainRequest {
     pub method: String,
     pub params: Value,
+    /// Set for request/response round-trips (e.g. `config.test`); `None`
+    /// leaves handling to the pump (asks stream as panel events).
+    pub reply: Option<std::sync::mpsc::Sender<Result<Value, String>>>,
 }
 
 #[derive(Clone)]
@@ -53,8 +56,24 @@ impl BrainLink {
             .send(BrainRequest {
                 method: method.to_string(),
                 params,
+                reply: None,
             })
             .map_err(|_| "brain offline".to_string())
+    }
+
+    /// Blocking request/response round-trip through the sidecar pump.
+    pub fn rpc(&self, method: &str, params: Value) -> Result<Value, String> {
+        let (reply, inbox) = std::sync::mpsc::channel();
+        self.tx
+            .send(BrainRequest {
+                method: method.to_string(),
+                params,
+                reply: Some(reply),
+            })
+            .map_err(|_| "brain offline".to_string())?;
+        inbox
+            .recv_timeout(std::time::Duration::from_secs(20))
+            .map_err(|_| "request timed out".to_string())?
     }
 }
 

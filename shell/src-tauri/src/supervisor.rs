@@ -110,7 +110,28 @@ async fn handle_request(
     deferred: &mut VecDeque<BrainRequest>,
     request: BrainRequest,
 ) -> bool {
-    if request.method == "session.ask" {
+    if let Some(reply) = request.reply {
+        let id = sidecar
+            .request(&request.method, &request.params.to_string())
+            .await;
+        let response = sidecar.wait_response(id, ASK_TIMEOUT).await;
+        let outcome = match response {
+            Some(value) => {
+                if let Some(result) = value.get("result") {
+                    Ok(result.clone())
+                } else {
+                    Err(value
+                        .pointer("/error/message")
+                        .and_then(Value::as_str)
+                        .unwrap_or("brain error")
+                        .to_string())
+                }
+            }
+            None => Err("brain request timed out".to_string()),
+        };
+        let _ = reply.send(outcome);
+        true
+    } else if request.method == "session.ask" {
         stream_ask(app, sidecar, requests, deferred, &request.params).await
     } else {
         let _ = sidecar
@@ -259,6 +280,7 @@ impl SidecarProcess {
     pub fn spawn(settings: &settings::Settings) -> io::Result<Self> {
         let mut child = Command::new(&settings.sidecar_command)
             .args(&settings.sidecar_args)
+            .envs(crate::llm::env_for_sidecar(settings))
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::inherit())
