@@ -24,7 +24,6 @@ pub enum ModelKind {
 #[serde(rename_all = "snake_case")]
 pub enum ModelFamily {
     Whisper,
-    Parakeet,
     Kokoro,
 }
 
@@ -62,28 +61,6 @@ pub const CATALOG: &[SttModel] = &[
         size_bytes: 190_085_487,
         zh: "decent",
         note: "quality option; larger RAM envelope",
-    },
-    SttModel {
-        id: "parakeet-tdt-0.6b",
-        kind: ModelKind::Stt,
-        family: ModelFamily::Parakeet,
-        name: "Parakeet TDT 0.6B (q5_0)",
-        file: "ggml-parakeet-tdt-0.6b-v2-q5_0.bin",
-        url: "https://huggingface.co/JoaoZaokk/parakeet-tdt-0.6b-v2-ggml/resolve/main/ggml-parakeet-tdt-0.6b-v2-q5_0.bin",
-        size_bytes: 427_494_308,
-        zh: "unknown",
-        note: "fastest STT; verify zh quality in the S5 spike",
-    },
-    SttModel {
-        id: "parakeet-tdt-0.6b-q8",
-        kind: ModelKind::Stt,
-        family: ModelFamily::Parakeet,
-        name: "Parakeet TDT 0.6B (q8_0)",
-        file: "ggml-parakeet-tdt-0.6b-v2-q8_0.bin",
-        url: "https://huggingface.co/JoaoZaokk/parakeet-tdt-0.6b-v2-ggml/resolve/main/ggml-parakeet-tdt-0.6b-v2-q8_0.bin",
-        size_bytes: 658_909_748,
-        zh: "unknown",
-        note: "higher fidelity Parakeet quant",
     },
 ];
 
@@ -416,7 +393,7 @@ mod tests {
         assert!(CATALOG.iter().all(|m| m.kind == ModelKind::Stt));
         assert!(CATALOG
             .iter()
-            .all(|m| matches!(m.family, ModelFamily::Whisper | ModelFamily::Parakeet)));
+            .all(|m| matches!(m.family, ModelFamily::Whisper)));
         assert!(TTS_CATALOG
             .iter()
             .all(|m| matches!(m.kind, ModelKind::TtsModel | ModelKind::TtsVoices)));

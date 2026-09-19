@@ -169,7 +169,7 @@ function SetupSurfaceRow() {
           Models &amp; brain setup
         </span>
         <p className="max-w-[70ch] font-ui text-[13px] leading-[1.45] text-muted-foreground">
-          {summary || "Download the whisper/parakeet voice model, pick the read-aloud voice, and add your LLM key in Settings."}
+          {summary || "Download the whisper voice model, pick the read-aloud voice, and add your LLM key in Settings."}
         </p>
       </div>
       <button

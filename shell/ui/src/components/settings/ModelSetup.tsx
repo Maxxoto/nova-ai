@@ -550,7 +550,7 @@ export function ModelsSection({
       <div className="flex flex-col">
         <Row
           label="Speech to text"
-          help="Whisper or Parakeet, running on this Mac."
+          help="Whisper, running on this Mac."
           side={
             <>
               {sttModels.length > 0 ? (

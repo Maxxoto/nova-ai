@@ -87,6 +87,16 @@ timeboxed. If a spike blows its box, we take the fallback and move on.
 
 ## Spike 5 — whisper latency + Chinese quality (decides STT default)
 
+Parakeet disposition (2026-09-20, pre-S5): dropped from the catalog a third
+and final time, now with a durable reason — our whisper-rs 0.16.0 (latest
+upstream) vendors whisper.cpp v1.8.3, which predates the June-2026 Parakeet
+merge (`InitError` on the 427 MB q5_0 mirror download, verified empirically);
+and Parakeet TDT 0.6B v2 covers 25 European languages, **not zh** — it can
+never be the default STT for this product. Revisit only if a zh-capable
+parakeet ships AND whisper-rs vendors a parakeet-aware whisper.cpp. Mirror
+kept on record: `JoaoZaokk/parakeet-tdt-0.6b-v2-ggml` (ungated, verified).
+
+
 - **Question:** do `base`/`small` quantized meet ≤ 800 ms p50 for ≤ 10 s
   utterances, and is zh accuracy acceptable on real study speech?
   (RFC-0004 §4.5/4.6, §7 Q1/Q2.)
