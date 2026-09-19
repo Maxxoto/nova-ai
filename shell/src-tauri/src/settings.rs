@@ -51,7 +51,13 @@ fn default_tts() -> TtsSettings {
         engine: "system".to_string(),
         voice: String::new(),
         model: String::new(),
+        rate: default_tts_rate(),
     }
+}
+
+/// Speaking rate multiplier (1.0× = the engine's normal pace).
+fn default_tts_rate() -> f64 {
+    1.0
 }
 
 fn default_llm() -> LlmSettings {
@@ -77,6 +83,8 @@ pub struct TtsSettings {
     pub voice: String,
     #[serde(default)]
     pub model: String,
+    #[serde(default = "default_tts_rate")]
+    pub rate: f64,
 }
 
 fn default_tts_engine() -> String {
@@ -113,6 +121,10 @@ pub struct Settings {
     pub theme: String,
     #[serde(default = "default_default_scope")]
     pub default_scope: String,
+    /// Preferred whole-screen display (xcap monitor id); `None` keeps the
+    /// original behavior — the display under the cursor.
+    #[serde(default)]
+    pub fullscreen_display_id: Option<u32>,
     #[serde(default = "default_ptt_hotkey")]
     pub ptt_hotkey: String,
     #[serde(default = "default_sidecar_command")]
@@ -142,6 +154,9 @@ impl Settings {
         if !matches!(self.default_scope.as_str(), "window" | "fullscreen") {
             self.default_scope = default_default_scope();
         }
+        if !self.tts.rate.is_finite() || !(0.5..=2.0).contains(&self.tts.rate) {
+            self.tts.rate = default_tts_rate();
+        }
         if crate::hotkeys::ptt_keycode(&self.ptt_hotkey).is_none() {
             self.ptt_hotkey = default_ptt_hotkey();
         }
@@ -158,6 +173,7 @@ impl Default for Settings {
             answer_length: default_answer_length(),
             theme: default_theme(),
             default_scope: default_default_scope(),
+            fullscreen_display_id: None,
             ptt_hotkey: default_ptt_hotkey(),
             sidecar_command: default_sidecar_command(),
             sidecar_args: default_sidecar_args(),
@@ -233,7 +249,8 @@ pub fn show(app: &tauri::AppHandle) {
         WebviewUrl::App("index.html?view=settings".into()),
     )
     .title("Ruòxī — Settings")
-    .inner_size(720.0, 600.0)
+    .inner_size(980.0, 700.0)
+    .min_inner_size(640.0, 480.0)
     .resizable(true)
     .decorations(true)
     .always_on_top(false)
@@ -316,7 +333,9 @@ mod tests {
         assert_eq!(settings.answer_length, "short");
         assert_eq!(settings.theme, "system");
         assert_eq!(settings.default_scope, "window");
+        assert_eq!(settings.fullscreen_display_id, None);
         assert_eq!(settings.ptt_hotkey, "F8");
+        assert_eq!(settings.tts.rate, 1.0);
     }
 
     #[test]
@@ -329,6 +348,7 @@ mod tests {
             answer_length: "normal".to_string(),
             theme: "night".to_string(),
             default_scope: "fullscreen".to_string(),
+            fullscreen_display_id: Some(7),
             ptt_hotkey: "Cmd+Shift+Space".to_string(),
             sidecar_command: "uv".to_string(),
             sidecar_args: vec!["run".to_string()],
@@ -340,6 +360,7 @@ mod tests {
                 engine: "kokoro".to_string(),
                 voice: "Tingting".to_string(),
                 model: "kokoro-onnx-int8".to_string(),
+                rate: 1.2,
             },
             llm: LlmSettings {
                 base_url: "https://api.example.com/v1".to_string(),
@@ -358,11 +379,13 @@ mod tests {
         assert_eq!(back.answer_length, "normal");
         assert_eq!(back.theme, "night");
         assert_eq!(back.default_scope, "fullscreen");
+        assert_eq!(back.fullscreen_display_id, Some(7));
         assert_eq!(back.ptt_hotkey, "Cmd+Shift+Space");
         assert_eq!(back.stt.model, "whisper-base-q5");
         assert_eq!(back.tts.voice, "Tingting");
         assert_eq!(back.tts.engine, "kokoro");
         assert_eq!(back.tts.model, "kokoro-onnx-int8");
+        assert_eq!(back.tts.rate, 1.2);
         assert_eq!(back.llm.base_url, "https://api.example.com/v1");
         assert_eq!(back.llm.model, "gpt-test");
         assert!(back.llm.api_key_set);
@@ -374,23 +397,33 @@ mod tests {
             answer_length: "verbose".to_string(),
             theme: "noir".to_string(),
             default_scope: "display".to_string(),
+            tts: TtsSettings {
+                rate: 9.0,
+                ..Settings::default().tts
+            },
             ..Settings::default()
         };
         invalid.normalize();
         assert_eq!(invalid.answer_length, "short");
         assert_eq!(invalid.theme, "system");
         assert_eq!(invalid.default_scope, "window");
+        assert_eq!(invalid.tts.rate, 1.0);
 
         let mut valid = Settings {
             answer_length: "normal".to_string(),
             theme: "dawn".to_string(),
             default_scope: "fullscreen".to_string(),
+            tts: TtsSettings {
+                rate: 1.4,
+                ..Settings::default().tts
+            },
             ..Settings::default()
         };
         valid.normalize();
         assert_eq!(valid.answer_length, "normal");
         assert_eq!(valid.theme, "dawn");
         assert_eq!(valid.default_scope, "fullscreen");
+        assert_eq!(valid.tts.rate, 1.4);
     }
 
     #[test]

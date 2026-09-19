@@ -82,7 +82,9 @@ pub fn run() {
             tts::tts_test_voice,
             tts::tts_save_voice,
             tts::tts_save_engine,
+            tts::tts_save_rate,
             tts::tts_kokoro_voices,
+            tts::tts_download_kokoro,
             tts::tts_synthesize,
             models::tts_model_catalog,
             models::tts_model_select,
@@ -238,7 +240,9 @@ fn capture_worker(
     };
     while let Ok(intent) = intents.recv() {
         let result = match intent {
-            hotkeys::CaptureIntent::Fullscreen => capture::capture_fullscreen(),
+            hotkeys::CaptureIntent::Fullscreen => {
+                capture::capture_fullscreen(settings::load(&handle).fullscreen_display_id)
+            }
             hotkeys::CaptureIntent::Window => capture::capture_window(std::process::id()),
             hotkeys::CaptureIntent::Region => match overlay::start(&handle) {
                 Ok(()) => continue,

@@ -179,9 +179,21 @@ mod mac {
         })
     }
 
-    pub fn capture_fullscreen() -> Result<Captured, CaptureError> {
-        let (x, y) = cursor_point();
-        let monitor = Monitor::from_point(x, y)?;
+    pub fn capture_fullscreen(
+        preferred_display_id: Option<u32>,
+    ) -> Result<Captured, CaptureError> {
+        let monitor = preferred_display_id
+            .and_then(|id| {
+                Monitor::all()
+                    .ok()?
+                    .into_iter()
+                    .find(|m| m.id().ok() == Some(id))
+            })
+            .or_else(|| {
+                let (x, y) = cursor_point();
+                Monitor::from_point(x, y).ok()
+            })
+            .ok_or(CaptureError::NoTarget)?;
         let scale = monitor.scale_factor().unwrap_or(1.0);
         let display_id = monitor.id().ok();
         let image = monitor.capture_image()?;
@@ -262,7 +274,9 @@ pub use mac::{capture_fullscreen, capture_region_interactive, capture_window};
 pub(crate) use mac::cursor_point;
 
 #[cfg(not(target_os = "macos"))]
-pub fn capture_fullscreen() -> Result<Captured, CaptureError> {
+pub fn capture_fullscreen(
+    _preferred_display_id: Option<u32>,
+) -> Result<Captured, CaptureError> {
     Err(CaptureError::Unsupported)
 }
 
@@ -343,7 +357,7 @@ mod tests {
     #[test]
     #[ignore = "needs a real display; run explicitly to exercise the live path"]
     fn fullscreen_capture_runs() {
-        match capture_fullscreen() {
+        match capture_fullscreen(None) {
             Ok(cap) => println!("captured {}x{} png {} bytes", cap.w_px, cap.h_px, cap.png.len()),
             Err(e) => println!("capture error (expected without Screen Recording grant): {e}"),
         }

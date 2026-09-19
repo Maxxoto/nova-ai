@@ -57,8 +57,12 @@ pub fn tts_list_voices() -> Vec<SystemVoice> {
     say_voices()
 }
 
+/// Words-per-minute `say` speaks at when the rate multiplier is 1.0×
+/// (NSSpeechSynthesizer's documented normal pace).
+const SAY_BASE_WPM: f64 = 175.0;
+
 #[tauri::command]
-pub fn tts_test_voice(voice: String, text: String) -> Result<(), String> {
+pub fn tts_test_voice(app: tauri::AppHandle, voice: String, text: String) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
         let phrase = if text.trim().is_empty() {
@@ -66,9 +70,13 @@ pub fn tts_test_voice(voice: String, text: String) -> Result<(), String> {
         } else {
             text.trim()
         };
+        let rate = crate::settings::load(&app).tts.rate;
+        let wpm = (SAY_BASE_WPM * rate).round().clamp(80.0, 500.0) as u32;
         std::process::Command::new("say")
             .arg("-v")
             .arg(&voice)
+            .arg("-r")
+            .arg(wpm.to_string())
             .arg(phrase)
             .spawn()
             .map(|_| ())
@@ -76,9 +84,19 @@ pub fn tts_test_voice(voice: String, text: String) -> Result<(), String> {
     }
     #[cfg(not(target_os = "macos"))]
     {
-        let _ = (voice, text);
+        let _ = (app, voice, text);
         Err("unsupported on this platform".to_string())
     }
+}
+
+#[tauri::command]
+pub fn tts_save_rate(app: tauri::AppHandle, rate: f64) -> Result<(), String> {
+    if !rate.is_finite() || !(0.5..=2.0).contains(&rate) {
+        return Err(format!("speaking rate out of range: {rate}"));
+    }
+    let mut current = crate::settings::load(&app);
+    current.tts.rate = rate;
+    crate::settings::save(&app, &current)
 }
 
 #[tauri::command]
@@ -106,15 +124,15 @@ async fn kokoro_engine(app: &tauri::AppHandle) -> Result<&'static kokoro_micro::
     let settings = crate::settings::load(app);
     let dir = crate::models::models_dir(app)?;
     let model_id = if settings.tts.model.is_empty() {
-        "kokoro-onnx-fp32"
+        crate::models::KOKORO_DEFAULT_ID
     } else {
         settings.tts.model.as_str()
     };
     let model_file = crate::models::any_entry(model_id)
-        .filter(|m| m.id.starts_with("kokoro-onnx"))
+        .filter(|m| m.kind == crate::models::ModelKind::TtsModel)
         .ok_or_else(|| format!("unknown kokoro model: {model_id}"))?
         .file;
-    let voices_file = crate::models::any_entry("kokoro-voices")
+    let voices_file = crate::models::any_entry(crate::models::KOKORO_VOICES_ID)
         .ok_or("kokoro voicepacks missing from catalog")?
         .file;
     let model_path = dir.join(model_file);
@@ -133,9 +151,60 @@ async fn kokoro_engine(app: &tauri::AppHandle) -> Result<&'static kokoro_micro::
         .await
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct KokoroVoice {
+    pub id: String,
+    pub label: String,
+}
+
+/// Kokoro voice ids encode `<language><gender>_<name>` (e.g. `af_heart`,
+/// `zf_xiaoni`); the label is derived here so every surface words it the same.
+fn voice_label(id: &str) -> String {
+    let Some((prefix, name)) = id.split_once('_') else {
+        return id.to_string();
+    };
+    let region = match prefix.chars().next() {
+        Some('a') => "US",
+        Some('b') => "UK",
+        Some('e') => "ES",
+        Some('f') => "FR",
+        Some('h') => "HI",
+        Some('i') => "IT",
+        Some('j') => "JA",
+        Some('p') => "PT",
+        Some('z') => "ZH",
+        _ => "",
+    };
+    let mut chars = name.chars();
+    let capitalized = match chars.next() {
+        Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+        None => return id.to_string(),
+    };
+    if region.is_empty() {
+        capitalized
+    } else {
+        format!("{capitalized} ({region})")
+    }
+}
+
 #[tauri::command]
-pub async fn tts_kokoro_voices(app: tauri::AppHandle) -> Result<Vec<String>, String> {
-    Ok(kokoro_engine(&app).await?.voices())
+pub async fn tts_kokoro_voices(app: tauri::AppHandle) -> Result<Vec<KokoroVoice>, String> {
+    Ok(kokoro_engine(&app)
+        .await?
+        .voices()
+        .into_iter()
+        .map(|id| KokoroVoice {
+            label: voice_label(&id),
+            id,
+        })
+        .collect())
+}
+
+#[tauri::command]
+pub fn tts_download_kokoro(app: tauri::AppHandle) -> Result<String, String> {
+    crate::models::stt_download(app.clone(), crate::models::KOKORO_DEFAULT_ID.to_string())?;
+    crate::models::stt_download(app, crate::models::KOKORO_VOICES_ID.to_string())?;
+    Ok(crate::models::KOKORO_DEFAULT_ID.to_string())
 }
 
 #[tauri::command]
@@ -150,8 +219,9 @@ pub async fn tts_synthesize(
     } else {
         text.trim().to_string()
     };
+    let speed = crate::settings::load(&app).tts.rate as f32;
     let samples = tokio::task::spawn_blocking(move || {
-        engine.synthesize_with_options(&phrase, Some(&voice), 1.0, 1.0, None)
+        engine.synthesize_with_options(&phrase, Some(&voice), speed, 1.0, None)
     })
     .await
     .map_err(|e| format!("synthesis task failed: {e}"))?
@@ -194,5 +264,14 @@ mod tests {
     fn junk_lines_are_skipped() {
         let raw = "no locale here\n\nX\n";
         assert!(parse_say_voices(raw).is_empty());
+    }
+
+    #[test]
+    fn voice_labels_map_language_prefixes() {
+        assert_eq!(voice_label("af_heart"), "Heart (US)");
+        assert_eq!(voice_label("bf_emma"), "Emma (UK)");
+        assert_eq!(voice_label("zf_xiaoni"), "Xiaoni (ZH)");
+        assert_eq!(voice_label("jm_kumo"), "Kumo (JA)");
+        assert_eq!(voice_label("fallback"), "fallback");
     }
 }

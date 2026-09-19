@@ -12,8 +12,17 @@ use tauri::Emitter;
 
 use crate::settings;
 
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ModelKind {
+    Stt,
+    TtsModel,
+    TtsVoices,
+}
+
 pub struct SttModel {
     pub id: &'static str,
+    pub kind: ModelKind,
     pub name: &'static str,
     pub file: &'static str,
     pub url: &'static str,
@@ -25,6 +34,7 @@ pub struct SttModel {
 pub const CATALOG: &[SttModel] = &[
     SttModel {
         id: "whisper-base-q5",
+        kind: ModelKind::Stt,
         name: "Whisper base (q5_0)",
         file: "ggml-base-q5_0.bin",
         url: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base-q5_0.bin",
@@ -34,6 +44,7 @@ pub const CATALOG: &[SttModel] = &[
     },
     SttModel {
         id: "whisper-small-q5",
+        kind: ModelKind::Stt,
         name: "Whisper small (q5_0)",
         file: "ggml-small-q5_0.bin",
         url: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small-q5_0.bin",
@@ -43,6 +54,7 @@ pub const CATALOG: &[SttModel] = &[
     },
     SttModel {
         id: "parakeet-tdt-0.6b",
+        kind: ModelKind::Stt,
         name: "Parakeet TDT 0.6B",
         file: "parakeet-tdt-0.6b-v2.ggml",
         url: "https://huggingface.co/just-parakite-ml/parakeet-tdt-0.6b-v2-ggml/resolve/main/model.ggml",
@@ -52,9 +64,13 @@ pub const CATALOG: &[SttModel] = &[
     },
 ];
 
+pub const KOKORO_DEFAULT_ID: &str = "kokoro-onnx-fp32";
+pub const KOKORO_VOICES_ID: &str = "kokoro-voices";
+
 pub const TTS_CATALOG: &[SttModel] = &[
     SttModel {
         id: "kokoro-onnx-fp32",
+        kind: ModelKind::TtsModel,
         name: "Kokoro 82M (fp32)",
         file: "kokoro-v1.0.onnx",
         url: "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.1/kokoro-v1.0.onnx",
@@ -64,6 +80,7 @@ pub const TTS_CATALOG: &[SttModel] = &[
     },
     SttModel {
         id: "kokoro-onnx-int8",
+        kind: ModelKind::TtsModel,
         name: "Kokoro 82M (int8)",
         file: "kokoro-v1.0.int8.onnx",
         url: "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.1/kokoro-v1.0.int8.onnx",
@@ -73,6 +90,7 @@ pub const TTS_CATALOG: &[SttModel] = &[
     },
     SttModel {
         id: "kokoro-voices",
+        kind: ModelKind::TtsVoices,
         name: "Kokoro voicepacks",
         file: "voices-v1.0.bin",
         url: "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.1/voices-v1.0.bin",
@@ -85,6 +103,7 @@ pub const TTS_CATALOG: &[SttModel] = &[
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SttModelInfo {
     pub id: String,
+    pub kind: ModelKind,
     pub name: String,
     pub file: String,
     pub size_bytes: u64,
@@ -121,7 +140,7 @@ pub fn file_sha256(path: &std::path::Path) -> Result<String, String> {
 }
 
 fn download(app: tauri::AppHandle, id: String) {
-    let Some(model) = catalog_entry(&id) else {
+    let Some(model) = any_entry(&id) else {
         return;
     };
     let dir = match models_dir(&app) {
@@ -139,6 +158,13 @@ fn download(app: tauri::AppHandle, id: String) {
         return;
     }
     let final_path = dir.join(model.file);
+    if final_path.is_file() {
+        let _ = app.emit(
+            "model:done",
+            serde_json::json!({ "id": id, "path": final_path.display().to_string() }),
+        );
+        return;
+    }
     let part_path = dir.join(format!("{}.part", model.file));
     let result = fetch_to(&app, &id, model, &part_path).and_then(|sha256| {
         std::fs::rename(&part_path, &final_path).map_err(|e| format!("finalize download: {e}"))?;
@@ -205,20 +231,25 @@ fn fetch_to(
 
 #[tauri::command]
 pub fn stt_catalog(app: tauri::AppHandle) -> Result<Vec<SttModelInfo>, String> {
-    catalog(&app, &settings::load(&app).stt.model)
+    catalog_list(&app, CATALOG, &settings::load(&app).stt.model)
 }
 
 #[tauri::command]
 pub fn tts_model_catalog(app: tauri::AppHandle) -> Result<Vec<SttModelInfo>, String> {
-    catalog(&app, &settings::load(&app).tts.model)
+    catalog_list(&app, TTS_CATALOG, &settings::load(&app).tts.model)
 }
 
-fn catalog(app: &tauri::AppHandle, selected: &str) -> Result<Vec<SttModelInfo>, String> {
+fn catalog_list(
+    app: &tauri::AppHandle,
+    catalog: &'static [SttModel],
+    selected: &str,
+) -> Result<Vec<SttModelInfo>, String> {
     let dir = models_dir(app)?;
-    Ok(CATALOG
+    Ok(catalog
         .iter()
         .map(|m| SttModelInfo {
             id: m.id.to_string(),
+            kind: m.kind,
             name: m.name.to_string(),
             file: m.file.to_string(),
             size_bytes: m.size_bytes,
@@ -229,6 +260,8 @@ fn catalog(app: &tauri::AppHandle, selected: &str) -> Result<Vec<SttModelInfo>, 
         })
         .collect())
 }
+
+
 
 /// Starts the download in the background; progress streams as
 /// `model:progress` / `model:done` / `model:error` events. Shared by the STT
@@ -304,6 +337,20 @@ mod tests {
         assert_eq!(ids.len(), count);
         assert!(any_entry("kokoro-voices").is_some());
         assert!(any_entry("whisper-base-q5").is_some());
+    }
+
+    #[test]
+    fn catalogs_partition_by_kind() {
+        assert!(CATALOG.iter().all(|m| m.kind == ModelKind::Stt));
+        assert!(TTS_CATALOG
+            .iter()
+            .all(|m| matches!(m.kind, ModelKind::TtsModel | ModelKind::TtsVoices)));
+        assert!(TTS_CATALOG
+            .iter()
+            .any(|m| m.id == KOKORO_DEFAULT_ID && m.kind == ModelKind::TtsModel));
+        assert!(TTS_CATALOG
+            .iter()
+            .any(|m| m.id == KOKORO_VOICES_ID && m.kind == ModelKind::TtsVoices));
     }
 
     #[test]
