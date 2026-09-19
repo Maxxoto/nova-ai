@@ -63,6 +63,28 @@ pub const CATALOG: &[SttModel] = &[
         zh: "decent",
         note: "quality option; larger RAM envelope",
     },
+    SttModel {
+        id: "parakeet-tdt-0.6b",
+        kind: ModelKind::Stt,
+        family: ModelFamily::Parakeet,
+        name: "Parakeet TDT 0.6B (q5_0)",
+        file: "ggml-parakeet-tdt-0.6b-v2-q5_0.bin",
+        url: "https://huggingface.co/JoaoZaokk/parakeet-tdt-0.6b-v2-ggml/resolve/main/ggml-parakeet-tdt-0.6b-v2-q5_0.bin",
+        size_bytes: 427_494_308,
+        zh: "unknown",
+        note: "fastest STT; verify zh quality in the S5 spike",
+    },
+    SttModel {
+        id: "parakeet-tdt-0.6b-q8",
+        kind: ModelKind::Stt,
+        family: ModelFamily::Parakeet,
+        name: "Parakeet TDT 0.6B (q8_0)",
+        file: "ggml-parakeet-tdt-0.6b-v2-q8_0.bin",
+        url: "https://huggingface.co/JoaoZaokk/parakeet-tdt-0.6b-v2-ggml/resolve/main/ggml-parakeet-tdt-0.6b-v2-q8_0.bin",
+        size_bytes: 658_909_748,
+        zh: "unknown",
+        note: "higher fidelity Parakeet quant",
+    },
 ];
 
 pub const KOKORO_DEFAULT_ID: &str = "kokoro-onnx-fp32";
@@ -199,6 +221,7 @@ fn download(app: tauri::AppHandle, id: String) {
     match result {
         Ok(sha256) => {
             let _ = std::fs::write(final_path.with_extension("sha256"), &sha256);
+            eprintln!("ruoxi: {id} downloaded to {} (sha256 {sha256})", final_path.display());
             let _ = app.emit(
                 "model:done",
                 serde_json::json!({ "id": id, "path": final_path.display().to_string(), "sha256": sha256 }),
@@ -206,6 +229,7 @@ fn download(app: tauri::AppHandle, id: String) {
         }
         Err(message) => {
             let _ = std::fs::remove_file(&part_path);
+            eprintln!("ruoxi: {id} download failed: {message}");
             let _ = app.emit("model:error", serde_json::json!({ "id": id, "message": message }));
         }
     }
@@ -232,6 +256,8 @@ fn fetch_to(
     let mut buffer = [0u8; 64 * 1024];
     let mut downloaded: u64 = 0;
     let mut hasher = Sha256::new();
+    let mut logged_percent = 0u64;
+    eprintln!("ruoxi: downloading {id} ({total} bytes) from {}", model.url);
     loop {
         let n = reader
             .read(&mut buffer)
@@ -240,12 +266,21 @@ fn fetch_to(
             break;
         }
         if cancel_requested(id) {
+            eprintln!("ruoxi: download {id} cancelled at {downloaded}/{total}");
             return Err("cancelled".to_string());
         }
         hasher.update(&buffer[..n]);
         std::io::Write::write_all(&mut file, &buffer[..n])
             .map_err(|e| format!("write model data: {e}"))?;
         downloaded += n as u64;
+        let percent = if total > 0 { downloaded * 100 / total } else { 0 };
+        if percent >= logged_percent + 10 || downloaded == total {
+            logged_percent = percent;
+            eprintln!(
+                "ruoxi: {id} {percent}% ({downloaded}/{total} bytes, {:.1} MB)",
+                downloaded as f64 / 1_000_000.0
+            );
+        }
         let _ = app.emit(
             "model:progress",
             serde_json::json!({ "id": id, "downloaded": downloaded, "total": total }),
