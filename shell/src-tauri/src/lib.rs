@@ -173,6 +173,19 @@ pub fn run() {
                                             samples.len() as f64 / voice::TARGET_RATE as f64
                                         );
                                         if !samples.is_empty() {
+                                            if let Ok(dir) = std::env::var("RUOXI_S5_RECORD") {
+                                                match voice::write_corpus_wav(&dir, &samples) {
+                                                    Ok(path) => {
+                                                        eprintln!(
+                                                            "ruoxi: s5 corpus wrote {}",
+                                                            path.display()
+                                                        );
+                                                    }
+                                                    Err(e) => eprintln!(
+                                                        "ruoxi: s5 corpus write failed: {e}"
+                                                    ),
+                                                }
+                                            }
                                             let voice_handle = voice_handle.clone();
                                             std::thread::spawn(move || {
                                                 run_ptt_transcription(voice_handle, samples);

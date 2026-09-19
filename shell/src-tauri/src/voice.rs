@@ -197,3 +197,36 @@ mod tests {
         assert_eq!(TARGET_RATE, 16_000);
     }
 }
+
+/// S5 corpus hook: dump a PTT utterance as 16-bit PCM WAV under `dir`.
+/// Enabled only when RUOXI_S5_RECORD points at a directory.
+pub fn write_corpus_wav(dir: &str, samples: &[f32]) -> Result<std::path::PathBuf, String> {
+    let dir = std::path::Path::new(dir);
+    std::fs::create_dir_all(dir).map_err(|e| format!("corpus dir: {e}"))?;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|e| format!("clock: {e}"))?;
+    let path = dir.join(format!("utt-{}.wav", now.as_millis()));
+    let mut pcm = Vec::with_capacity(samples.len() * 2);
+    for s in samples {
+        let clamped = s.clamp(-1.0, 1.0);
+        pcm.extend_from_slice(&((clamped * i16::MAX as f32) as i16).to_le_bytes());
+    }
+    let data_len = pcm.len() as u32;
+    let mut wav = Vec::with_capacity(44 + pcm.len());
+    wav.extend_from_slice(b"RIFF");
+    wav.extend_from_slice(&(36 + data_len).to_le_bytes());
+    wav.extend_from_slice(b"WAVEfmt ");
+    wav.extend_from_slice(&16u32.to_le_bytes());
+    wav.extend_from_slice(&1u16.to_le_bytes());
+    wav.extend_from_slice(&1u16.to_le_bytes());
+    wav.extend_from_slice(&(TARGET_RATE as u32).to_le_bytes());
+    wav.extend_from_slice(&((TARGET_RATE as u32) * 2).to_le_bytes());
+    wav.extend_from_slice(&2u16.to_le_bytes());
+    wav.extend_from_slice(&16u16.to_le_bytes());
+    wav.extend_from_slice(b"data");
+    wav.extend_from_slice(&data_len.to_le_bytes());
+    wav.extend_from_slice(&pcm);
+    std::fs::write(&path, wav).map_err(|e| format!("write wav: {e}"))?;
+    Ok(path)
+}
