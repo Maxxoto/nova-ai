@@ -815,14 +815,14 @@ function PushToTalkRow({
             <span className="font-ui text-[14px] font-semibold leading-[1.4] text-foreground">
               Press the key you want to hold to talk
             </span>
-            <span className="font-mono text-[11px] leading-[1.4] text-muted-foreground">
+            <span className="font-ui text-[12px] leading-[1.4] text-muted-foreground">
               Modifiers optional · Tab moves on · Esc cancels
             </span>
           </div>
           {caps.length > 0 ? (
             <HotkeyKeycaps caps={caps} />
           ) : (
-            <span className="font-mono text-[11px] text-muted-foreground">waiting…</span>
+            <span className="font-ui text-[12px] text-muted-foreground">waiting…</span>
           )}
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -856,7 +856,7 @@ function PushToTalkRow({
   return (
     <Row
       label="Push-to-talk hotkey"
-      help="Hold to talk; release to send. The pill appears within 100ms and disappears 300ms after the transcript finalises."
+      help="Hold to talk, release to send. The listening pill appears right away and fades when you stop speaking."
       side={
         <>
           {caps.length > 0 ? (
@@ -1051,7 +1051,7 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
         <div className="flex flex-col">
           <Row
             label="Offline mode — nothing leaves this Mac"
-            help="Instant, no restart. The moment it flips, the trust chip moves to offline in the panel, the tray and here. Answers that need the cloud will say so instead of silently sending."
+            help="Instant, no restart. When it's on, the offline badge shows in the panel, the tray and here — and anything that would need the cloud will ask first."
             side={
               <Toggle
                 label="Offline mode"
@@ -1062,7 +1062,7 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
           />
           <Row
             label="Voice audio"
-            help="Ephemeral by design: the temporary audio is deleted about a minute after a session ends, and no replay surface exists anywhere in the app. Only the live mic level is ever drawn."
+            help="Audio is deleted about a minute after a session ends — there's no recording to find. Only the live mic level is ever shown."
             side={<Tag tone="ok">deleted ≈1 min</Tag>}
           />
           <Row
@@ -1076,7 +1076,7 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
           />
           <Row
             label="Send diagnostics"
-            help="Off. Crash reports stay local unless you export them yourself — the app is MIT-licensed and open source, so you can read what would be sent."
+            help="Off. Nothing is ever sent on its own — and since the app is open source, you can check."
             side={<Tag>off</Tag>}
           />
         </div>
@@ -1085,30 +1085,30 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
       <Section
         eyebrow="Auto-capture"
         title="Off for every app until you say otherwise."
-        headerExtra={<Tag>Phase 2 · not shipped</Tag>}
-        description="Each row states plainly what would be stored and when it would capture. Nothing here is on by default, and the tray shows a paused state whenever capture is off for everything."
+        headerExtra={<Tag>Coming soon</Tag>}
+        description="Nothing here is on by default. When it's ready, each app will list exactly what's stored — and when."
       >
         <div className="flex flex-col gap-2">
           <AppRow
             mark="Sa"
             name="Safari"
-            caption="Would capture the active tab's visible area after 30s of stillness · text only, no images from pages"
+            caption="Would capture the visible part of the active tab after 30 seconds of stillness — text only."
             side={<Tag>off</Tag>}
           />
           <AppRow
             mark="Pv"
             name="Preview"
-            caption="Would capture the open page region when you highlight text · never a full-screen grab"
+            caption="Would capture the page area you highlight — never the whole screen."
             side={<Tag>off</Tag>}
           />
           <AppRow
             mark="VS"
             name="VS Code"
-            caption="Would capture the visible editor only when an error appears · excludes terminals and secrets panes"
+            caption="Would capture the editor only when an error appears — no terminals, no secrets."
             side={<Tag>off</Tag>}
           />
-          <p className="pt-1 font-mono text-[11px] leading-[1.4] text-muted-foreground">
-            Capture is off everywhere. The tray glyph stays in the paused state.
+          <p className="pt-1 font-ui text-[12px] leading-[1.5] text-muted-foreground">
+            Capture is off everywhere — the tray icon shows the paused state.
           </p>
         </div>
       </Section>
@@ -1116,15 +1116,15 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
       <Section eyebrow="Voice & answers" title="How she listens and how she answers.">
         <div className="flex flex-col">
           <PushToTalkRow value={settings.ptt_hotkey} onCommit={commitHotkey} />
-          <p className="pt-1 font-mono text-[11px] leading-[1.4] text-muted-foreground">
-            Applies after the next app start — the listener is bound for the life of this run.
+          <p className="pt-1 font-ui text-[12px] leading-[1.5] text-muted-foreground">
+            Takes effect the next time Ruòxī starts.
           </p>
           <Row
             label="Read answers aloud"
-            help="Off by default. When it ships, the panel will show the live speaking waveform and Esc will always stop the audio."
+            help="Off by default. When available, the panel shows the spoken waveform — Esc always stops the audio."
             side={
               <>
-                <Tag>not shipped</Tag>
+                <Tag>Coming soon</Tag>
                 <Toggle
                   label="Read answers aloud"
                   on={settings.read_aloud}
@@ -1138,7 +1138,7 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
             help="Short answers by default. Long-form answers never replace the short one."
             side={
               <>
-                <Tag>not active yet</Tag>
+                <Tag>Coming soon</Tag>
                 <Segmented
                   ariaLabel="Answer length"
                   value={settings.answer_length}
@@ -1161,13 +1161,11 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
         <div className="flex flex-col gap-3">
           <Row
             label="Displays"
-            help="The panel is positioned on the display under your cursor and re-clamps when displays change."
+            help="The panel opens on the display you're using, and follows you when displays change."
             side={<Tag>{displays === null ? "…" : `${displays.length} connected`}</Tag>}
           />
           {displays !== null && displays.length === 0 ? (
-            <p className="font-mono text-[11px] leading-[1.4] text-muted-foreground">
-              No displays reported on this platform.
-            </p>
+            <p className="font-ui text-[12px] leading-[1.5] text-muted-foreground">No displays found.</p>
           ) : null}
           {displays !== null && displays.length > 0 ? (
             <div className="flex flex-col gap-2">
@@ -1185,7 +1183,7 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
         <div className="flex flex-col">
           <Row
             label="Default capture scope"
-            help="What a voice ask captures when you do not box anything."
+            help="What a voice ask captures when you haven't boxed anything."
             side={
               <Segmented
                 ariaLabel="Default capture scope"
@@ -1204,7 +1202,7 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
       <Section
         eyebrow="Appearance"
         title="Dawn by day, night after dusk."
-        description="Both themes carry the same tokens — no component is designed for one and tolerated in the other."
+        description="Every screen works in both themes — nothing is an afterthought."
       >
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap gap-3" role="group" aria-label="Theme">
@@ -1230,14 +1228,14 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
               onSelect={() => setField({ theme: "system" })}
             />
           </div>
-          <p className="font-mono text-[11px] leading-[1.4] text-muted-foreground">
-            Choosing a theme here applies immediately — the same tokens every screen uses.
+          <p className="font-ui text-[12px] leading-[1.5] text-muted-foreground">
+            Takes effect right away, on every screen.
           </p>
         </div>
         <div className="flex flex-col">
           <Row
             label="Reduce motion"
-            help="Follows the OS setting. Loops stop, durations halve, and the live waveform freezes into a labelled static icon."
+            help="Follows your system setting — animations stop and the waveform freezes."
             side={<Tag>{reducedMotion ? "reduce" : "system"}</Tag>}
           />
         </div>
@@ -1246,7 +1244,7 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
       <Section
         eyebrow="Permissions"
         title="Re-run the setup ritual any time."
-        description="Each permission keeps the reason it was granted for, and revoking one explains exactly which features stop working."
+        description="Each permission explains why it's needed — and what stops working if you revoke it."
       >
         <div className="flex flex-col">
           {PERMISSION_ROWS.map((row) => {
@@ -1271,8 +1269,8 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
             <button type="button" onClick={runOnboarding} className={SECONDARY_BUTTON}>
               Run the setup ritual again
             </button>
-            <span className="font-mono text-[11px] leading-[1.4] text-muted-foreground">
-              Grant and Revoke both open the matching pane in System Settings; nothing changes from here.
+            <span className="font-ui text-[12px] leading-[1.5] text-muted-foreground">
+              Opens System Settings — nothing changes here.
             </span>
           </div>
         </div>
@@ -1286,8 +1284,8 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
           />
           <div className="flex min-w-0 flex-1 flex-col gap-2">
             <p className="font-ui text-[13px] leading-[1.45] text-muted-foreground">
-              A tray-resident desktop companion for macOS and Windows. MIT licensed and open source, so the
-              privacy claims on this page are auditable rather than aspirational.
+              A quiet companion for your menu bar on macOS and Windows. MIT licensed and open source — every
+              privacy claim on this page can be checked in the code.
             </p>
             <div className="flex flex-wrap items-center gap-3">
               <span className="font-mono text-[11px] font-medium text-foreground">M0 · v0.1</span>

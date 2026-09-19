@@ -157,7 +157,7 @@ export function SttModelSection() {
     <SectionCard
       eyebrow="Voice input · STT"
       title="Speech-to-text runs fully on this Mac."
-      description="One first-run download per model, with your consent — the only network event, per RFC-0004. Files live in the app data directory and can also be imported manually."
+      description="One download per model, only with your consent. Files stay in Ruòxī's data folder — you can also import them yourself."
     >
       <div className="flex flex-col gap-3">
         {models.map((model) => {
@@ -171,7 +171,7 @@ export function SttModelSection() {
                 <span className="font-ui text-[14px] font-semibold text-foreground">
                   {model.name}
                   {model.selected ? (
-                    <span className="ml-2 rounded-pill border border-primary bg-primary-soft px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide text-foreground">
+                    <span className="ml-2 rounded-pill border border-primary bg-primary-soft px-2 py-0.5 font-ui text-[10px] font-semibold uppercase tracking-wide text-foreground">
                       selected
                     </span>
                   ) : null}
@@ -217,11 +217,11 @@ export function SttModelSection() {
         })}
         {models.length === 0 ? (
           <span className="font-ui text-[13px] text-muted-foreground">
-            Model catalog unavailable outside the app.
+            Available in the desktop app.
           </span>
         ) : null}
         {error ? (
-          <span className="font-mono text-[11px] text-destructive">{error}</span>
+          <span className="font-ui text-[12px] text-destructive">{error}</span>
         ) : null}
       </div>
     </SectionCard>
@@ -258,7 +258,7 @@ export function TtsVoiceSection() {
     <SectionCard
       eyebrow="Voice output · TTS"
       title="Read-aloud uses this system voice."
-      description="Fully local system voices for now; the richer Piper-class engine arrives with M3 (RFC-0005). Test before you pick."
+      description="Uses your Mac's built-in voices — all local. A richer voice engine arrives later; try a voice before you pick."
     >
       <div className="flex flex-col gap-3">
         <Field label="Filter voices" value={filter} onChange={setFilter} placeholder="name or locale, e.g. zh or Ava" />
@@ -349,7 +349,7 @@ export function LlmConfigSection() {
       apiKey: apiKey.trim() || null,
     })?.then(
       (raw) => setResult((raw as TestResult) ?? { ok: false, message: "no response" }),
-      () => setResult({ ok: false, message: "brain offline — is the sidecar running?" }),
+      () => setResult({ ok: false, message: "the brain isn't responding — try again in a moment" }),
     );
     setTesting(false);
   };
@@ -358,7 +358,7 @@ export function LlmConfigSection() {
     <SectionCard
       eyebrow="Brain · LLM"
       title="Your key, your endpoint — nothing built in."
-      description="Any OpenAI-compatible endpoint via the brain's LiteLLM adapter (RFC-0007). The key is stored in the macOS Keychain, injected when the brain spawns, and never written to settings files."
+      description="Works with any OpenAI-compatible service — nothing is built in. Your key is kept in the macOS Keychain, never written to settings files."
     >
       <div className="flex flex-col gap-3">
         <Field
@@ -402,16 +402,16 @@ export function LlmConfigSection() {
           ) : null}
           {result ? (
             <span
-              className={`font-mono text-[11px] ${result.ok ? "text-success" : "text-destructive"}`}
+              className={`font-ui text-[12px] ${result.ok ? "text-success" : "text-destructive"}`}
             >
               {result.ok
-                ? `ok · ${result.model ?? ""} replied`
-                : `failed · ${result.message ?? "unknown error"}`}
+                ? `Connected — ${result.model ?? ""} replied`
+                : `Couldn't connect — ${result.message ?? "unknown error"}`}
             </span>
           ) : null}
         </div>
-        <span className="font-mono text-[11px] text-muted-foreground">
-          Test runs a 1-token call through the brain; saved config applies when the app restarts.
+        <span className="font-ui text-[12px] leading-[1.5] text-muted-foreground">
+          Sends one small test request. Saved settings apply when the app restarts.
         </span>
       </div>
     </SectionCard>
