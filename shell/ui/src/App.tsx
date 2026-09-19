@@ -3,16 +3,60 @@ import type { ReactNode } from "react";
 import { IDLE_CONCEPTS, TRAY_STATES } from "./tray-icons";
 import ConceptCard from "./components/ConceptCard";
 import MenuBar from "./components/MenuBar";
+import OnboardingRitual from "./components/onboarding/OnboardingRitual";
+import { parseRitualStep } from "./components/onboarding/types";
+import type { RitualStep } from "./components/onboarding/types";
+import CaptureOverlay from "./components/overlay/CaptureOverlay";
+import type { OverlaySelection } from "./components/overlay/CaptureOverlay";
 import ResultPanel from "./components/panel/ResultPanel";
 import { isNetState, isPanelState, NET_STATES, PANEL_STATES } from "./components/panel/types";
 import type { NetState, PanelState } from "./components/panel/types";
 import Section from "./components/Section";
+import SettingsWindow from "./components/settings/SettingsWindow";
 import StateSet from "./components/StateSet";
+import TimelineView from "./components/timeline/TimelineView";
 import TemplateCompare from "./components/TemplateCompare";
 import TrayMark from "./components/TrayMark";
-import { invokeTauri } from "./tauri";
+import { invokeTauri, invokeTauriAsync, listenTauri } from "./tauri";
+import type { TauriUnlisten } from "./tauri";
 
 const SHIPPED_IDLE = IDLE_CONCEPTS[1]; /* B · Dawn Dot — matches src/tray-icons/svg/tray-idle.svg */
+
+const LIVE_ASK_TRANSCRIPT = "what is this?";
+
+type CapturePayload = { id: string; at_ms: number };
+type TokenPayload = { delta: string };
+type CompletePayload = { answer: string };
+type ErrorPayload = { message: string };
+
+function formatHHMM(atMs: number): string {
+  const d = new Date(atMs);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+const THEMES = ["system", "dawn", "night"] as const;
+type ThemeName = (typeof THEMES)[number];
+
+/** Cross-window event: the Settings window fires it so the root theme effect
+ *  can re-bind its `prefers-color-scheme` listener after a manual pick. */
+const THEME_EVENT = "ruoxi:theme";
+
+function readTheme(raw: unknown): ThemeName {
+  if (raw && typeof raw === "object") {
+    const value = (raw as { theme?: unknown }).theme;
+    if (typeof value === "string" && (THEMES as readonly string[]).includes(value)) return value as ThemeName;
+  }
+  return "system";
+}
+
+/** Dev QA static selection for `?view=overlay&sel=x,y,w,h`; undefined when absent/invalid. */
+function parseOverlaySelection(raw: string | null): OverlaySelection | undefined {
+  if (!raw) return undefined;
+  const parts = raw.split(",").map((n) => Number(n));
+  if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) return undefined;
+  const [x, y, w, h] = parts;
+  return { x, y, w, h };
+}
 
 const DEMO_ANSWER =
   "Here's what the capture shows: the test suite is failing on the sidecar handshake — the JSON-RPC read loop times out before the first ping returns. Same class as the earlier respawn failure, which points at the supervisor's restart backoff rather than the protocol itself.";
@@ -118,9 +162,22 @@ export default function App() {
   const [panelState, setPanelState] = useState<PanelState>("thinking");
   const [panelNet, setPanelNet] = useState<NetState>("local_only");
   const [panelVisible, setPanelVisible] = useState(true);
+  const [liveState, setLiveState] = useState<PanelState>("idle");
+  const [liveAnswer, setLiveAnswer] = useState("");
+  const [liveCapture, setLiveCapture] = useState<{ id: string; time: string } | undefined>(undefined);
+  const [liveNet, setLiveNet] = useState<NetState>("local_only");
 
   const params = new URLSearchParams(window.location.search);
   const panelView = params.get("view") === "panel";
+  const isTauri = !!window.__TAURI_INTERNALS__?.invoke;
+  const onboardingView = params.get("view") === "onboarding";
+  const overlayView = params.get("view") === "overlay";
+  const settingsView = params.get("view") === "settings";
+  const timelineView = params.get("view") === "timeline";
+  const timelineDemo = timelineView && params.get("demo") === "1";
+  const overlaySelection = parseOverlaySelection(params.get("sel"));
+  const rawStep = params.get("step");
+  const onboardingStep: RitualStep = parseRitualStep(rawStep);
   const rawState = params.get("state");
   const rawNet = params.get("net");
   const panelViewState: PanelState = isPanelState(rawState) ? rawState : "streaming";
@@ -136,32 +193,172 @@ export default function App() {
 
   useEffect(() => {
     const root = document.documentElement;
-    if (!panelView) {
-      root.classList.remove("panel-view", "dark");
+    if (!panelView && !onboardingView && !overlayView && !settingsView) {
+      root.classList.remove("panel-view", "overlay-view");
       return;
     }
-    root.classList.add("panel-view");
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    const sync = () => root.classList.toggle("dark", mq.matches);
-    sync();
-    mq.addEventListener("change", sync);
+    if (panelView) root.classList.add("panel-view");
+    if (overlayView) root.classList.add("overlay-view");
     return () => {
-      root.classList.remove("panel-view", "dark");
-      mq.removeEventListener("change", sync);
+      root.classList.remove("panel-view", "overlay-view");
     };
-  }, [panelView]);
+  }, [panelView, onboardingView, overlayView, settingsView]);
+
+  /* Single source of truth for the root `.dark` class. Product views follow
+     the persisted `theme`; the dev board (`/`) stays on dawn, as before. */
+  useEffect(() => {
+    if (!panelView && !onboardingView && !overlayView && !settingsView && !timelineView) {
+      document.documentElement.classList.remove("dark");
+      return;
+    }
+    const root = document.documentElement;
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    let detachMq: (() => void) | null = null;
+    let active = true;
+
+    const applyTheme = (theme: string) => {
+      if (detachMq) {
+        detachMq();
+        detachMq = null;
+      }
+      if (theme === "night") root.classList.add("dark");
+      else if (theme === "dawn") root.classList.remove("dark");
+      else {
+        const sync = () => root.classList.toggle("dark", mq.matches);
+        sync();
+        mq.addEventListener("change", sync);
+        detachMq = () => mq.removeEventListener("change", sync);
+      }
+    };
+
+    const onThemeEvent = (event: Event) => {
+      applyTheme(readTheme({ theme: (event as CustomEvent<unknown>).detail }));
+    };
+
+    applyTheme("system");
+    window.addEventListener(THEME_EVENT, onThemeEvent);
+    if (isTauri) {
+      invokeTauriAsync("get_settings")?.then(
+        (raw) => {
+          if (active) applyTheme(readTheme(raw));
+        },
+        () => undefined,
+      );
+    }
+    return () => {
+      active = false;
+      window.removeEventListener(THEME_EVENT, onThemeEvent);
+      if (detachMq) detachMq();
+      root.classList.remove("dark");
+    };
+  }, [panelView, onboardingView, overlayView, settingsView, timelineView, isTauri]);
+
+  useEffect(() => {
+    if (!panelView || !isTauri) return;
+    let cancelled = false;
+    const unlisteners: TauriUnlisten[] = [];
+    const track = (off: TauriUnlisten) => {
+      if (cancelled) off();
+      else unlisteners.push(off);
+    };
+    const start = async () => {
+      track(
+        await listenTauri<CapturePayload>("panel:capture", (p) => {
+          setLiveCapture({ id: p.id, time: formatHHMM(p.at_ms) });
+          setLiveAnswer("");
+          setLiveState("thinking");
+          /* Tauri maps camelCase JS args to snake_case Rust params: captureIds → capture_ids. */
+          invokeTauriAsync("session_ask", {
+            transcript: LIVE_ASK_TRANSCRIPT,
+            captureIds: [p.id],
+          })?.catch(() => undefined);
+        }),
+      );
+      track(
+        await listenTauri<TokenPayload>("panel:token", (p) => {
+          setLiveAnswer((prev) => prev + p.delta);
+          setLiveState("streaming");
+        }),
+      );
+      track(
+        await listenTauri<CompletePayload>("panel:complete", (p) => {
+          setLiveAnswer(p.answer);
+          setLiveState("complete");
+        }),
+      );
+      track(await listenTauri<ErrorPayload>("panel:error", () => setLiveState("error")));
+      const pendingSettings = invokeTauriAsync("get_settings");
+      pendingSettings?.then(
+        (raw) => {
+          const offline = !!(raw && typeof raw === "object" && (raw as { offline?: unknown }).offline);
+          setLiveNet(offline ? "offline" : "local_only");
+        },
+        () => undefined,
+      );
+      track(
+        await listenTauri<{ offline?: boolean }>("settings:changed", (s) =>
+          setLiveNet(s?.offline ? "offline" : "local_only"),
+        ),
+      );
+    };
+    void start();
+    return () => {
+      cancelled = true;
+      for (const off of unlisteners) off();
+      unlisteners.length = 0;
+    };
+  }, [panelView, isTauri]);
+
+  if (overlayView) {
+    return <CaptureOverlay selection={overlaySelection} />;
+  }
 
   if (panelView) {
     return (
       <div className={`flex min-h-screen justify-center p-3${reducedMotion ? " reduced-motion rm-halve" : ""}`}>
         <ResultPanel
-          state={panelViewState}
-          net={panelViewNet}
-          answer={DEMO_ANSWER}
-          capture={DEMO_CAPTURE}
+          state={isTauri ? liveState : panelViewState}
+          net={isTauri ? liveNet : panelViewNet}
+          answer={isTauri ? liveAnswer : DEMO_ANSWER}
+          capture={isTauri ? liveCapture : DEMO_CAPTURE}
           reducedMotion={reducedMotion}
-          onDismiss={() => invokeTauri("hide_panel")}
+          onDismiss={
+            isTauri
+              ? () => {
+                  invokeTauri("hide_panel");
+                  if (liveState === "thinking" || liveState === "streaming") invokeTauri("session_abort");
+                }
+              : () => invokeTauri("hide_panel")
+          }
         />
+      </div>
+    );
+  }
+
+  if (onboardingView) {
+    return (
+      <div
+        className={`flex min-h-screen items-start justify-center bg-background p-6${
+          reducedMotion ? " reduced-motion rm-halve" : ""
+        }`}
+      >
+        <OnboardingRitual initialStep={onboardingStep} reducedMotion={reducedMotion} />
+      </div>
+    );
+  }
+
+  if (settingsView) {
+    return (
+      <div className="min-h-screen bg-background">
+        <SettingsWindow reducedMotion={reducedMotion} />
+      </div>
+    );
+  }
+
+  if (timelineView) {
+    return (
+      <div className="min-h-screen bg-background">
+        <TimelineView demo={timelineDemo} reducedMotion={reducedMotion} />
       </div>
     );
   }
@@ -279,6 +476,7 @@ export default function App() {
                   answer={DEMO_ANSWER}
                   capture={DEMO_CAPTURE}
                   reducedMotion={reducedMotion}
+                  onSaveMemory={() => undefined}
                   onDismiss={() => setPanelVisible(false)}
                 />
               ) : (
@@ -293,6 +491,7 @@ export default function App() {
                   answer={DEMO_ANSWER}
                   capture={DEMO_CAPTURE}
                   reducedMotion={reducedMotion}
+                  onSaveMemory={() => undefined}
                   onDismiss={() => setPanelVisible(false)}
                 />
               ) : (
@@ -312,6 +511,7 @@ export default function App() {
                     answer={DEMO_ANSWER}
                     capture={DEMO_CAPTURE}
                     reducedMotion={reducedMotion}
+                    onSaveMemory={() => undefined}
                   />
                 </PanelStage>,
                 <PanelStage key={`night-${state}`} label={`${state} · ${net} · night`} dark>
@@ -321,6 +521,7 @@ export default function App() {
                     answer={DEMO_ANSWER}
                     capture={DEMO_CAPTURE}
                     reducedMotion={reducedMotion}
+                    onSaveMemory={() => undefined}
                   />
                 </PanelStage>,
               ])}

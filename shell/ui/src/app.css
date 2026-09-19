@@ -464,3 +464,54 @@ html.panel-view body {
     animation: none !important;
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* Onboarding ritual (J8, AC-12) — additions only.                     */
+/* ------------------------------------------------------------------ */
+.ritual-step {
+  animation: ritual-step-in 480ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes ritual-step-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes ritual-step-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.reduced-motion .ritual-step {
+  animation: ritual-step-fade 240ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ritual-step {
+    animation: ritual-step-fade 240ms cubic-bezier(0.4, 0, 0.2, 1) both;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Capture overlay (F-03/F-04/F-05, AC-03) — additions only.           */
+/* ------------------------------------------------------------------ */
+
+/* App-side token: the DESIGN.md shadcn bridge carries hsl channels, not the
+   rgba {colors.overlay-dim}; consumed as hsl(var(--overlay-dim) / 0.4).
+   Verbatim from docs/DESIGN.md front matter: rgba(15, 22, 34, 0.40). */
+:root {
+  --overlay-dim: 214 39% 10%;
+}
+
+/* The Tauri `overlay` window loads ?view=overlay; like the panel window it
+   paints no page background so the desktop shows through the selection. */
+html.overlay-view,
+html.overlay-view body {
+  background: transparent;
+}
