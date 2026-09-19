@@ -203,6 +203,7 @@ export function ModelsSection({
   const sttDlRef = useRef<string | null>(null);
   const [sttDlId, setSttDlId] = useState<string | null>(null);
   const pendingTtsSelectRef = useRef<string | null>(null);
+  const pendingTtsCancelRef = useRef<string[]>([]);
   const rateTimerRef = useRef<number | null>(null);
 
   const setSttDownload = (id: string | null) => {
@@ -390,21 +391,26 @@ export function ModelsSection({
 
   const downloadKokoro = () => {
     setTtsRequested(true);
+    const voicePackIds = ttsModels.filter((m) => m.kind === "tts_voices").map((m) => m.id);
     invokeTauriAsync("tts_download_kokoro")?.then(
       (raw) => {
-        if (typeof raw === "string") pendingTtsSelectRef.current = raw;
+        if (typeof raw === "string") {
+          pendingTtsSelectRef.current = raw;
+          pendingTtsCancelRef.current = [raw, ...voicePackIds];
+        } else {
+          pendingTtsCancelRef.current = voicePackIds;
+        }
       },
       () => setTtsRequested(false),
     );
   };
 
   const cancelKokoroDownload = () => {
-    const ids = ttsActiveIds.slice();
-    if (pendingTtsSelectRef.current && !ids.includes(pendingTtsSelectRef.current)) {
-      ids.push(pendingTtsSelectRef.current);
-    }
+    const ids = new Set<string>(pendingTtsCancelRef.current);
+    for (const id of ttsActiveIds) ids.add(id);
     for (const id of ids) invokeTauriAsync("download_cancel", { id });
     pendingTtsSelectRef.current = null;
+    pendingTtsCancelRef.current = [];
     setTtsRequested(false);
     setProgress((prev) => {
       const next = { ...prev };
