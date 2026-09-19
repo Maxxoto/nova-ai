@@ -11,8 +11,8 @@ use tauri::Emitter;
 use crate::{hotkeys, settings};
 
 /// The tray icon variant. Offline/Paused/Idle are derived from persisted
-/// settings by [`state_variant`]; `Degraded` is applied once by the supervisor
-/// when the sidecar restart budget is spent.
+/// settings by [`state_variant`]; `Thinking` and `Degraded` are transient
+/// overlays applied by the supervisor.
 ///
 /// Precedence for the settings-derived states is **offline > paused > idle**
 /// (docs/DESIGN.md `components.tray-menu` + `components.capture-paused-state`):
@@ -23,6 +23,8 @@ pub enum StateVariant {
     Offline,
     CapturesPaused,
     Idle,
+    /// `session.ask` in flight (DESIGN.md tray glyph set: thinking).
+    Thinking,
     /// Sidecar gave up (RFC-0002 §4.7; DESIGN.md AI state table: degraded →
     /// tray variant). Not settings-derived: applied via [`show_degraded`].
     Degraded,
@@ -53,6 +55,9 @@ fn icon_bytes(variant: StateVariant) -> &'static [u8] {
             include_bytes!("../icons/tray/tray-captures-paused-template@2x.png")
         }
         StateVariant::Idle => include_bytes!("../icons/tray/tray-idle-template@2x.png"),
+        StateVariant::Thinking => {
+            include_bytes!("../icons/tray/tray-thinking-template@2x.png")
+        }
         StateVariant::Degraded => {
             include_bytes!("../icons/tray/tray-degraded-template@2x.png")
         }
@@ -65,24 +70,20 @@ fn icon_bytes(variant: StateVariant) -> &'static [u8] {
         StateVariant::Offline => include_bytes!("../icons/tray/tray-offline.png"),
         StateVariant::CapturesPaused => include_bytes!("../icons/tray/tray-captures-paused.png"),
         StateVariant::Idle => include_bytes!("../icons/tray/tray-idle.png"),
+        StateVariant::Thinking => include_bytes!("../icons/tray/tray-thinking.png"),
         StateVariant::Degraded => include_bytes!("../icons/tray/tray-degraded.png"),
     }
 }
 
-/// Applies the tray icon matching the persisted offline/paused state.
-///
-/// Loads settings, picks the variant (offline > paused > idle), then swaps the
-/// icon on the main thread — matching the `run_on_main_thread` style already
-/// used in `lib.rs`. Safe to call from any thread; failures are logged and the
-/// tray keeps its previous icon rather than panicking.
-pub fn refresh_icon(app: &tauri::AppHandle) {
-    let current = settings::load(app);
-    let variant = state_variant(current.offline, current.pause_captures);
+/// Swaps the tray icon to `variant` on the main thread — matching the
+/// `run_on_main_thread` style already used in `lib.rs`. Safe to call from any
+/// thread; failures are logged and the tray keeps its previous icon.
+fn apply_variant(app: &tauri::AppHandle, variant: StateVariant) {
     let app = app.clone();
     let runner = app.clone();
     let _ = runner.run_on_main_thread(move || {
         let Some(tray) = app.tray_by_id("main") else {
-            eprintln!("ruoxi: tray icon refresh skipped: tray 'main' not found");
+            eprintln!("ruoxi: tray icon skipped: tray 'main' not found");
             return;
         };
         match tauri::image::Image::from_bytes(icon_bytes(variant)) {
@@ -96,26 +97,21 @@ pub fn refresh_icon(app: &tauri::AppHandle) {
     });
 }
 
-/// Applies the degraded ("Ruòxī is resting") glyph after the sidecar restart
-/// budget is spent (DESIGN.md AI state table: degraded → tray variant). The
-/// supervisor is the only caller; the app reports "restart app" from here on.
+/// Re-derives the tray icon from persisted settings (offline > paused > idle).
+pub fn refresh_icon(app: &tauri::AppHandle) {
+    let current = settings::load(app);
+    apply_variant(app, state_variant(current.offline, current.pause_captures));
+}
+
+/// Shows the thinking glyph while `session.ask` streams.
+pub fn show_thinking(app: &tauri::AppHandle) {
+    apply_variant(app, StateVariant::Thinking);
+}
+
+/// Shows the resting glyph once the sidecar restart budget is spent
+/// (RFC-0002 §4.7).
 pub fn show_degraded(app: &tauri::AppHandle) {
-    let app = app.clone();
-    let runner = app.clone();
-    let _ = runner.run_on_main_thread(move || {
-        let Some(tray) = app.tray_by_id("main") else {
-            eprintln!("ruoxi: degraded icon skipped: tray 'main' not found");
-            return;
-        };
-        match tauri::image::Image::from_bytes(icon_bytes(StateVariant::Degraded)) {
-            Ok(icon) => {
-                if let Err(e) = tray.set_icon_with_as_template(Some(icon), true) {
-                    eprintln!("ruoxi: degraded icon update failed: {e}");
-                }
-            }
-            Err(e) => eprintln!("ruoxi: degraded icon decode failed: {e}"),
-        }
-    });
+    apply_variant(app, StateVariant::Degraded);
 }
 
 fn send_intent(
@@ -245,6 +241,7 @@ mod tests {
             StateVariant::Offline,
             StateVariant::CapturesPaused,
             StateVariant::Idle,
+            StateVariant::Thinking,
             StateVariant::Degraded,
         ];
         for variant in variants {

@@ -133,7 +133,10 @@ async fn handle_request(
         let _ = reply.send(outcome);
         true
     } else if request.method == "session.ask" {
-        stream_ask(app, sidecar, requests, deferred, &request.params).await
+        crate::tray::show_thinking(app);
+        let alive = stream_ask(app, sidecar, requests, deferred, &request.params).await;
+        crate::tray::refresh_icon(app);
+        alive
     } else {
         let _ = sidecar
             .request(&request.method, &request.params.to_string())
