@@ -26,16 +26,6 @@ pub mod ptt;
 
 mod tray;
 
-#[cfg(target_os = "macos")]
-fn tray_state_icon(listening: bool) -> tauri::image::Image<'static> {
-    let bytes: &[u8] = if listening {
-        include_bytes!("../icons/tray/tray-listening-template@2x.png")
-    } else {
-        include_bytes!("../icons/tray/tray-idle-template@2x.png")
-    };
-    tauri::image::Image::from_bytes(bytes).expect("decoded tray icon")
-}
-
 use serde_json::Value;
 
 /// Routes upstream JSON-RPC methods issued by the Python brain (Rust-backed
@@ -146,11 +136,10 @@ pub fn run() {
                                 );
                                 let app = handle.clone();
                                 if pressed {
+                                    tray::show_listening(&app);
                                     let runner = app.clone();
                                     let _ = runner.run_on_main_thread(move || {
                                         if let Some(tray) = app.tray_by_id("main") {
-                                            let _ = tray
-                                                .set_icon_with_as_template(Some(tray_state_icon(true)), true);
                                             let _ = tray.set_tooltip(Some("Ruoxi — listening"));
                                         }
                                     });

@@ -10,56 +10,40 @@ use tauri::Emitter;
 
 use crate::{hotkeys, settings};
 
-/// The tray icon variant. Offline/Paused/Idle are derived from persisted
-/// settings by [`state_variant`]; `Thinking` and `Degraded` are transient
-/// overlays applied by the supervisor.
-///
-/// Precedence for the settings-derived states is **offline > paused > idle**
-/// (docs/DESIGN.md `components.tray-menu` + `components.capture-paused-state`):
-/// the kill-switch is the strongest signal, so it wins even while captures are
-/// also paused.
+/// The tray icon variant. The v4 design carries state by shape alone — ready
+/// (capture frame), listening (centre dot), captures paused (slash) — and
+/// confirms offline and the remaining states in words (menu checkbox, tooltip).
+/// Paused/idle derive from persisted settings via [`state_variant`]; listening
+/// is transient, applied by the push-to-talk listener via [`show_listening`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StateVariant {
-    Offline,
-    CapturesPaused,
     Idle,
-    /// `session.ask` in flight (DESIGN.md tray glyph set: thinking).
-    Thinking,
-    /// Sidecar gave up (RFC-0002 §4.7; DESIGN.md AI state table: degraded →
-    /// tray variant). Not settings-derived: applied via [`show_degraded`].
-    Degraded,
+    Listening,
+    CapturesPaused,
 }
 
-/// Pure state-precedence helper (kept free of Tauri so it is unit-testable).
-fn state_variant(offline: bool, paused: bool) -> StateVariant {
-    if offline {
-        StateVariant::Offline
-    } else if paused {
+/// Pure state helper (kept free of Tauri so it is unit-testable).
+fn state_variant(paused: bool) -> StateVariant {
+    if paused {
         StateVariant::CapturesPaused
     } else {
         StateVariant::Idle
     }
 }
 
-/// Tray-icon PNG for a variant. macOS ships the template set (pure black + alpha,
-/// tinted by the OS for light/dark menu bars — DESIGN.md tray recommendation);
-/// other platforms ship the colored marks.
-/// macOS ships the `@2x` template rasters: `tray-icon` lays the glyph out at
-/// 18pt, so the 36px asset is the design's "16px logical glyph at 2×" — crisp on
-/// Retina, downsampled on 1×. Pure black + alpha; the OS tints the bar.
+/// Tray-icon PNG for a variant. macOS ships the template set (pure black +
+/// alpha, tinted by the OS for light/dark menu bars — the v4 glyph carries no
+/// colour); other platforms ship the colored fallbacks. The `@2x` rasters are
+/// the design's 16pt glyph at 2× — crisp on Retina, downsampled on 1×.
 #[cfg(target_os = "macos")]
 fn icon_bytes(variant: StateVariant) -> &'static [u8] {
     match variant {
-        StateVariant::Offline => include_bytes!("../icons/tray/tray-offline-template@2x.png"),
+        StateVariant::Idle => include_bytes!("../icons/tray/tray-idle-template@2x.png"),
+        StateVariant::Listening => {
+            include_bytes!("../icons/tray/tray-listening-template@2x.png")
+        }
         StateVariant::CapturesPaused => {
             include_bytes!("../icons/tray/tray-captures-paused-template@2x.png")
-        }
-        StateVariant::Idle => include_bytes!("../icons/tray/tray-idle-template@2x.png"),
-        StateVariant::Thinking => {
-            include_bytes!("../icons/tray/tray-thinking-template@2x.png")
-        }
-        StateVariant::Degraded => {
-            include_bytes!("../icons/tray/tray-degraded-template@2x.png")
         }
     }
 }
@@ -67,11 +51,9 @@ fn icon_bytes(variant: StateVariant) -> &'static [u8] {
 #[cfg(not(target_os = "macos"))]
 fn icon_bytes(variant: StateVariant) -> &'static [u8] {
     match variant {
-        StateVariant::Offline => include_bytes!("../icons/tray/tray-offline.png"),
-        StateVariant::CapturesPaused => include_bytes!("../icons/tray/tray-captures-paused.png"),
         StateVariant::Idle => include_bytes!("../icons/tray/tray-idle.png"),
-        StateVariant::Thinking => include_bytes!("../icons/tray/tray-thinking.png"),
-        StateVariant::Degraded => include_bytes!("../icons/tray/tray-degraded.png"),
+        StateVariant::Listening => include_bytes!("../icons/tray/tray-listening.png"),
+        StateVariant::CapturesPaused => include_bytes!("../icons/tray/tray-captures-paused.png"),
     }
 }
 
@@ -97,21 +79,16 @@ fn apply_variant(app: &tauri::AppHandle, variant: StateVariant) {
     });
 }
 
-/// Re-derives the tray icon from persisted settings (offline > paused > idle).
+/// Re-derives the tray icon from persisted settings (paused wins over idle;
+/// the offline kill-switch is carried in words, not in the glyph).
 pub fn refresh_icon(app: &tauri::AppHandle) {
     let current = settings::load(app);
-    apply_variant(app, state_variant(current.offline, current.pause_captures));
+    apply_variant(app, state_variant(current.pause_captures));
 }
 
-/// Shows the thinking glyph while `session.ask` streams.
-pub fn show_thinking(app: &tauri::AppHandle) {
-    apply_variant(app, StateVariant::Thinking);
-}
-
-/// Shows the resting glyph once the sidecar restart budget is spent
-/// (RFC-0002 §4.7).
-pub fn show_degraded(app: &tauri::AppHandle) {
-    apply_variant(app, StateVariant::Degraded);
+/// Shows the listening glyph while the push-to-talk mic is open.
+pub fn show_listening(app: &tauri::AppHandle) {
+    apply_variant(app, StateVariant::Listening);
 }
 
 fn send_intent(
@@ -228,21 +205,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn variant_precedence_is_offline_then_paused_then_idle() {
-        assert_eq!(state_variant(true, true), StateVariant::Offline);
-        assert_eq!(state_variant(true, false), StateVariant::Offline);
-        assert_eq!(state_variant(false, true), StateVariant::CapturesPaused);
-        assert_eq!(state_variant(false, false), StateVariant::Idle);
+    fn paused_wins_over_idle() {
+        assert_eq!(state_variant(true), StateVariant::CapturesPaused);
+        assert_eq!(state_variant(false), StateVariant::Idle);
     }
 
     #[test]
     fn each_variant_maps_to_a_distinct_nonempty_icon() {
         let variants = [
-            StateVariant::Offline,
-            StateVariant::CapturesPaused,
             StateVariant::Idle,
-            StateVariant::Thinking,
-            StateVariant::Degraded,
+            StateVariant::Listening,
+            StateVariant::CapturesPaused,
         ];
         for variant in variants {
             assert!(!icon_bytes(variant).is_empty(), "{variant:?} icon is empty");

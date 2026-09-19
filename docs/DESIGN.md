@@ -448,7 +448,7 @@ state semantics); anything that gates a feature waits for a real event:
 
 | State | Trigger (event) | Orb | Chrome |
 |---|---|---|---|
-| **idle** | panel hidden / 2s after complete (cosmetic settle — the only timer, see above) | `motion.breathe` scale 1→1.03 | tray = dawn dot |
+| **idle** | panel hidden / 2s after complete (cosmetic settle — the only timer, see above) | `motion.breathe` scale 1→1.03 | tray = ready (capture frame) |
 | **listening** | PTT key-down | glow expands (`pulse-ring`) | ptt-pill appears near cursor: live dot + 5 bars (`motion.wave`, mic-level-driven) + "listening" |
 | **transcribing** | PTT key-up → `stt.final` | bars freeze → 3 dots | pill swaps waveform for transcript preview (body-sm) |
 | **thinking** | `session.ask` sent | `motion.orbit` 3 sky dots | panel opens in streaming state; tool steps tick `{components.tool-step-indicator}`; skeleton blocks shimmer in answer area |
@@ -456,7 +456,7 @@ state semantics); anything that gates a feature waits for a real event:
 | **streaming** | `agent.token` notifications | blue, still | tokens reveal with caret in `{components.answer-stream}` |
 | **complete** | final token | back to breathe | Save-to-memory button becomes visible (F-10) |
 | **error** | agent/LLM/network error | destructive ring | `{components.banner-error}` inline, retry affordance |
-| **degraded** | sidecar restart exceeded max (RFC-0002 §4.7) | moon-zzz | `{components.banner-degraded}` + tray variant |
+| **degraded** | sidecar restart exceeded max (RFC-0002 §4.7) | moon-zzz | `{components.banner-degraded}` (tray glyph unchanged — words carry it) |
 
 **Privacy is a first-class state machine.** The `{components.cloud-indicator}` chip
 lives in the panel header *and* the tray menu simultaneously, driven by `net.state`
@@ -500,7 +500,8 @@ state must remain legible without motion.
   every app OFF by default; each row states plainly what is stored and when it
   captures (the "surveillance feel" mitigation is a design obligation, not copy).
 - **Tray menu** (F-01, RFC-0002 §4.2) — native, contents per `{components.tray-menu}`;
-  mirrors the offline + paused states so the tray alone tells the truth.
+  mirrors the offline + paused states — the glyph carries shape (ready frame · listening
+  dot · paused slash), the checkbox carries the words.
 - **`cloud-indicator`** (F-09, AC-09) — the trust chip. Same component in panel header
   and tray menu; states per front matter; label always in words.
 - **`tool-step-indicator`** (AC-11) — 3 fixed segments; abort via `Esc` is always live.

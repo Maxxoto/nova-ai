@@ -35,7 +35,6 @@ pub async fn run(app: tauri::AppHandle, link: BrainLink) {
         supervise_once(&app, &link, &mut requests).await;
         restarts += 1;
         if restarts > MAX_RESTARTS {
-            crate::tray::show_degraded(&app);
             set_tooltip(&app, "Ruoxi — resting (brain offline — restart app)");
             return;
         }
@@ -136,10 +135,7 @@ async fn handle_request(
         let _ = reply.send(outcome);
         true
     } else if request.method == "session.ask" {
-        crate::tray::show_thinking(app);
-        let alive = stream_ask(app, sidecar, requests, deferred, &request.params).await;
-        crate::tray::refresh_icon(app);
-        alive
+        stream_ask(app, sidecar, requests, deferred, &request.params).await
     } else {
         let _ = sidecar
             .request(&request.method, &request.params.to_string())
