@@ -17,6 +17,7 @@ pub fn show(app: &AppHandle) {
 }
 
 pub fn hide(app: &AppHandle) {
+    crate::tts::stop_speaking();
     if let Some(win) = app.get_webview_window(PANEL_LABEL) {
         let _ = win.hide();
     }

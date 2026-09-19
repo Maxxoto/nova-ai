@@ -187,6 +187,7 @@ async fn stream_ask(
                 }
                 AskSignal::Complete(answer) => {
                     emit(app, "panel:complete", serde_json::json!({ "answer": answer }));
+                    crate::tts::speak_answer(app, &answer);
                     return true;
                 }
                 AskSignal::Failed(message) => {

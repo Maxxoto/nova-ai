@@ -118,6 +118,78 @@ pub fn tts_save_engine(app: tauri::AppHandle, engine: String) -> Result<(), Stri
 
 static KOKORO: tokio::sync::OnceCell<kokoro_micro::TtsEngine> = tokio::sync::OnceCell::const_new();
 
+enum Speaking {
+    System(std::process::Child),
+    Kokoro(rodio::MixerDeviceSink),
+}
+
+static SPEAK: std::sync::Mutex<Option<Speaking>> = std::sync::Mutex::new(None);
+static SPEAK_GEN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// Cuts any current speech: kills the `say` child or drops the Kokoro sink
+/// (its stream closing is what silences playback).
+pub fn stop_speaking() {
+    SPEAK_GEN.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    let taken = SPEAK.lock().map(|mut slot| slot.take()).ok().flatten();
+    if let Some(Speaking::System(mut child)) = taken {
+        let _ = child.kill();
+    }
+}
+
+/// Speaks a completed answer when read-aloud is on (AC-06: Esc/hide stops it).
+pub fn speak_answer(app: &tauri::AppHandle, text: &str) {
+    let settings = crate::settings::load(app);
+    if !settings.read_aloud || text.trim().is_empty() {
+        return;
+    }
+    let voice = settings.tts.voice.clone();
+    let engine = settings.tts.engine.clone();
+    let app = app.clone();
+    let phrase = text.to_string();
+    stop_speaking();
+    let generation = SPEAK_GEN.load(std::sync::atomic::Ordering::SeqCst);
+    tauri::async_runtime::spawn(async move {
+        match engine.as_str() {
+            "kokoro" => {
+                let Ok(engine) = kokoro_engine(&app).await else {
+                    return;
+                };
+                let voice = if voice.is_empty() {
+                    "af_heart".to_string()
+                } else {
+                    voice
+                };
+                let samples = tokio::task::spawn_blocking(move || {
+                    engine.synthesize_with_options(&phrase, Some(&voice), 1.0, 1.0, None)
+                })
+                .await;
+                let Ok(Ok(samples)) = samples else {
+                    return;
+                };
+                if SPEAK_GEN.load(std::sync::atomic::Ordering::SeqCst) != generation {
+                    return;
+                }
+                if let Err(e) = play_samples(samples) {
+                    eprintln!("ruoxi: read-aloud playback failed: {e}");
+                }
+            }
+            _ => {
+                #[cfg(target_os = "macos")]
+                if let Ok(child) = std::process::Command::new("say")
+                    .arg("-v")
+                    .arg(&voice)
+                    .arg(&phrase)
+                    .spawn()
+                {
+                    if let Ok(mut slot) = SPEAK.lock() {
+                        *slot = Some(Speaking::System(child));
+                    }
+                }
+            }
+        }
+    });
+}
+
 /// Loads (and caches) the Kokoro engine from the app-data models. Present
 /// files mean its own downloader never runs — ours owns the artifacts.
 async fn kokoro_engine(app: &tauri::AppHandle) -> Result<&'static kokoro_micro::TtsEngine, String> {
@@ -214,6 +286,7 @@ pub async fn tts_synthesize(
     voice: String,
 ) -> Result<(), String> {
     let engine = kokoro_engine(&app).await?;
+    stop_speaking();
     let phrase = if text.trim().is_empty() {
         "Hello from Ruòxī.".to_string()
     } else {
@@ -241,7 +314,10 @@ fn play_samples(samples: Vec<f32>) -> Result<(), String> {
     let channels = std::num::NonZeroU16::new(1).expect("nonzero channels");
     let rate = std::num::NonZeroU32::new(24_000).expect("nonzero rate");
     player.append(SamplesBuffer::new(channels, rate, samples));
-    player.sleep_until_end();
+    player.detach();
+    if let Ok(mut slot) = SPEAK.lock() {
+        *slot = Some(Speaking::Kokoro(sink));
+    }
     Ok(())
 }
 
