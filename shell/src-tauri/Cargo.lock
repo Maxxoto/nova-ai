@@ -2603,10 +2603,14 @@ dependencies = [
 name = "nova-shell"
 version = "0.1.0"
 dependencies = [
+ "block2",
  "core-foundation",
  "core-graphics",
  "foreign-types",
  "libc",
+ "objc2",
+ "objc2-av-foundation",
+ "objc2-foundation",
  "png 0.18.1",
  "rusqlite",
  "serde",
