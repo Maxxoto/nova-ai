@@ -3,12 +3,10 @@ import type { ReactNode } from "react";
 import { invokeTauriAsync, listenTauri } from "../../tauri";
 
 function SectionCard({
-  eyebrow,
   title,
   description,
   children,
 }: {
-  eyebrow: string;
   title: string;
   description?: ReactNode;
   children: ReactNode;
@@ -16,9 +14,6 @@ function SectionCard({
   return (
     <section className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5">
       <div className="flex flex-col gap-1">
-        <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
-          {eyebrow}
-        </span>
         <h2 className="font-ui text-[17px] font-semibold leading-[1.3] tracking-[-0.01em] text-foreground">
           {title}
         </h2>
@@ -155,9 +150,8 @@ export function SttModelSection() {
 
   return (
     <SectionCard
-      eyebrow="Voice input · STT"
-      title="Speech-to-text runs fully on this Mac."
-      description="One download per model, only with your consent. Files stay in Ruòxī's data folder — you can also import them yourself."
+      title="Speech-to-text"
+      description="One download per model, only with your consent. Files stay on this Mac."
     >
       <div className="flex flex-col gap-3">
         {models.map((model) => {
@@ -333,9 +327,8 @@ export function TtsVoiceSection() {
 
   return (
     <SectionCard
-      eyebrow="Voice output · TTS"
-      title="Read-aloud voice."
-      description="Fully local. System voices work out of the box; Kokoro (82M, neural) downloads once with consent and runs on this Mac — per RFC-0005."
+      title="Read-aloud voice"
+      description="Fully local. System voices work out of the box; Kokoro downloads once with consent."
     >
       <div className="flex flex-col gap-4">
         <div className="flex items-center gap-2">
@@ -532,9 +525,8 @@ export function LlmConfigSection() {
 
   return (
     <SectionCard
-      eyebrow="Brain · LLM"
-      title="Your key, your endpoint — nothing built in."
-      description="Works with any OpenAI-compatible service — nothing is built in. Your key is kept in the macOS Keychain, never written to settings files."
+      title="Brain endpoint"
+      description="Any OpenAI-compatible service. Your key stays in the macOS Keychain."
     >
       <div className="flex flex-col gap-3">
         <Field
@@ -553,7 +545,7 @@ export function LlmConfigSection() {
           />
         </div>
         <Field
-          label={keySet ? "API key (stored in Keychain — type to replace)" : "API key"}
+          label={keySet ? "API key (stored in Keychain — type to replace)" : "API key (stored in Keychain)"}
           type="password"
           value={apiKey}
           onChange={setApiKey}
@@ -587,7 +579,7 @@ export function LlmConfigSection() {
           ) : null}
         </div>
         <span className="font-ui text-[12px] leading-[1.5] text-muted-foreground">
-          Sends one small test request. Saved settings apply when the app restarts.
+          Test sends one small request. Saved settings apply on the next start.
         </span>
       </div>
     </SectionCard>

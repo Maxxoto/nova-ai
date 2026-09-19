@@ -260,17 +260,10 @@ function formatBytes(bytes: number): string {
   return `${exponent === 0 ? String(value) : value.toFixed(1)} ${units[exponent]}`;
 }
 
-function ageLabel(oldestMs: number): string {
-  const days = Math.max(0, Math.floor((Date.now() - oldestMs) / 86_400_000));
-  if (days === 0) return "oldest today";
-  return `oldest ${days} day${days === 1 ? "" : "s"}`;
-}
-
 function storeSummary(stats: CaptureStats): string {
-  if (stats.count === 0) return "No captures yet — nothing is stored on this Mac.";
+  if (stats.count === 0) return "No captures yet.";
   const captures = `${stats.count} capture${stats.count === 1 ? "" : "s"}`;
-  const age = stats.oldest_ms === null ? "oldest unknown" : ageLabel(stats.oldest_ms);
-  return `${formatBytes(stats.bytes)} across ${captures} · ${age} · stored per-user, encrypted at rest by the OS.`;
+  return `${formatBytes(stats.bytes)} across ${captures} · encrypted at rest.`;
 }
 
 function applyThemeClass(theme: Theme) {
@@ -333,13 +326,11 @@ function Tag({ children, tone = "neutral" }: { children: ReactNode; tone?: TagTo
 }
 
 function Section({
-  eyebrow,
   title,
   description,
   headerExtra,
   children,
 }: {
-  eyebrow: string;
   title: string;
   description?: ReactNode;
   headerExtra?: ReactNode;
@@ -349,14 +340,11 @@ function Section({
     <section className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5">
       <div className="flex flex-col gap-1">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
-            {eyebrow}
-          </span>
+          <h2 className="font-ui text-[17px] font-semibold leading-[1.3] tracking-[-0.01em] text-foreground">
+            {title}
+          </h2>
           {headerExtra}
         </div>
-        <h2 className="font-ui text-[17px] font-semibold leading-[1.3] tracking-[-0.01em] text-foreground">
-          {title}
-        </h2>
         {description ? (
           <p className="max-w-[70ch] font-ui text-[14px] font-normal leading-[1.45] text-muted-foreground">
             {description}
@@ -574,8 +562,8 @@ function OfflineBanner({ offline }: { offline: boolean }) {
         </span>
         <p className="font-ui text-[13px] leading-[1.45] text-muted-foreground">
           {offline
-            ? "Zero network calls. Captures, answers and memory all stay on this Mac — the only thing that would change that is you turning this off."
-            : "Requests may reach the cloud when an answer needs it. The chip beside this line says what is happening at this second, and the tray shows the same."}
+            ? "Zero network calls. Captures, answers and memory stay on this Mac."
+            : "Requests may reach the cloud when an answer needs it."}
         </p>
       </div>
       <span className="inline-flex flex-none items-center gap-1.5 rounded-pill border border-border bg-card px-2.5 py-1 font-ui text-[11px] font-medium text-muted-foreground">
@@ -663,17 +651,17 @@ const PERMISSION_ROWS: { kind: PermissionKind; name: string; help: string }[] = 
   {
     kind: "screen_recording",
     name: "Screen Recording",
-    help: "Needed for region, window and full-screen capture. Without it, only voice questions work.",
+    help: "Region, window and full-screen capture.",
   },
   {
     kind: "microphone",
     name: "Microphone",
-    help: "Needed for push-to-talk. Without it, the pill still appears but asks you to type.",
+    help: "Push-to-talk.",
   },
   {
     kind: "accessibility",
     name: "Accessibility",
-    help: "Needed for the global hotkeys only. Ruòxī never clicks or types on your behalf.",
+    help: "Global hotkeys only. Ruòxī never clicks or types.",
   },
 ];
 
@@ -856,7 +844,7 @@ function PushToTalkRow({
   return (
     <Row
       label="Push-to-talk hotkey"
-      help="Hold to talk, release to send. The listening pill appears right away and fades when you stop speaking."
+      help="Hold to talk, release to send."
       side={
         <>
           {caps.length > 0 ? (
@@ -881,6 +869,7 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
   const [displays, setDisplays] = useState<Display[] | null>(null);
   const [permissions, setPermissions] = useState<PermissionsStatus | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [permissionNote, setPermissionNote] = useState("");
 
   const apply = (next: Settings) => {
     settingsRef.current = next;
@@ -1022,7 +1011,12 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
   };
 
   const openPane = (kind: PermissionKind) => {
+    setPermissionNote("Opens System Settings — nothing changes here.");
     invokeTauriAsync("open_privacy_pane", { kind })?.catch(() => undefined);
+  };
+
+  const openTimeline = () => {
+    invokeTauriAsync("show_timeline")?.catch(() => undefined);
   };
 
   const runOnboarding = () => {
@@ -1036,22 +1030,24 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
       className={`mx-auto flex w-full max-w-[720px] flex-col gap-5 p-8${reducedMotion ? " reduced-motion rm-halve" : ""}`}
     >
       <header className="flex flex-col gap-1">
+        <span className="font-mono text-[11px] font-medium uppercase tracking-[0.09em] text-muted-foreground">
+          Settings
+        </span>
         <h1 className="font-ui text-[22px] font-bold leading-[1.2] tracking-[-0.02em] text-foreground">
-          Trust is a setting, not a promise.
+          Settings.
         </h1>
         <p className="font-ui text-[14px] leading-[1.45] text-muted-foreground">
-          Everything that could expose you lives here in plain language — what is stored, what is sent, what is
-          deleted, and how to stop all of it.
+          What is stored, what is sent, and how to stop it.
         </p>
       </header>
 
       <OfflineBanner offline={settings.offline} />
 
-      <Section eyebrow="Privacy & data" title="What leaves this machine, and what never does.">
+      <Section title="Privacy">
         <div className="flex flex-col">
           <Row
             label="Offline mode — nothing leaves this Mac"
-            help="Instant, no restart. When it's on, the offline badge shows in the panel, the tray and here — and anything that would need the cloud will ask first."
+            help="Instant, no restart. The chip moves to offline everywhere."
             side={
               <Toggle
                 label="Offline mode"
@@ -1062,12 +1058,28 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
           />
           <Row
             label="Voice audio"
-            help="Audio is deleted about a minute after a session ends — there's no recording to find. Only the live mic level is ever shown."
+            help="Deleted about a minute after a session ends. There is no replay."
             side={<Tag tone="ok">deleted ≈1 min</Tag>}
           />
           <Row
             label="Local store"
-            help={storeHelp}
+            help={
+              <>
+                {storeHelp}
+                {stats !== null && stats.count > 0 ? (
+                  <>
+                    {" "}
+                    <button
+                      type="button"
+                      onClick={openTimeline}
+                      className={`font-ui text-[13px] font-medium text-muted-foreground underline decoration-border-strong underline-offset-2 transition-colors duration-200 hover:text-foreground ${FOCUS_RING}`}
+                    >
+                      Review captures →
+                    </button>
+                  </>
+                ) : null}
+              </>
+            }
             side={
               <button type="button" onClick={() => setConfirmOpen(true)} className={DANGER_BUTTON}>
                 Delete all…
@@ -1076,52 +1088,51 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
           />
           <Row
             label="Send diagnostics"
-            help="Off. Nothing is ever sent on its own — and since the app is open source, you can check."
+            help="Off. Crash reports stay on this Mac."
             side={<Tag>off</Tag>}
           />
         </div>
       </Section>
 
       <Section
-        eyebrow="Auto-capture"
         title="Off for every app until you say otherwise."
         headerExtra={<Tag>Coming soon</Tag>}
-        description="Nothing here is on by default. When it's ready, each app will list exactly what's stored — and when."
+        description="Each row says what would be stored."
       >
         <div className="flex flex-col gap-2">
           <AppRow
             mark="Sa"
             name="Safari"
-            caption="Would capture the visible part of the active tab after 30 seconds of stillness — text only."
+            caption="Active tab after 30s of stillness · text only"
             side={<Tag>off</Tag>}
           />
           <AppRow
             mark="Pv"
             name="Preview"
-            caption="Would capture the page area you highlight — never the whole screen."
+            caption="Highlighted text on the open page"
             side={<Tag>off</Tag>}
           />
           <AppRow
             mark="VS"
             name="VS Code"
-            caption="Would capture the editor only when an error appears — no terminals, no secrets."
+            caption="Visible editor when an error appears"
             side={<Tag>off</Tag>}
           />
           <p className="pt-1 font-ui text-[12px] leading-[1.5] text-muted-foreground">
-            Capture is off everywhere — the tray icon shows the paused state.
+            Capture is off everywhere. The tray glyph stays in the paused state.
           </p>
         </div>
       </Section>
 
-      <Section eyebrow="Voice & answers" title="How she listens and how she answers.">
+      <Section title="Voice and answers">
         <div className="flex flex-col">
           <PushToTalkRow value={settings.ptt_hotkey} onCommit={commitHotkey} />
           <p className="pt-1 font-ui text-[12px] leading-[1.5] text-muted-foreground">
-            Takes effect the next time Ruòxī starts.
+            Applies on the next start.
           </p>
           <Row
             label="Read answers aloud"
-            help="Off by default. When available, the panel shows the spoken waveform — Esc always stops the audio."
+            help="Esc always stops the audio."
             side={
               <>
                 <Tag>Coming soon</Tag>
@@ -1135,7 +1146,7 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
           />
           <Row
             label="Answer length"
-            help="Short answers by default. Long-form answers never replace the short one."
+            help="Short by default. The panel offers more."
             side={
               <>
                 <Tag>Coming soon</Tag>
@@ -1157,11 +1168,11 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
       <SttModelSection />
       <TtsVoiceSection />
       <LlmConfigSection />
-      <Section eyebrow="Capture & displays" title="Which screen, and how precise.">
+      <Section title="Displays">
         <div className="flex flex-col gap-3">
           <Row
             label="Displays"
-            help="The panel opens on the display you're using, and follows you when displays change."
+            help="Full-screen capture uses the display under your cursor."
             side={<Tag>{displays === null ? "…" : `${displays.length} connected`}</Tag>}
           />
           {displays !== null && displays.length === 0 ? (
@@ -1183,7 +1194,7 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
         <div className="flex flex-col">
           <Row
             label="Default capture scope"
-            help="What a voice ask captures when you haven't boxed anything."
+            help="What a voice ask captures when you do not box anything."
             side={
               <Segmented
                 ariaLabel="Default capture scope"
@@ -1199,11 +1210,7 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
         </div>
       </Section>
 
-      <Section
-        eyebrow="Appearance"
-        title="Dawn by day, night after dusk."
-        description="Every screen works in both themes — nothing is an afterthought."
-      >
+      <Section title="Appearance" description="Both themes use the same components.">
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap gap-3" role="group" aria-label="Theme">
             <ThemeSwatch
@@ -1229,23 +1236,19 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
             />
           </div>
           <p className="font-ui text-[12px] leading-[1.5] text-muted-foreground">
-            Takes effect right away, on every screen.
+            Ruòxī follows the system by default.
           </p>
         </div>
         <div className="flex flex-col">
           <Row
             label="Reduce motion"
-            help="Follows your system setting — animations stop and the waveform freezes."
+            help="Follows the system setting."
             side={<Tag>{reducedMotion ? "reduce" : "system"}</Tag>}
           />
         </div>
       </Section>
 
-      <Section
-        eyebrow="Permissions"
-        title="Re-run the setup ritual any time."
-        description="Each permission explains why it's needed — and what stops working if you revoke it."
-      >
+      <Section title="Access" description="Revoking one shows which features stop.">
         <div className="flex flex-col">
           {PERMISSION_ROWS.map((row) => {
             const granted = permissionGranted(row.kind, permissions);
@@ -1267,33 +1270,33 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
           })}
           <div className="flex flex-wrap items-center gap-3 pt-4">
             <button type="button" onClick={runOnboarding} className={SECONDARY_BUTTON}>
-              Run the setup ritual again
+              Run setup again
             </button>
-            <span className="font-ui text-[12px] leading-[1.5] text-muted-foreground">
-              Opens System Settings — nothing changes here.
+            <span aria-live="polite" className="font-ui text-[12px] leading-[1.5] text-muted-foreground">
+              {permissionNote}
             </span>
           </div>
         </div>
       </Section>
 
-      <Section eyebrow="About" title="Ruòxī 若曦">
-        <div className="flex items-start gap-4 rounded-lg border border-border bg-muted p-4">
-          <span
-            aria-hidden="true"
-            className="h-11 w-11 flex-none rounded-xl bg-gradient-to-br from-primary to-primary-active shadow-e1"
-          />
-          <div className="flex min-w-0 flex-1 flex-col gap-2">
-            <p className="font-ui text-[13px] leading-[1.45] text-muted-foreground">
-              A quiet companion for your menu bar on macOS and Windows. MIT licensed and open source — every
-              privacy claim on this page can be checked in the code.
-            </p>
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="font-mono text-[11px] font-medium text-foreground">M0 · v0.1</span>
-              <span className="font-mono text-[11px] font-medium text-muted-foreground">云思考，本地记忆</span>
-            </div>
+      <section className="flex items-start gap-4 rounded-xl border border-border bg-card p-5">
+        <span
+          aria-hidden="true"
+          className="h-11 w-11 flex-none rounded-xl bg-gradient-to-br from-primary to-primary-active shadow-e1"
+        />
+        <div className="flex min-w-0 flex-1 flex-col gap-2">
+          <span className="font-ui text-[17px] font-semibold leading-[1.3] tracking-[-0.01em] text-foreground">
+            Ruòxī 若曦
+          </span>
+          <p className="font-ui text-[13px] leading-[1.45] text-muted-foreground">
+            A menu-bar assistant for macOS and Windows. Open source, MIT.
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="font-mono text-[11px] font-medium text-foreground">M0 · v0.1</span>
+            <span className="font-mono text-[11px] font-medium text-muted-foreground">Local-first</span>
           </div>
         </div>
-      </Section>
+      </section>
 
       {confirmOpen ? (
         <ConfirmDeleteDialog
