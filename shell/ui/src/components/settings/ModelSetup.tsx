@@ -189,6 +189,8 @@ export function ModelsSection({
 
   const [sttChoice, setSttChoice] = useState<string | null>(null);
   const [ttsRequested, setTtsRequested] = useState(false);
+  const [testState, setTestState] = useState<"idle" | "testing">("idle");
+  const [testError, setTestError] = useState<string>();
 
   const [llm, setLlm] = useState<LlmConfig | null>(null);
   const [llmOpen, setLlmOpen] = useState(false);
@@ -385,6 +387,7 @@ export function ModelsSection({
     if (kind !== "kokoro" && kind !== "system") return;
     setEngine(kind);
     setVoice(picked);
+    setTestError(undefined);
     invokeTauriAsync("tts_save_engine", { engine: kind });
     invokeTauriAsync("tts_save_voice", { voice: picked });
   };
@@ -428,11 +431,27 @@ export function ModelsSection({
   };
 
   const testVoice = () => {
-    if (engine === "kokoro") {
-      invokeTauriAsync("tts_synthesize", { text: "", voice: voice })?.catch(() => undefined);
-    } else {
-      invokeTauriAsync("tts_test_voice", { voice: voice, text: "" })?.catch(() => undefined);
+    setTestState("testing");
+    setTestError(undefined);
+    const pending =
+      engine === "kokoro"
+        ? invokeTauriAsync("tts_synthesize", { text: "", voice })
+        : invokeTauriAsync("tts_test_voice", { voice, text: "" });
+    if (!pending) {
+      setTestState("idle");
+      return;
     }
+    pending.then(
+      () => setTestState("idle"),
+      (raw: unknown) => {
+        setTestState("idle");
+        setTestError(
+          typeof raw === "string" && raw.trim().length > 0
+            ? raw
+            : "The voice didn't play — see the app logs for details.",
+        );
+      },
+    );
   };
 
   const saveLlm = () => {
@@ -617,13 +636,23 @@ export function ModelsSection({
                 </span>
               )}
               {voice ? (
-                <button type="button" onClick={testVoice} className={GHOST_BUTTON_SM}>
-                  Test
+                <button
+                  type="button"
+                  onClick={testVoice}
+                  disabled={testState === "testing"}
+                  className={GHOST_BUTTON_SM}
+                >
+                  {testState === "testing" ? "Testing…" : "Test"}
                 </button>
               ) : null}
             </>
           }
         />
+        {testError ? (
+          <p className="pb-1 pt-0.5 font-ui text-[12px] leading-[1.45] text-destructive" role="status">
+            {testError}
+          </p>
+        ) : null}
         <Row
           label="Speaking rate"
           help="How fast answers are read."
