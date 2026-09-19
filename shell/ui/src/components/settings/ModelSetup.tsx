@@ -31,13 +31,9 @@ type LlmConfig = { base_url: string; model: string; vision_model: string; api_ke
 type TestResult = { ok: boolean; message?: string; model?: string; reply?: string };
 type ModelProgress = { id: string; downloaded: number; total: number };
 
-function mb(bytes: number): string {
-  return `${Math.max(1, Math.round(bytes / 1_000_000))} MB`;
-}
-
-function sizeLabel(bytes: number): string {
-  if (bytes >= 1_000_000_000) return `${(bytes / 1_000_000_000).toFixed(1)} GB`;
-  return mb(bytes);
+/** GB with up to two decimals, trailing zeros trimmed — the design's fmt(). */
+function gbValue(bytes: number): string {
+  return (Math.round((bytes / 1_000_000_000) * 100) / 100).toString();
 }
 
 function hostLabel(url: string): string {
@@ -134,6 +130,45 @@ function Field({
   );
 }
 
+function DownloadProgress({
+  pct,
+  label,
+  onCancel,
+}: {
+  pct: number;
+  label: string;
+  onCancel: () => void;
+}) {
+  return (
+    <span className="flex flex-none items-center gap-2">
+      <span className="font-ui text-[12px] leading-none text-muted-foreground">Downloading…</span>
+      <span
+        role="progressbar"
+        aria-label={label}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={pct}
+        className="h-1 w-[104px] overflow-hidden rounded-pill bg-muted"
+      >
+        <span
+          className="block h-full bg-primary transition-[width] duration-150 ease-linear"
+          style={{ width: `${pct}%` }}
+        />
+      </span>
+      <span className="min-w-[36px] text-right font-mono text-[11px] tabular-nums text-muted-foreground">
+        {pct}%
+      </span>
+      <button
+        type="button"
+        onClick={onCancel}
+        className={`rounded px-1 py-0.5 font-ui text-[12px] text-muted-foreground underline decoration-border-strong underline-offset-2 transition-colors duration-200 hover:text-foreground ${FOCUS_RING}`}
+      >
+        Cancel
+      </button>
+    </span>
+  );
+}
+
 export function ModelsSection({
   offline,
   onTurnOffOffline,
@@ -144,12 +179,16 @@ export function ModelsSection({
   const [sttModels, setSttModels] = useState<CatalogModel[]>([]);
   const [ttsModels, setTtsModels] = useState<CatalogModel[]>([]);
   const [progress, setProgress] = useState<Record<string, number>>({});
+  const [ttsBundleBytes, setTtsBundleBytes] = useState(0);
 
   const [engine, setEngine] = useState("system");
   const [voice, setVoice] = useState("");
   const [rate, setRate] = useState(1);
   const [systemVoices, setSystemVoices] = useState<SystemVoice[]>([]);
   const [kokoroVoices, setKokoroVoices] = useState<KokoroVoice[]>([]);
+
+  const [sttChoice, setSttChoice] = useState<string | null>(null);
+  const [ttsRequested, setTtsRequested] = useState(false);
 
   const [llm, setLlm] = useState<LlmConfig | null>(null);
   const [llmOpen, setLlmOpen] = useState(false);
@@ -161,10 +200,15 @@ export function ModelsSection({
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<TestResult>();
 
-  const pendingSttSelectRef = useRef<string | null>(null);
+  const sttDlRef = useRef<string | null>(null);
+  const [sttDlId, setSttDlId] = useState<string | null>(null);
   const pendingTtsSelectRef = useRef<string | null>(null);
   const rateTimerRef = useRef<number | null>(null);
-  const [ttsRequested, setTtsRequested] = useState(false);
+
+  const setSttDownload = (id: string | null) => {
+    sttDlRef.current = id;
+    setSttDlId(id);
+  };
 
   const refreshStt = () => {
     invokeTauriAsync("stt_catalog")?.then(
@@ -218,6 +262,10 @@ export function ModelsSection({
     refreshTtsModels();
     refreshVoices();
     refreshLlm();
+    invokeTauriAsync("tts_bundle_bytes")?.then(
+      (raw) => setTtsBundleBytes(typeof raw === "number" ? raw : 0),
+      () => undefined,
+    );
     let active = true;
     const offs: Array<() => void> = [];
     const track = (off: () => void) => {
@@ -241,8 +289,8 @@ export function ModelsSection({
           refreshStt();
           refreshTtsModels();
           refreshVoices();
-          if (pendingSttSelectRef.current === p.id) {
-            pendingSttSelectRef.current = null;
+          if (sttDlRef.current === p.id) {
+            setSttDownload(null);
             invokeTauriAsync("stt_select", { id: p.id });
           }
           if (pendingTtsSelectRef.current === p.id) {
@@ -258,9 +306,12 @@ export function ModelsSection({
             delete next[p?.id ?? ""];
             return next;
           });
-          setTtsRequested(false);
-          if (pendingSttSelectRef.current === p?.id) pendingSttSelectRef.current = null;
+          if (sttDlRef.current === p?.id) {
+            setSttDownload(null);
+            setSttChoice(null);
+          }
           if (pendingTtsSelectRef.current === p?.id) pendingTtsSelectRef.current = null;
+          if (sttDlRef.current !== p?.id) setTtsRequested(false);
         }),
       );
     })();
@@ -272,13 +323,25 @@ export function ModelsSection({
   }, []);
 
   const sttSelected = sttModels.find((m) => m.selected);
-  const sttDownloading = sttModels.find((m) => progress[m.id] !== undefined);
+  const sttChosenId = sttChoice ?? sttSelected?.id ?? "";
+  const sttChosen = sttModels.find((m) => m.id === sttChosenId);
+  const sttChosenMissing = Boolean(sttChosen && !sttChosen.downloaded);
+  const sttPct = sttDlId !== null ? Math.round((progress[sttDlId] ?? 0) * 100) : 0;
+
   const kokoroModelEntry =
     ttsModels.find((m) => m.kind === "tts_model" && m.selected) ??
     ttsModels.find((m) => m.kind === "tts_model" && m.downloaded);
   const ttsVoicesEntry = ttsModels.find((m) => m.kind === "tts_voices");
   const kokoroReady = Boolean(kokoroModelEntry?.downloaded && ttsVoicesEntry?.downloaded);
   const ttsDownloading = ttsRequested || ttsModels.some((m) => progress[m.id] !== undefined);
+  const ttsActiveIds = ttsModels.filter((m) => progress[m.id] !== undefined).map((m) => m.id);
+  const ttsPct =
+    ttsActiveIds.length > 0
+      ? Math.round(
+          (ttsActiveIds.reduce((sum, id) => sum + (progress[id] ?? 0), 0) / ttsActiveIds.length) *
+            100,
+        )
+      : 0;
 
   useEffect(() => {
     if (kokoroReady) setTtsRequested(false);
@@ -287,12 +350,30 @@ export function ModelsSection({
   const pickSttModel = (id: string) => {
     const entry = sttModels.find((m) => m.id === id);
     if (!entry) return;
+    setSttChoice(id);
     if (entry.downloaded) {
       invokeTauriAsync("stt_select", { id })?.then(refreshStt);
-      return;
     }
-    pendingSttSelectRef.current = id;
-    invokeTauriAsync("stt_download", { id });
+  };
+
+  const startSttDownload = () => {
+    const id = sttChosen?.id;
+    if (!id) return;
+    setSttDownload(id);
+    invokeTauriAsync("stt_download", { id })?.catch(() => setSttDownload(null));
+  };
+
+  const cancelSttDownload = () => {
+    const id = sttDlRef.current;
+    if (!id) return;
+    invokeTauriAsync("download_cancel", { id });
+    setSttDownload(null);
+    setSttChoice(null);
+    setProgress((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
   };
 
   const pickVoice = (value: string) => {
@@ -315,6 +396,21 @@ export function ModelsSection({
       },
       () => setTtsRequested(false),
     );
+  };
+
+  const cancelKokoroDownload = () => {
+    const ids = ttsActiveIds.slice();
+    if (pendingTtsSelectRef.current && !ids.includes(pendingTtsSelectRef.current)) {
+      ids.push(pendingTtsSelectRef.current);
+    }
+    for (const id of ids) invokeTauriAsync("download_cancel", { id });
+    pendingTtsSelectRef.current = null;
+    setTtsRequested(false);
+    setProgress((prev) => {
+      const next = { ...prev };
+      for (const id of ids) delete next[id];
+      return next;
+    });
   };
 
   const changeRate = (next: number) => {
@@ -398,25 +494,29 @@ export function ModelsSection({
   for (const entry of sttModels) {
     const label = familyLabel(entry.family);
     const group = sttGroups.find((item) => item.label === label);
-    const option: PickerOption = {
-      value: entry.id,
-      label: entry.downloaded ? entry.name : `${entry.name} — download ${mb(entry.size_bytes)}`,
-    };
+    const option: PickerOption = { value: entry.id, label: entry.name };
     if (group) group.options.push(option);
     else sttGroups.push({ label, options: [option] });
   }
-  if (!sttSelected && sttGroups.length > 0) {
+  if (!sttChosen && sttGroups.length > 0) {
     sttGroups[0].options.unshift({ value: "", label: "Choose a model", disabled: true });
   }
 
-  const sttOnDevice = sttModels.find((m) => m.downloaded && m.selected);
-  const kokoroBytes =
-    (kokoroModelEntry?.downloaded ? kokoroModelEntry.size_bytes : 0) +
-    (ttsVoicesEntry?.downloaded ? ttsVoicesEntry.size_bytes : 0);
-  const onDeviceEntries: { label: string; bytes: number }[] = [];
-  if (sttOnDevice) onDeviceEntries.push({ label: sttOnDevice.name, bytes: sttOnDevice.size_bytes });
-  if (kokoroBytes > 0) onDeviceEntries.push({ label: "Kokoro", bytes: kokoroBytes });
-  const onDeviceTotal = onDeviceEntries.reduce((sum, entry) => sum + entry.bytes, 0);
+  const installedBytes = [...sttModels, ...ttsModels]
+    .filter((m) => m.downloaded)
+    .reduce((sum, m) => sum + m.size_bytes, 0);
+  const runningBytes =
+    (sttDlId ? (sttModels.find((m) => m.id === sttDlId)?.size_bytes ?? 0) : 0) +
+    (ttsDownloading ? ttsBundleBytes : 0);
+  const incomingBytes = sttChosenMissing && sttChosen ? sttChosen.size_bytes : 0;
+  const storeLine =
+    runningBytes > 0
+      ? `${gbValue(installedBytes)} GB installed · ${gbValue(runningBytes)} GB downloading.`
+      : incomingBytes > 0
+        ? `${gbValue(installedBytes)} GB installed · ${gbValue(incomingBytes)} GB to download.`
+        : installedBytes > 0
+          ? `${gbValue(installedBytes)} GB installed and kept on this Mac. Switching models downloads the new one once.`
+          : "Nothing downloaded yet — files arrive only with your consent.";
 
   const endpointHost = llm?.base_url ? hostLabel(llm.base_url) : null;
 
@@ -428,12 +528,36 @@ export function ModelsSection({
           help="Whisper or Parakeet, running on this Mac."
           side={
             <>
-              <Tag>on-device</Tag>
+              {sttModels.length > 0 ? (
+                sttDlId !== null ? (
+                  <DownloadProgress
+                    pct={sttPct}
+                    label="Downloading speech to text model"
+                    onCancel={cancelSttDownload}
+                  />
+                ) : (
+                  <>
+                    {sttChosen ? (
+                      sttChosen.downloaded ? (
+                        <Tag tone="ok">on-device</Tag>
+                      ) : (
+                        <Tag>not installed · {gbValue(sttChosen.size_bytes)} GB</Tag>
+                      )
+                    ) : null}
+                    {sttChosenMissing ? (
+                      <button type="button" onClick={startSttDownload} className={CHANGE_BUTTON}>
+                        Download
+                      </button>
+                    ) : null}
+                  </>
+                )
+              ) : null}
               {sttModels.length > 0 ? (
                 <Picker
                   ariaLabel="Speech to text model"
-                  value={sttSelected?.id ?? ""}
+                  value={sttChosenId}
                   onChange={pickSttModel}
+                  disabled={sttDlId !== null}
                   groups={sttGroups}
                 />
               ) : (
@@ -441,11 +565,6 @@ export function ModelsSection({
                   Available in the desktop app.
                 </span>
               )}
-              {sttDownloading ? (
-                <span className="font-mono text-[11px] text-muted-foreground">
-                  {Math.round((progress[sttDownloading.id] ?? 0) * 100)}%
-                </span>
-              ) : null}
             </>
           }
         />
@@ -454,12 +573,36 @@ export function ModelsSection({
           help={engine === "kokoro" ? "Kokoro, running on this Mac." : "macOS system voice — always available."}
           side={
             <>
-              <Tag>{engine === "kokoro" ? "on-device" : "system"}</Tag>
+              {ttsModels.length > 0 ? (
+                ttsDownloading ? (
+                  <DownloadProgress
+                    pct={ttsPct}
+                    label="Downloading voice model"
+                    onCancel={cancelKokoroDownload}
+                  />
+                ) : (
+                  <>
+                    {!kokoroReady ? (
+                      <Tag>not installed · {gbValue(ttsBundleBytes)} GB</Tag>
+                    ) : engine === "kokoro" ? (
+                      <Tag tone="ok">on-device</Tag>
+                    ) : (
+                      <Tag>system</Tag>
+                    )}
+                    {!kokoroReady ? (
+                      <button type="button" onClick={downloadKokoro} className={CHANGE_BUTTON}>
+                        Download
+                      </button>
+                    ) : null}
+                  </>
+                )
+              ) : null}
               {voiceOptions.length > 0 ? (
                 <Picker
                   ariaLabel="Text to speech voice"
                   value={voiceValue}
                   onChange={pickVoice}
+                  disabled={ttsDownloading}
                   groups={voiceGroups}
                 />
               ) : (
@@ -467,11 +610,6 @@ export function ModelsSection({
                   Available in the desktop app.
                 </span>
               )}
-              {!kokoroReady && ttsModels.length > 0 ? (
-                <button type="button" onClick={downloadKokoro} disabled={ttsDownloading} className={CHANGE_BUTTON}>
-                  {ttsDownloading ? "Downloading…" : "Get Kokoro"}
-                </button>
-              ) : null}
               {voice ? (
                 <button type="button" onClick={testVoice} className={GHOST_BUTTON_SM}>
                   Test
@@ -524,12 +662,8 @@ export function ModelsSection({
         />
         <Row
           label="On-device models"
-          help={
-            onDeviceEntries.length > 0
-              ? `${onDeviceEntries.map((entry) => `${entry.label} ${sizeLabel(entry.bytes)}`).join(" · ")}. Switching models downloads the new one once.`
-              : "Nothing downloaded yet — files arrive only with your consent."
-          }
-          side={<Tag>{onDeviceTotal > 0 ? sizeLabel(onDeviceTotal) : "0 MB"}</Tag>}
+          help={storeLine}
+          side={<Tag>{gbValue(installedBytes)} GB</Tag>}
         />
       </div>
 
