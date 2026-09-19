@@ -539,9 +539,9 @@ export function ModelsSection({
                   <>
                     {sttChosen ? (
                       sttChosen.downloaded ? (
-                        <Tag tone="ok">on-device</Tag>
+                        <Tag tone="ok">On-Device</Tag>
                       ) : (
-                        <Tag>not installed · {gbValue(sttChosen.size_bytes)} GB</Tag>
+                        <Tag>Not Installed · {gbValue(sttChosen.size_bytes)} GB</Tag>
                       )
                     ) : null}
                     {sttChosenMissing ? (
@@ -583,11 +583,11 @@ export function ModelsSection({
                 ) : (
                   <>
                     {!kokoroReady ? (
-                      <Tag>not installed · {gbValue(ttsBundleBytes)} GB</Tag>
+                      <Tag>Not Installed · {gbValue(ttsBundleBytes)} GB</Tag>
                     ) : engine === "kokoro" ? (
-                      <Tag tone="ok">on-device</Tag>
+                      <Tag tone="ok">On-Device</Tag>
                     ) : (
-                      <Tag>system</Tag>
+                      <Tag>System</Tag>
                     )}
                     {!kokoroReady ? (
                       <button type="button" onClick={downloadKokoro} className={CHANGE_BUTTON}>
@@ -648,7 +648,7 @@ export function ModelsSection({
           }
           side={
             <>
-              <Tag tone="warn">cloud</Tag>
+              <Tag tone="warn">Cloud</Tag>
               {llm?.model ? (
                 <span className="max-w-[160px] truncate font-mono text-[11px] text-muted-foreground">
                   {llm.model}

@@ -111,7 +111,7 @@ pub fn install(
     let pause = CheckMenuItem::with_id(
         app,
         "pause_captures",
-        "Pause captures",
+        "Pause Captures",
         true,
         current.pause_captures,
         None::<&str>,
@@ -119,19 +119,19 @@ pub fn install(
     let offline = CheckMenuItem::with_id(
         app,
         "offline_mode",
-        "Offline — nothing leaves this Mac",
+        "Offline Mode",
         true,
         current.offline,
         None::<&str>,
     )?;
     let capture_region =
-        MenuItem::with_id(app, "capture_region", "Capture region", true, None::<&str>)?;
+        MenuItem::with_id(app, "capture_region", "Capture Region", true, None::<&str>)?;
     let capture_window =
-        MenuItem::with_id(app, "capture_window", "Capture window", true, None::<&str>)?;
+        MenuItem::with_id(app, "capture_window", "Capture Window", true, None::<&str>)?;
     let capture_fullscreen = MenuItem::with_id(
         app,
         "capture_fullscreen",
-        "Capture whole screen",
+        "Capture Whole Screen",
         true,
         None::<&str>,
     )?;

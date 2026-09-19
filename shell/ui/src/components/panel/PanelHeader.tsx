@@ -4,14 +4,14 @@ import type { NetState, PanelState } from "./types";
 
 const LABELS: Record<PanelState, string> = {
   idle: "Ruòxī",
-  listening: "listening",
-  transcribing: "transcribing",
-  thinking: "thinking",
-  speaking: "speaking",
-  streaming: "streaming",
-  complete: "done",
-  error: "error",
-  degraded: "resting",
+  listening: "Listening",
+  transcribing: "Transcribing",
+  thinking: "Thinking",
+  speaking: "Speaking",
+  streaming: "Streaming",
+  complete: "Done",
+  error: "Error",
+  degraded: "Resting",
 };
 
 export default function PanelHeader({ state, net }: { state: PanelState; net: NetState }) {
@@ -25,7 +25,7 @@ export default function PanelHeader({ state, net }: { state: PanelState; net: Ne
         aria-label="Press Escape to dismiss"
         className="rounded-sm border border-border bg-muted px-1.5 py-px font-mono text-[11px] leading-none text-muted-foreground"
       >
-        esc
+        Esc
       </kbd>
     </header>
   );

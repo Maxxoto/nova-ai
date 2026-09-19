@@ -57,19 +57,19 @@ function CloudUpload(): ReactElement {
 
 const META: Record<NetState, { label: string; tone: string; dot: string; icon: () => ReactElement }> = {
   offline: {
-    label: "offline · nothing leaves this Mac",
+    label: "Offline · nothing leaves this Mac",
     tone: "text-muted-foreground",
     dot: "bg-muted-foreground",
     icon: CloudOff,
   },
   local_only: {
-    label: "local only",
+    label: "Local Only",
     tone: "text-success",
     dot: "bg-success",
     icon: CloudHollow,
   },
   calling_cloud: {
-    label: "sending to cloud",
+    label: "Sending to Cloud",
     tone: "text-warning",
     dot: "bg-live animate-pulse-ring",
     icon: CloudUpload,

@@ -129,7 +129,7 @@ export default function PreferencesStep({
               captures.
             </p>
           </div>
-          <Tag>off</Tag>
+          <Tag>Off</Tag>
         </div>
       </div>
 

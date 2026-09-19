@@ -412,7 +412,7 @@ function OfflineBanner({ offline }: { offline: boolean }) {
           aria-hidden="true"
           className={`h-[7px] w-[7px] rounded-pill ${offline ? "bg-muted-foreground" : "bg-success"}`}
         />
-        {offline ? "offline" : "local only"}
+        {offline ? "Offline" : "Local Only"}
       </span>
     </div>
   );
@@ -900,7 +900,7 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
           <Row
             label="Voice audio"
             help="Deleted about a minute after a session ends. There is no replay."
-            side={<Tag tone="ok">deleted ≈1 min</Tag>}
+            side={<Tag tone="ok">Deleted ≈1 min</Tag>}
           />
           <Row
             label="Local store"
@@ -930,7 +930,7 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
           <Row
             label="Send diagnostics"
             help="Off. Crash reports stay on this Mac."
-            side={<Tag>off</Tag>}
+            side={<Tag>Off</Tag>}
           />
         </div>
       </Section>
@@ -938,7 +938,7 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
       <Section
         id="autocapture"
         title="Off for every app until you say otherwise."
-        headerExtra={<Tag>Coming soon</Tag>}
+        headerExtra={<Tag>Coming Soon</Tag>}
         description="Each row says what would be stored."
       >
         <div className="flex flex-col gap-2">
@@ -946,19 +946,19 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
             mark="Sa"
             name="Safari"
             caption="Active tab after 30s of stillness · text only"
-            side={<Tag>off</Tag>}
+            side={<Tag>Off</Tag>}
           />
           <AppRow
             mark="Pv"
             name="Preview"
             caption="Highlighted text on the open page"
-            side={<Tag>off</Tag>}
+            side={<Tag>Off</Tag>}
           />
           <AppRow
             mark="VS"
             name="VS Code"
             caption="Visible editor when an error appears"
-            side={<Tag>off</Tag>}
+            side={<Tag>Off</Tag>}
           />
           <p className="pt-1 font-ui text-[12px] leading-[1.5] text-muted-foreground">
             Capture is off everywhere. The tray glyph stays in the paused state.
@@ -977,7 +977,7 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
             help="Esc always stops the audio."
             side={
               <>
-                <Tag>Coming soon</Tag>
+                <Tag>Coming Soon</Tag>
                 <Toggle
                   label="Read answers aloud"
                   on={settings.read_aloud}
@@ -991,7 +991,7 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
             help="Short by default. The panel offers more."
             side={
               <>
-                <Tag>Coming soon</Tag>
+                <Tag>Coming Soon</Tag>
                 <Segmented
                   ariaLabel="Answer length"
                   value={settings.answer_length}
@@ -1016,7 +1016,7 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
           <Row
             label="Full-screen capture"
             help="Which display the whole-screen scope uses."
-            side={<Tag>{displays === null ? "…" : `${displays.length} connected`}</Tag>}
+            side={<Tag>{displays === null ? "…" : `${displays.length} Connected`}</Tag>}
           />
           {displays !== null && displays.length === 0 ? (
             <p className="font-ui text-[12px] leading-[1.5] text-muted-foreground">No displays found.</p>
@@ -1102,7 +1102,7 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
           <Row
             label="Reduce motion"
             help="Follows the system setting."
-            side={<Tag>{reducedMotion ? "reduce" : "system"}</Tag>}
+            side={<Tag>{reducedMotion ? "Reduce" : "System"}</Tag>}
           />
         </div>
       </Section>
@@ -1118,7 +1118,7 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
                 help={row.help}
                 side={
                   <>
-                    <Tag tone={granted ? "ok" : "neutral"}>{granted ? "granted" : "not granted"}</Tag>
+                    <Tag tone={granted ? "ok" : "neutral"}>{granted ? "Granted" : "Not Granted"}</Tag>
                     <button type="button" onClick={() => openPane(row.kind)} className={PERMISSION_ACTION_BUTTON}>
                       {granted ? "Revoke" : "Grant"}
                     </button>

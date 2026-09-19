@@ -16,19 +16,19 @@ import { BODY, CAPTION, CHIP, EYEBROW, SECONDARY_BUTTON, STEP_HEADING, WHY_LINE 
 type ViewState = "granted" | "denied" | "not_allowed" | "not_asked" | "unknown";
 
 const VIEWS: Record<ViewState, { label: string; tone: string; Glyph: () => ReactElement }> = {
-  granted: { label: "granted", tone: "text-success", Glyph: () => <CheckGlyph className="h-3 w-3" /> },
-  denied: { label: "denied", tone: "text-destructive", Glyph: () => <DenyGlyph className="h-3 w-3" /> },
+  granted: { label: "Granted", tone: "text-success", Glyph: () => <CheckGlyph className="h-3 w-3" /> },
+  denied: { label: "Denied", tone: "text-destructive", Glyph: () => <DenyGlyph className="h-3 w-3" /> },
   not_allowed: {
-    label: "not granted",
+    label: "Not Granted",
     tone: "text-muted-foreground",
     Glyph: () => <DotGlyph className="h-3 w-3" />,
   },
   not_asked: {
-    label: "not asked yet",
+    label: "Not Asked Yet",
     tone: "text-muted-foreground",
     Glyph: () => <DotGlyph className="h-3 w-3" />,
   },
-  unknown: { label: "unknown", tone: "text-muted-foreground", Glyph: () => <HelpGlyph className="h-3 w-3" /> },
+  unknown: { label: "Unknown", tone: "text-muted-foreground", Glyph: () => <HelpGlyph className="h-3 w-3" /> },
 };
 
 const PERMISSION_GLYPHS: Record<PermissionKind, () => ReactElement> = {
