@@ -93,6 +93,8 @@ Both require Accessibility/input-monitoring permissions, which folds into the
 onboarding ritual (§4.5). **Spike required before M0 sign-off**: prove key-up
 delivery in fullscreen apps and games (risk #5), and define fallback (e.g.,
 toggle-mode PTT) if a context blocks raw events.
+*S1 verdict (macOS, 2026-09-19): PASS — listen-only session CGEventTap,
+down+up delivered at 332–405 µs; findings in plans/m0-spike-plan.md.*
 
 ### 4.4 Windows: overlay & panel
 

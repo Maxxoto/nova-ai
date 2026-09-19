@@ -8,7 +8,7 @@ edition = "2021"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["tray-icon"] }
+tauri = { version = "2", features = ["tray-icon", "macos-private-api", "image-png"] }
 tauri-plugin-single-instance = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -16,6 +16,15 @@ tokio = { version = "1", features = ["process", "io-util", "time", "rt-multi-thr
 rusqlite = { version = "0.40.2", features = ["bundled"] }
 sha2 = "0.11.0"
 ulid = "3.0.0"
+tauri-plugin-global-shortcut = "2.3.2"
+xcap = "0.9.8"
+png = "0.18.1"
 
 [dev-dependencies]
 tempfile = "3.27.0"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+core-graphics = "0.25"
+core-foundation = "0.10"
+foreign-types = "0.5"
+libc = "0.2"

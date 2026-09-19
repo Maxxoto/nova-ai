@@ -5,9 +5,9 @@ description: |
   The design system for Ruòxī (若曦) — "as clear as dawn's first light" — a calm,
   tray-resident AI companion for macOS + Windows built with Tauri 2, React, Tailwind
   CSS, and shadcn/ui. The visual language is built on one idea: dawn breaking over a
-  quiet desk. A warm cream canvas by day, a warm near-black night mode after dusk, a
-  single dawn-coral accent for every action, and a small set of honest state colors
-  (live ember, thinking sky, speaking coral, offline gray) that never appear without
+  quiet desk. A cool paper canvas by day, a deep night-blue mode after dusk, a
+  single dawn-blue accent for every action, and a small set of honest state colors
+  (live ember, thinking sky, speaking blue, offline gray) that never appear without
   an icon or a word. The companion's voice is set in a rounded face (Nunito); the
   machine's voice is set in Inter; the archive's voice is set in JetBrains Mono.
   Everything floats: the result panel hovers over the user's work with a soft shadow
@@ -18,47 +18,47 @@ description: |
   plain-language label.
 
 colors:
-  # ---- Light theme · "Dawn" (primary) ----
-  canvas: "#fbf7f1"                # hsl(36 56% 96%) dawn cream — app + panel base
-  ink: "#2b241e"                   # hsl(28 18% 14%) warm near-black text
-  body: "#5f5348"                  # hsl(28 13% 33%) secondary text
-  mute: "#74655a"                  # hsl(25 12.6% 40.4%) metadata, captions
-  faint: "#9c8f84"                 # hsl(28 10% 56%) disabled, hairline labels
-  surface: "#fefdfc"               # hsl(30 50% 99%) card / popover fill
-  surface-soft: "#f4ede4"          # hsl(34 42% 93%) muted fill, input rest
-  primary: "#c55026"               # hsl(16 68% 46%) dawn coral — actions, speaking
-  primary-hover: "#ad4520"         # hsl(16 68% 40%)
-  primary-active: "#963a1b"        # hsl(15 70% 35%) pressed + citation-chip text
+  # ---- Light theme · "Dawn sky" (primary) ----
+  canvas: "#f5f8fc"                # hsl(213 47% 98%) cool paper — app + panel base
+  ink: "#16202e"                   # hsl(214 35% 13%) deep night-blue text
+  body: "#44526a"                  # hsl(216 21% 34%) secondary text
+  mute: "#5a6982"                  # hsl(218 18% 43%) metadata, captions
+  faint: "#94a2b6"                 # hsl(214 16% 65%) disabled, hairline labels
+  surface: "#ffffff"               # hsl(0 0% 100%) card / popover fill
+  surface-soft: "#eaf0f8"          # hsl(212 52% 95%) muted fill, input rest
+  primary: "#2b64c9"               # hsl(216 65% 48%) dawn blue — actions, speaking
+  primary-hover: "#2353ad"         # hsl(216 66% 41%)
+  primary-active: "#1c448c"        # hsl(217 67% 33%) pressed + citation-chip text
   primary-foreground: "#ffffff"
-  primary-soft: "#f9e5db"          # hsl(20 71% 92%) coral tint — selected rows, banners, chips
-  thinking-text: "#35526e"         # hsl(210 35% 32%) sky ink — "thinking" label text
-  secondary: "#dce9f2"             # hsl(205 46% 91%) dawn sky fill
-  secondary-foreground: "#28405a"  # hsl(211 38% 25%)
-  accent: "#f8e3b7"                # hsl(41 82% 85%) dawn gold — highlights, listening fill
-  accent-foreground: "#4e3a20"     # hsl(34 42% 22%)
+  primary-soft: "#e2ebfb"          # hsl(216 76% 94%) blue tint — selected rows, banners, chips
+  thinking-text: "#2f4770"         # hsl(219 41% 31%) indigo ink — "thinking" label text
+  secondary: "#5b6fd6"             # hsl(228 59% 60%) periwinkle — thinking / processing
+  secondary-foreground: "#232c74"  # hsl(232 54% 30%)
+  accent: "#fbe6bd"                # hsl(40 89% 86%) dawn gold — highlights, listening fill
+  accent-foreground: "#4a3a1e"     # hsl(36 42% 20%)
   live: "#d16405"                  # hsl(28 95% 42%) ember — mic-live dots, waveform bars (non-text, ≥3:1 on canvas)
   warning: "#9a4a04"               # hsl(28 95% 31%) AA ember — warning text/fills (5.8:1 canvas, 5.1:1 primary-soft)
   success: "#267326"               # hsl(120 50% 30%) dawn green — local-only, saved
   destructive: "#bb2b1f"           # hsl(5 72% 43%) — errors, destructive actions (5.6:1 canvas, 5.0:1 primary-soft)
   destructive-foreground: "#ffffff"
-  border: "#e2dbd2"                # hsl(34 22% 85%)
-  border-strong: "#cfc5b8"         # hsl(34 19% 77%)
-  overlay-dim: "rgba(43, 36, 30, 0.35)"  # capture dim over the user's screen
+  border: "#dfe6ef"                # hsl(214 36% 91%)
+  border-strong: "#c7d1de"         # hsl(214 28% 83%)
+  overlay-dim: "rgba(15, 22, 34, 0.40)"  # capture dim over the user's screen
   # ---- Dark theme · "Night before dawn" ----
-  dark-canvas: "#1d1815"           # hsl(22 16% 10%)
-  dark-ink: "#f2e9de"              # hsl(33 43% 91%) warm off-white
-  dark-body: "#c9bcb0"             # hsl(29 20% 74%)
-  dark-mute: "#a39386"             # hsl(27 69% 58%)
-  dark-surface: "#262019"          # hsl(32 21% 12%)
-  dark-surface-soft: "#302922"     # hsl(30 17% 16%)
-  dark-primary: "#d96f42"          # hsl(18 67% 55%) brighter coral
-  dark-primary-hover: "#e47e50"    # hsl(19 72% 60%)
-  dark-primary-active: "#eda47f"   # hsl(20 75% 71%) pale coral — dark chip/citation text
-  dark-primary-foreground: "#1d130c" # hsl(25 41% 8%) dark text on bright coral (AA)
-  dark-primary-soft: "#5a3516"     # hsl(27 61% 22%) coral tint — dark chips
-  dark-thinking: "#7fb3d5"         # hsl(204 51% 67%) sky for dark
-  dark-speaking: "#e07a4e"         # hsl(18 70% 59%) coral for dark
-  dark-secondary: "#273849"        # hsl(210 30% 22%) night-sky fill
+  dark-canvas: "#0f1622"           # hsl(214 40% 10%)
+  dark-ink: "#e9eff8"              # hsl(214 47% 94%) cool off-white
+  dark-body: "#bac5d6"             # hsl(216 27% 78%)
+  dark-mute: "#8a97ac"             # hsl(217 17% 61%)
+  dark-surface: "#161f2d"          # hsl(215 35% 13%)
+  dark-surface-soft: "#1e2836"     # hsl(215 31% 16%)
+  dark-primary: "#5a97ee"          # hsl(214 83% 64%) brighter blue
+  dark-primary-hover: "#74a9f3"    # hsl(213 91% 70%)
+  dark-primary-active: "#9cc0f7"   # hsl(213 85% 79%) pale blue — dark chip/citation text
+  dark-primary-foreground: "#0b1524" # hsl(215 53% 9%) dark text on bright blue (AA)
+  dark-primary-soft: "#1b3358"     # hsl(215 54% 23%) blue tint — dark chips
+  dark-thinking: "#93a5ef"         # hsl(229 79% 76%) periwinkle for dark
+  dark-speaking: "#6aa4f0"         # hsl(213 82% 68%) blue for dark
+  dark-secondary: "#27384d"        # hsl(213 32% 23%) night-sky fill
   dark-secondary-foreground: "#dbe9f4" # hsl(206 53% 91%)
   dark-accent: "#5a3516"           # hsl(27 61% 22%) amber-tint fill for dark
   dark-accent-foreground: "#fce2b6" # hsl(38 92% 85%)
@@ -67,7 +67,7 @@ colors:
   dark-destructive: "#ee6a63"      # hsl(3 80% 66%) — dark error text (5.8:1 canvas)
   dark-destructive-foreground: "#1d130c" # hsl(25 41% 8%) dark ink on bright red fills (6.0:1)
   dark-warning: "#f97d10"          # hsl(28 95% 52%) — dark degraded text (6.7:1 canvas)
-  dark-border: "#3a332b"           # hsl(32 15% 20%)
+  dark-border: "#2a3444"           # hsl(214 24% 22%)
 
 typography:
   font-ui: "Inter — UI chrome: answers, settings, timeline, buttons. 400/500/600."
@@ -165,7 +165,7 @@ components:
     textColor: "{colors.ink}"
     rounded: "{rounded.lg}"
     width: "{spacing.panel-w}"
-    shadow: "0 8px 32px rgba(43, 36, 30, 0.16), 0 2px 8px rgba(43, 36, 30, 0.08)"
+    shadow: "0 8px 32px rgba(15, 23, 38, 0.18), 0 2px 8px rgba(15, 23, 38, 0.08)"
     vibrancy: "backdrop-filter: blur(24px) saturate(140%); surface opacity 0.78; fallback = opacity 0.97, no blur (RFC-0002 risk #3)"
     focus: "never activates — non-activating window on both OSes"
   panel-header:
@@ -198,7 +198,7 @@ components:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.ink}"
     rounded: "{rounded.pill}"
-    shadow: "e3 — same as panel: 0 8px 32px rgba(43, 36, 30, 0.16), 0 2px 8px rgba(43, 36, 30, 0.08)"
+    shadow: "e3 — same as panel: 0 8px 32px rgba(15, 23, 38, 0.18), 0 2px 8px rgba(15, 23, 38, 0.08)"
     content: "live dot ({colors.live}, {motion.pulse-ring}) + 5 waveform bars ({colors.live}, {motion.wave} driven by real mic level) + label {typography.companion} 13px 'listening'"
     position: "near cursor, {spacing.clamp} from screen edges"
   capture-overlay:
@@ -246,7 +246,7 @@ components:
   daily-brief:
     backgroundColor: "{colors.surface}"
     rounded: "{rounded.xl}"
-    shadow: "e3 — same as panel: 0 8px 32px rgba(43, 36, 30, 0.16), 0 2px 8px rgba(43, 36, 30, 0.08)"
+    shadow: "e3 — same as panel: 0 8px 32px rgba(15, 23, 38, 0.18), 0 2px 8px rgba(15, 23, 38, 0.08)"
     greeting: "{typography.companion} — may end with a kaomoji (see Do's)"
     brief: "{typography.body} one line + up to 3 memory highlights"
   onboarding-card:
@@ -256,7 +256,7 @@ components:
     why-line: "{typography.companion} — plain-language reason BEFORE each OS permission prompt (AC-12)"
     permission-name: "{typography.body-strong}"
   banner-error:
-    backgroundColor: "{colors.primary-soft}"   # dark bg: {colors.dark-surface-soft} (bright coral tint fails AA under dark text rules)
+    backgroundColor: "{colors.primary-soft}"   # dark bg: {colors.dark-surface-soft} (bright blue tint fails AA under dark text rules)
     textColor: "{colors.destructive}"          # dark: {colors.dark-destructive}
     border: "1px solid {colors.destructive}"   # dark: {colors.dark-destructive}
     rounded: "{rounded.md}"
@@ -292,14 +292,14 @@ transient listening pill near the cursor, a precise selection box over the thing
 pointed at. The design language renders that promise ("always one keystroke away; never
 in the way") in four moves:
 
-1. **Dawn, not neon.** 若曦 means "as clear as dawn's first light." The palette is a
-   warm cream canvas (`{colors.canvas}`), warm ink text (`{colors.ink}`), and one
-   dawn-coral accent (`{colors.primary}`) that carries every action. No gradients, no
-   glow, no purple-cyber. Dark mode is "night before dawn": the same warmth inverted.
+1. **Dawn blue, not neon.** 若曦 means "as clear as dawn's first light." The palette is
+   a cool paper canvas (`{colors.canvas}`), deep night-blue ink (`{colors.ink}`), and
+   one dawn-blue accent (`{colors.primary}`) that carries every action. No gradients, no
+   glow, no purple-cyber. Dark mode is "night before dawn": the same system inverted.
 2. **Kawaii through shape and voice, not pastel.** Softness lives in radii (10–18px),
    in the breathing idle orb, in Nunito's rounded terminals when *she* speaks, and in
    one rare kaomoji at the right moment. The machine chrome stays in Inter and stays
-   restrained — companion warmth against professional bones. (Competitors split into
+   restrained — companion softness against professional bones. (Competitors split into
    purple-glow fandom or pastel play; Ruòxī is deliberately the calm third thing.)
 3. **Honest states.** Every system state — listening, thinking, speaking, offline,
    sending to cloud — is a color **plus an icon plus a word**, event-driven from real
@@ -312,43 +312,43 @@ in the way") in four moves:
 
 ## Colors
 
-### Light · "Dawn" (default)
+### Light · "Dawn sky" (default)
 
 | Token | Value | Role |
 |---|---|---|
-| `{colors.canvas}` | `#fbf7f1` | App + panel base. Warm, paper-like. |
-| `{colors.ink}` | `#2b241e` | Primary text. Warm near-black, never pure black. |
-| `{colors.body}` | `#5f5348` | Paragraph text, secondary rows. |
-| `{colors.mute}` | `#74655a` | Metadata, timestamps, inactive icons. |
-| `{colors.faint}` | `#9c8f84` | Disabled text, hairline annotations. |
-| `{colors.surface}` | `#fefdfc` | Cards, popovers, menus. |
-| `{colors.surface-soft}` | `#f4ede4` | Inputs at rest, hovered rows, muted fills. |
-| `{colors.primary}` | `#c55026` | Dawn coral. All primary actions; "speaking" state. AA (4.6:1) with white. |
-| `{colors.primary-soft}` | `#f9e5db` | Coral tint. Selected rows, citation chips. |
-| `{colors.secondary}` | `#dce9f2` | Dawn sky fill. Thinking tint, info surfaces. |
-| `{colors.accent}` | `#f8e3b7` | Dawn gold. Highlights, listening fill washes. |
+| `{colors.canvas}` | `#f5f8fc` | App + panel base. Cool, paper-like. |
+| `{colors.ink}` | `#16202e` | Primary text. Deep night-blue, never pure black. |
+| `{colors.body}` | `#44526a` | Paragraph text, secondary rows. |
+| `{colors.mute}` | `#5a6982` | Metadata, timestamps, inactive icons. |
+| `{colors.faint}` | `#94a2b6` | Disabled text, hairline annotations. |
+| `{colors.surface}` | `#ffffff` | Cards, popovers, menus. |
+| `{colors.surface-soft}` | `#eaf0f8` | Inputs at rest, hovered rows, muted fills. |
+| `{colors.primary}` | `#2b64c9` | Dawn blue. All primary actions; "speaking" state. AA (5.4:1) with white. |
+| `{colors.primary-soft}` | `#e2ebfb` | Blue tint. Selected rows, citation chips. |
+| `{colors.secondary}` | `#5b6fd6` | Periwinkle. Thinking / processing fill. |
+| `{colors.accent}` | `#fbe6bd` | Dawn gold. Highlights, listening fill washes. |
 | `{colors.live}` | `#d16405` | Ember. Mic-live dots + waveform bars only — never text. |
 | `{colors.warning}` | `#9a4a04` | AA ember for warning text/fills (5.8:1 on canvas, 5.1:1 on `primary-soft`). |
 | `{colors.success}` | `#267326` | Local-only indicator, saved confirmations. |
 | `{colors.destructive}` | `#bb2b1f` | Errors, destructive confirmations. |
-| `{colors.border}` | `#e2dbd2` | Hairlines, separators, input strokes. |
-| `{colors.border-strong}` | `#cfc5b8` | Secondary button strokes, tab rules. |
-| `{colors.overlay-dim}` | `rgba(43,36,30,.35)` | Capture overlay dim over the user's screen. |
+| `{colors.border}` | `#dfe6ef` | Hairlines, separators, input strokes. |
+| `{colors.border-strong}` | `#c7d1de` | Secondary button strokes, tab rules. |
+| `{colors.overlay-dim}` | `rgba(15,22,34,.40)` | Capture overlay dim over the user's screen. |
 
 ### Dark · "Night before dawn"
 
 | Token | Value | Role |
 |---|---|---|
-| `{colors.dark-canvas}` | `#1d1815` | Base. Warm near-black, never blue-black. |
-| `{colors.dark-ink}` | `#f2e9de` | Primary text. |
-| `{colors.dark-body}` / `{colors.dark-mute}` | `#c9bcb0` / `#a39386` | Secondary / metadata. |
-| `{colors.dark-surface}` / `-soft` | `#262019` / `#302922` | Cards / inputs. |
-| `{colors.dark-primary}` | `#d96f42` | Brighter coral; pairs with `{colors.dark-primary-foreground}` dark text (AA). |
+| `{colors.dark-canvas}` | `#0f1622` | Base. Deep night-blue, never gray-black. |
+| `{colors.dark-ink}` | `#e9eff8` | Primary text. |
+| `{colors.dark-body}` / `{colors.dark-mute}` | `#bac5d6` / `#8a97ac` | Secondary / metadata. |
+| `{colors.dark-surface}` / `-soft` | `#161f2d` / `#1e2836` | Cards / inputs. |
+| `{colors.dark-primary}` | `#5a97ee` | Brighter blue; pairs with `{colors.dark-primary-foreground}` dark text (AA). |
 | `{colors.dark-live}` | `#f7a033` | Ember for dark. |
-| `{colors.dark-thinking}` | `#7fb3d5` | Sky for dark. |
-| `{colors.dark-speaking}` | `#e07a4e` | Coral for dark. |
+| `{colors.dark-thinking}` | `#93a5ef` | Periwinkle for dark. |
+| `{colors.dark-speaking}` | `#6aa4f0` | Blue for dark. |
 | `{colors.dark-success}` | `#4d9e5d` | Green for dark. |
-| `{colors.dark-border}` | `#3a332b` | Hairlines. |
+| `{colors.dark-border}` | `#2a3444` | Hairlines. |
 
 ### State color assignments (the honest-states palette)
 
@@ -365,8 +365,8 @@ in the way") in four moves:
 | Degraded | `{colors.warning}` | `{colors.dark-warning}` | moon-zzz | "Ruòxī is resting…" |
 | Captures paused | `{colors.mute}` | `{colors.dark-mute}` | pause | "captures paused" — tray + panel chrome, obvious until resumed |
 
-**Rules.** State colors are reserved — coral is action/speaking, ember is *live/
-egress*, sky is *thinking*, green is *local/saved*. One accent per view. Every state
+**Rules.** State colors are reserved — blue is action/speaking, ember is *live/
+egress*, periwinkle is *thinking*, green is *local/saved*. One accent per view. Every state
 pairs color with icon and label; if you can't name the icon, the color is wrong.
 
 ## Typography
@@ -413,15 +413,15 @@ light chrome — these are ordinary windows, not overlays; they may take focus.
 
 | Level | Treatment | Use |
 |---|---|---|
-| e1 | `0 1px 2px rgba(43,36,30,.06)` | Cards, rows at rest |
-| e2 | `0 4px 12px rgba(43,36,30,.10)` | Popovers, citation thumbnails, menus |
-| e3 | `0 8px 32px rgba(43,36,30,.16), 0 2px 8px rgba(43,36,30,.08)` | **The signature.** Panel, ptt-pill, daily-brief |
+| e1 | `0 1px 2px rgba(15,23,38,.06)` | Cards, rows at rest |
+| e2 | `0 4px 12px rgba(15,23,38,.10)` | Popovers, citation thumbnails, menus |
+| e3 | `0 8px 32px rgba(15,23,38,.18), 0 2px 8px rgba(15,23,38,.08)` | **The signature.** Panel, ptt-pill, daily-brief |
 | vibrancy | `backdrop-filter: blur(24px) saturate(140%)`, surface at 78% opacity | Panel + brief on macOS/WebView2; fallback = 97% opacity, no blur |
 
 Depth is reserved for things that float over the user's work. In-window content is
 flat: cards separate with `{colors.border}` hairlines and surface tints, not shadows.
 The capture overlay uses no elevation at all — the dim (`{colors.overlay-dim}`) *is*
-its depth. Warm-tinted shadow rgba only; never neutral black, never coral-tinted.
+its depth. Cool-tinted shadow rgba only; never neutral black, never blue-tinted.
 
 ## Shapes
 
@@ -440,7 +440,7 @@ precision instruments against the soft chrome — the user is trusting the crop.
 
 ## AI State System
 
-The orb is the avatar: a 20–28px coral disc with a soft inner glow. Orb states map
+The orb is the avatar: a 20–28px blue disc with a soft inner glow. Orb states map
 1:1 to the IPC reality (RFC-0002 §4.6 notifications) — every *behavioral* transition
 below is driven by a received event, never a timeout. The single exception is the
 cosmetic `complete → idle` settle (a UI-only timer after 2s of stillness, with no
@@ -453,7 +453,7 @@ state semantics); anything that gates a feature waits for a real event:
 | **transcribing** | PTT key-up → `stt.final` | bars freeze → 3 dots | pill swaps waveform for transcript preview (body-sm) |
 | **thinking** | `session.ask` sent | `motion.orbit` 3 sky dots | panel opens in streaming state; tool steps tick `{components.tool-step-indicator}`; skeleton blocks shimmer in answer area |
 | **speaking** | TTS start (RFC-0005) | `motion.wave` reactive bounce | header label "speaking"; `Esc` stops audio (AC-06) |
-| **streaming** | `agent.token` notifications | coral, still | tokens reveal with caret in `{components.answer-stream}` |
+| **streaming** | `agent.token` notifications | blue, still | tokens reveal with caret in `{components.answer-stream}` |
 | **complete** | final token | back to breathe | Save-to-memory button becomes visible (F-10) |
 | **error** | agent/LLM/network error | destructive ring | `{components.banner-error}` inline, retry affordance |
 | **degraded** | sidecar restart exceeded max (RFC-0002 §4.7) | moon-zzz | `{components.banner-degraded}` + tray variant |
@@ -527,7 +527,7 @@ state must remain legible without motion.
 - Use a kaomoji at most twice in the product: daily-brief greeting, onboarding finale.
 
 ### Don't
-- Don't use gradients, glows, neon, or purple-cyber treatments. Dawn is flat and warm.
+- Don't use gradients, glows, neon, or purple-cyber treatments. Dawn is flat and cool.
 - Don't express states with color alone — trust surfaces especially (RFC-0009).
 - Don't animate a state the system isn't actually in; no decorative loop without an event.
 - Don't let the panel exceed 440px or cover the user's fresh selection.
@@ -558,62 +558,61 @@ state must remain legible without motion.
 ## Tailwind + shadcn Implementation
 
 ```css
-/* app.css — shadcn theme bridge. GENERATED from front-matter hexes by sync (each var ↔ token, cross-checked by scripts/verify_design_md.py). */
 :root {
-  --background: 36.0 55.6% 96.5%; /* {colors.canvas} */
-  --foreground: 27.7 17.8% 14.3%; /* {colors.ink} */
-  --card: 30.0 50.0% 99.2%;       /* {colors.surface} */
-  --card-foreground: 27.7 17.8% 14.3%; /* {colors.ink} */
-  --popover: 30.0 50.0% 99.2%;    /* {colors.surface} */
-  --popover-foreground: 27.7 17.8% 14.3%; /* {colors.ink} */
-  --primary: 15.8 67.7% 46.1%;    /* {colors.primary} */
-  --primary-foreground: 0 0% 100.0%; /* {colors.primary-foreground} */
-  --primary-soft: 20.0 71.4% 91.8%; /* {colors.primary-soft} */
-  --primary-active: 15.1 69.5% 34.7%; /* {colors.primary-active} */
-  --thinking-text: 209.5 35.0% 32.0%; /* {colors.thinking-text} */
-  --speaking-text: 15.8 67.7% 46.1%; /* {colors.primary} */
-  --secondary: 204.5 45.8% 90.6%; /* {colors.secondary} */
-  --secondary-foreground: 211.2 38.5% 25.5%; /* {colors.secondary-foreground} */
-  --muted: 33.7 42.1% 92.5%;      /* {colors.surface-soft} */
-  --muted-foreground: 25.4 12.6% 40.4%; /* {colors.mute} */
-  --accent: 40.6 82.3% 84.5%;     /* {colors.accent} */
-  --accent-foreground: 33.9 41.8% 21.6%; /* {colors.accent-foreground} */
+  --background: 214.3 53.8% 97.5%; /* {colors.canvas} */
+  --foreground: 215.0 35.3% 13.3%; /* {colors.ink} */
+  --card: 0.0 0.0% 100.0%; /* {colors.surface} */
+  --card-foreground: 215.0 35.3% 13.3%; /* {colors.ink} */
+  --popover: 0.0 0.0% 100.0%; /* {colors.surface} */
+  --popover-foreground: 215.0 35.3% 13.3%; /* {colors.ink} */
+  --primary: 218.4 64.8% 47.8%; /* {colors.primary} */
+  --primary-foreground: 0.0 0.0% 100.0%; /* {colors.primary-foreground} */
+  --primary-soft: 218.4 75.8% 93.5%; /* {colors.primary-soft} */
+  --primary-active: 218.6 66.7% 32.9%; /* {colors.primary-active} */
+  --thinking-text: 217.8 40.9% 31.2%; /* {colors.thinking-text} */
+  --speaking-text: 218.4 64.8% 47.8%; /* {colors.primary} */
+  --secondary: 230.2 60.0% 59.8%; /* {colors.secondary} */
+  --secondary-foreground: 233.3 53.6% 29.6%; /* {colors.secondary-foreground} */
+  --muted: 214.3 50.0% 94.5%; /* {colors.surface-soft} */
+  --muted-foreground: 217.5 18.2% 43.1%; /* {colors.mute} */
+  --accent: 39.7 88.6% 86.3%; /* {colors.accent} */
+  --accent-foreground: 38.2 42.3% 20.4%; /* {colors.accent-foreground} */
   --destructive: 4.6 71.6% 42.7%; /* {colors.destructive} */
-  --destructive-foreground: 0 0% 100.0%; /* {colors.destructive-foreground} */
-  --success: 120.0 50.3% 30.0%;   /* {colors.success} */
-  --warning: 28.0 94.9% 31.0%;    /* {colors.warning} */
-  --live: 27.9 95.3% 42.0%;       /* {colors.live} */
-  --border: 33.7 21.6% 85.5%;     /* {colors.border} */
-  --input: 33.7 21.6% 85.5%;      /* {colors.border} */
-  --ring: 15.8 67.7% 46.1%;       /* {colors.primary} */
+  --destructive-foreground: 0.0 0.0% 100.0%; /* {colors.destructive-foreground} */
+  --success: 120.0 50.3% 30.0%; /* {colors.success} */
+  --warning: 28.0 94.9% 31.0%; /* {colors.warning} */
+  --live: 27.9 95.3% 42.0%; /* {colors.live} */
+  --border: 213.8 33.3% 90.6%; /* {colors.border} */
+  --input: 213.8 33.3% 90.6%; /* {colors.border} */
+  --ring: 218.4 64.8% 47.8%; /* {colors.primary} */
 }
 .dark {
-  --background: 22.5 16.0% 9.8%;  /* {colors.dark-canvas} */
-  --foreground: 33.0 43.5% 91.0%; /* {colors.dark-ink} */
-  --card: 32.3 20.6% 12.4%;       /* {colors.dark-surface} */
-  --card-foreground: 33.0 43.5% 91.0%; /* {colors.dark-ink} */
-  --popover: 32.3 20.6% 12.4%;    /* {colors.dark-surface} */
-  --popover-foreground: 33.0 43.5% 91.0%; /* {colors.dark-ink} */
-  --primary: 17.9 66.5% 55.5%;    /* {colors.dark-primary} */
-  --primary-foreground: 24.7 41.5% 8.0%; /* {colors.dark-primary-foreground} */
-  --primary-soft: 27.4 60.7% 22.0%; /* {colors.dark-primary-soft} */
-  --primary-active: 20.2 75.3% 71.4%; /* {colors.dark-primary-active} */
-  --thinking-text: 203.7 50.6% 66.7%; /* {colors.dark-thinking} */
-  --speaking-text: 18.1 70.2% 59.2%; /* {colors.dark-speaking} */
-  --secondary: 210.0 30.4% 22.0%; /* {colors.dark-secondary} */
+  --background: 217.9 38.8% 9.6%; /* {colors.dark-canvas} */
+  --foreground: 216.0 51.7% 94.3%; /* {colors.dark-ink} */
+  --card: 216.5 34.3% 13.1%; /* {colors.dark-surface} */
+  --card-foreground: 216.0 51.7% 94.3%; /* {colors.dark-ink} */
+  --popover: 216.5 34.3% 13.1%; /* {colors.dark-surface} */
+  --popover-foreground: 216.0 51.7% 94.3%; /* {colors.dark-ink} */
+  --primary: 215.3 81.3% 64.3%; /* {colors.dark-primary} */
+  --primary-foreground: 216.0 53.2% 9.2%; /* {colors.dark-primary-foreground} */
+  --primary-soft: 216.4 53.0% 22.5%; /* {colors.dark-primary-soft} */
+  --primary-active: 216.3 85.0% 79.0%; /* {colors.dark-primary-active} */
+  --thinking-text: 228.3 74.2% 75.7%; /* {colors.dark-thinking} */
+  --speaking-text: 214.0 81.7% 67.8%; /* {colors.dark-speaking} */
+  --secondary: 213.2 32.8% 22.7%; /* {colors.dark-secondary} */
   --secondary-foreground: 206.4 53.2% 90.8%; /* {colors.dark-secondary-foreground} */
-  --muted: 30.0 17.1% 16.1%;      /* {colors.dark-surface-soft} */
-  --muted-foreground: 26.9 13.6% 58.2%; /* {colors.dark-mute} */
-  --accent: 27.4 60.7% 22.0%;     /* {colors.dark-accent} */
+  --muted: 215.0 28.6% 16.5%; /* {colors.dark-surface-soft} */
+  --muted-foreground: 217.1 17.0% 60.8%; /* {colors.dark-mute} */
+  --accent: 27.4 60.7% 22.0%; /* {colors.dark-accent} */
   --accent-foreground: 37.7 92.1% 85.1%; /* {colors.dark-accent-foreground} */
   --destructive: 3.0 80.3% 66.1%; /* {colors.dark-destructive} */
   --destructive-foreground: 24.7 41.5% 8.0%; /* {colors.dark-destructive-foreground} */
-  --success: 131.9 34.5% 46.1%;   /* {colors.dark-success} */
-  --warning: 28.1 95.1% 52.0%;    /* {colors.dark-warning} */
-  --live: 33.4 92.5% 58.4%;       /* {colors.dark-live} */
-  --border: 32.0 14.9% 19.8%;     /* {colors.dark-border} */
-  --input: 32.0 14.9% 19.8%;      /* {colors.dark-border} */
-  --ring: 17.9 66.5% 55.5%;       /* {colors.dark-primary} */
+  --success: 131.9 34.5% 46.1%; /* {colors.dark-success} */
+  --warning: 28.1 95.1% 52.0%; /* {colors.dark-warning} */
+  --live: 33.4 92.5% 58.4%; /* {colors.dark-live} */
+  --border: 216.9 23.6% 21.6%; /* {colors.dark-border} */
+  --input: 216.9 23.6% 21.6%; /* {colors.dark-border} */
+  --ring: 215.3 81.3% 64.3%; /* {colors.dark-primary} */
 }
 ```
 
@@ -650,9 +649,9 @@ export default {
         pill: "9999px", sharp: "2px",
       },
       boxShadow: {
-        e1: "0 1px 2px rgba(43,36,30,0.06)",
-        e2: "0 4px 12px rgba(43,36,30,0.10)",
-        e3: "0 8px 32px rgba(43,36,30,0.16), 0 2px 8px rgba(43,36,30,0.08)",
+        e1: "0 1px 2px rgba(15,23,38,0.06)",
+        e2: "0 4px 12px rgba(15,23,38,0.10)",
+        e3: "0 8px 32px rgba(15,23,38,0.18), 0 2px 8px rgba(15,23,38,0.08)",
       },
       backdropBlur: { panel: "24px" },
       keyframes: {
@@ -682,9 +681,9 @@ shadcn primitives where a primitive exists.
 
 ## Agent Prompt Guide
 
-Quick reference: canvas `#fbf7f1` · ink `#2b241e` · coral `#c55026` · sky `#dce9f2` ·
-gold `#f8e3b7` · ember `#d16405` · green `#267326` · border `#e2dbd2` · radius 10/14/18 ·
-panel 400px · shadow `0 8px 32px rgba(43,36,30,.16)`.
+Quick reference: canvas `#f5f8fc` · ink `#16202e` · blue `#2b64c9` · periwinkle `#5b6fd6` ·
+gold `#fbe6bd` · ember `#d16405` · green `#267326` · border `#dfe6ef` · radius 10/14/18 ·
+panel 400px · shadow `0 8px 32px rgba(15,23,38,.18)`.
 
 Prompts:
 1. "Build the floating result panel per DESIGN.md `panel-shell`: 400px, radius 14,

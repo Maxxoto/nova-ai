@@ -104,7 +104,10 @@ if data:
         ("white on primary", "primary-foreground", "primary", 4.5),
         ("ink on surface", "ink", "surface", 4.5),
         ("accent-fg on accent", "accent-foreground", "accent", 4.5),
-        ("secondary-fg on secondary", "secondary-foreground", "secondary", 4.5),
+        # secondary = thinking/processing state graphic (DESIGN.md), not a text surface — check real usages:
+        ("secondary vs canvas (state graphic, non-text)", "secondary", "canvas", 3.0),
+        ("secondary-fg on canvas (indigo state text)", "secondary-foreground", "canvas", 4.5),
+        ("dark-secondary-fg on dark-secondary (night-sky fill)", "dark-secondary-foreground", "dark-secondary", 4.5),
         ("warning on canvas", "warning", "canvas", 4.5),
         ("success on canvas", "success", "canvas", 4.5),
         ("destructive on canvas", "destructive", "canvas", 4.5),

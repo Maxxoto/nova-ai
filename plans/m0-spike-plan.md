@@ -126,8 +126,35 @@ timeboxed. If a spike blows its box, we take the fallback and move on.
 
 | Spike | Verdict | Key numbers | Decision | Date |
 |---|---|---|---|---|
-| S1 PTT key-up | | | | |
+| S1 PTT key-up | **PASS** (macOS 26.0.1; Windows pending) | key-down+key-up delivered, latency 332–405 µs p50 (target <50 ms) | raw route = listen-only `CGEventTap` (Session, default-mode runloop source); toggle fallback not needed | 2026-09-19 |
 | S2 idle RAM | | | | |
 | S3 Win overlay | | | | |
 | S4 panel focus | | | | |
 | S5 STT latency/zh | | | | |
+
+### S1 findings (macOS, probe: `spikes/s1-ptt`)
+
+1. **Route validated**: listen-only `CGEventTap` at `kCGSessionEventTap`, KeyDown+KeyUp,
+   built via core-graphics 0.25 (`CGEventTap::new(...).expect`, callback returns `Keep`).
+   Latency (event timestamp → handler) 332–405 µs, real keys, foreground contexts.
+2. **Runloop gotcha**: the tap's runloop source must attach to `kCFRunLoopDefaultMode` —
+   `kCFRunLoopCommonModes` is an empty set on a bare thread runloop and the tap silently
+   never fires (runloop exits immediately).
+3. **Permission behavior (feeds §4.5 ritual)**:
+   - No OS prompt appears on denial — tap creation just fails (`CGEventTap::new` → `Err`).
+     The app must self-check (`AXIsProcessTrusted`) and guide the user to Settings.
+   - TCC attributes trust to the *responsible process*: run from a granted host
+     (Terminal.app), all spawned binaries inherit trust. Granting a debug binary directly
+     works but **invalidates on every rebuild** (ad-hoc signature changes) — dev builds
+     need a stable self-signed identity (W6 packaging) or the host-app grant pattern.
+   - `launchd`-spawned processes are their own responsible process (useful for testing).
+4. **Avoid synthetic-event testing**: posting CGEvents back into HID from the same process
+   is flaky (intermittent hangs in WindowServer round-trips). Real-key validation only.
+5. Production PTT keys should use an **active filter tap** (return `Drop` for the PTT key)
+   so the key does not leak to the focused app; listen-only was sufficient for the spike.
+6. **GUI apps are their own responsible process**: once the tray app registers as a
+   UIElement, it does NOT inherit the launching terminal's Accessibility grant (CLI
+   tools do). The app binary needs its own grant — confirmed on nova-shell
+   (2026-09-19: terminal-granted context still reported untrusted; direct binary
+   grant fixed it). The §4.5 onboarding ritual must grant Ruòxī itself.
+

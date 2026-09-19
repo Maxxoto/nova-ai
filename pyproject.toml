@@ -59,6 +59,10 @@ dev = [
     "pre-commit>=3.0.0",
 ]
 
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
 [tool.setuptools.packages.find]
 where = ["src"]
 

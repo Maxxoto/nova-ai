@@ -1,6 +1,6 @@
-<!-- Ruòxī tray · idle concept A "Dawn Rise" · mark: {colors.primary} #c55026 · horizon: {colors.mute} #74655a -->
+<!-- Ruòxī tray · idle concept A "Dawn Rise" · mark: {colors.primary} #2b64c9 · horizon: {colors.mute} #64748c -->
 <!-- The sun clearing the horizon — 若曦 as dawn breaking. Flat horizon anchors the dot at 16px. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-  <circle cx="24" cy="18" r="11" fill="#c55026"/>
-  <path d="M8 36 H40" fill="none" stroke="#74655a" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="24" cy="18" r="11" fill="#2b64c9"/>
+  <path d="M8 36 H40" fill="none" stroke="#64748c" stroke-width="4" stroke-linecap="round"/>
 </svg>

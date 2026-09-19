@@ -10,7 +10,24 @@
     "beforeBuildCommand": "pnpm --dir ../ui build"
   },
   "app": {
-    "windows": [],
+    "macOSPrivateApi": true,
+    "windows": [
+      {
+        "label": "panel",
+        "url": "index.html?view=panel",
+        "title": "Ruoxi",
+        "width": 424,
+        "height": 480,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "focus": false,
+        "visible": false,
+        "shadow": true
+      }
+    ],
     "security": {
       "csp": null
     }

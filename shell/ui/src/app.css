@@ -7,51 +7,51 @@
 /* Implementation" (app.css shadcn theme bridge). Do not edit values. */
 /* ------------------------------------------------------------------ */
 :root {
-  --background: 36.0 55.6% 96.5%; /* {colors.canvas} */
-  --foreground: 27.7 17.8% 14.3%; /* {colors.ink} */
-  --card: 30.0 50.0% 99.2%;       /* {colors.surface} */
-  --card-foreground: 27.7 17.8% 14.3%; /* {colors.ink} */
-  --popover: 30.0 50.0% 99.2%;    /* {colors.surface} */
-  --popover-foreground: 27.7 17.8% 14.3%; /* {colors.ink} */
-  --primary: 15.8 67.7% 46.1%;    /* {colors.primary} */
-  --primary-foreground: 0 0% 100.0%; /* {colors.primary-foreground} */
-  --primary-soft: 20.0 71.4% 91.8%; /* {colors.primary-soft} */
-  --primary-active: 15.1 69.5% 34.7%; /* {colors.primary-active} */
-  --thinking-text: 209.5 35.0% 32.0%; /* {colors.thinking-text} */
-  --speaking-text: 15.8 67.7% 46.1%; /* {colors.primary} */
-  --secondary: 204.5 45.8% 90.6%; /* {colors.secondary} */
-  --secondary-foreground: 211.2 38.5% 25.5%; /* {colors.secondary-foreground} */
-  --muted: 33.7 42.1% 92.5%;      /* {colors.surface-soft} */
-  --muted-foreground: 25.4 12.6% 40.4%; /* {colors.mute} */
-  --accent: 40.6 82.3% 84.5%;     /* {colors.accent} */
-  --accent-foreground: 33.9 41.8% 21.6%; /* {colors.accent-foreground} */
+  --background: 214.3 53.8% 97.5%; /* {colors.canvas} */
+  --foreground: 215.0 35.3% 13.3%; /* {colors.ink} */
+  --card: 0.0 0.0% 100.0%;        /* {colors.surface} */
+  --card-foreground: 215.0 35.3% 13.3%; /* {colors.ink} */
+  --popover: 0.0 0.0% 100.0%;     /* {colors.surface} */
+  --popover-foreground: 215.0 35.3% 13.3%; /* {colors.ink} */
+  --primary: 218.4 64.8% 47.8%;   /* {colors.primary} */
+  --primary-foreground: 0.0 0.0% 100.0%; /* {colors.primary-foreground} */
+  --primary-soft: 218.4 75.8% 93.5%; /* {colors.primary-soft} */
+  --primary-active: 218.6 66.7% 32.9%; /* {colors.primary-active} */
+  --thinking-text: 217.8 40.9% 31.2%; /* {colors.thinking-text} */
+  --speaking-text: 218.4 64.8% 47.8%; /* {colors.primary} */
+  --secondary: 230.2 60.0% 59.8%; /* {colors.secondary} */
+  --secondary-foreground: 233.3 53.6% 29.6%; /* {colors.secondary-foreground} */
+  --muted: 214.3 50.0% 94.5%;     /* {colors.surface-soft} */
+  --muted-foreground: 217.5 18.2% 43.1%; /* {colors.mute} */
+  --accent: 39.7 88.6% 86.3%;     /* {colors.accent} */
+  --accent-foreground: 38.2 42.3% 20.4%; /* {colors.accent-foreground} */
   --destructive: 4.6 71.6% 42.7%; /* {colors.destructive} */
-  --destructive-foreground: 0 0% 100.0%; /* {colors.destructive-foreground} */
+  --destructive-foreground: 0.0 0.0% 100.0%; /* {colors.destructive-foreground} */
   --success: 120.0 50.3% 30.0%;   /* {colors.success} */
   --warning: 28.0 94.9% 31.0%;    /* {colors.warning} */
   --live: 27.9 95.3% 42.0%;       /* {colors.live} */
-  --border: 33.7 21.6% 85.5%;     /* {colors.border} */
-  --input: 33.7 21.6% 85.5%;      /* {colors.border} */
-  --ring: 15.8 67.7% 46.1%;       /* {colors.primary} */
+  --border: 213.8 33.3% 90.6%;    /* {colors.border} */
+  --input: 213.8 33.3% 90.6%;     /* {colors.border} */
+  --ring: 218.4 64.8% 47.8%;      /* {colors.primary} */
   --radius: 10px;                 /* {rounded.md} — shadcn default radius */
 }
 .dark {
-  --background: 22.5 16.0% 9.8%;  /* {colors.dark-canvas} */
-  --foreground: 33.0 43.5% 91.0%; /* {colors.dark-ink} */
-  --card: 32.3 20.6% 12.4%;       /* {colors.dark-surface} */
-  --card-foreground: 33.0 43.5% 91.0%; /* {colors.dark-ink} */
-  --popover: 32.3 20.6% 12.4%;    /* {colors.dark-surface} */
-  --popover-foreground: 33.0 43.5% 91.0%; /* {colors.dark-ink} */
-  --primary: 17.9 66.5% 55.5%;    /* {colors.dark-primary} */
-  --primary-foreground: 24.7 41.5% 8.0%; /* {colors.dark-primary-foreground} */
-  --primary-soft: 27.4 60.7% 22.0%; /* {colors.dark-primary-soft} */
-  --primary-active: 20.2 75.3% 71.4%; /* {colors.dark-primary-active} */
-  --thinking-text: 203.7 50.6% 66.7%; /* {colors.dark-thinking} */
-  --speaking-text: 18.1 70.2% 59.2%; /* {colors.dark-speaking} */
-  --secondary: 210.0 30.4% 22.0%; /* {colors.dark-secondary} */
+  --background: 217.9 38.8% 9.6%; /* {colors.dark-canvas} */
+  --foreground: 216.0 51.7% 94.3%; /* {colors.dark-ink} */
+  --card: 216.5 34.3% 13.1%;      /* {colors.dark-surface} */
+  --card-foreground: 216.0 51.7% 94.3%; /* {colors.dark-ink} */
+  --popover: 216.5 34.3% 13.1%;   /* {colors.dark-surface} */
+  --popover-foreground: 216.0 51.7% 94.3%; /* {colors.dark-ink} */
+  --primary: 215.3 81.3% 64.3%;   /* {colors.dark-primary} */
+  --primary-foreground: 216.0 53.2% 9.2%; /* {colors.dark-primary-foreground} */
+  --primary-soft: 216.4 53.0% 22.5%; /* {colors.dark-primary-soft} */
+  --primary-active: 216.3 85.0% 79.0%; /* {colors.dark-primary-active} */
+  --thinking-text: 228.3 74.2% 75.7%; /* {colors.dark-thinking} */
+  --speaking-text: 214.0 81.7% 67.8%; /* {colors.dark-speaking} */
+  --secondary: 213.2 32.8% 22.7%; /* {colors.dark-secondary} */
   --secondary-foreground: 206.4 53.2% 90.8%; /* {colors.dark-secondary-foreground} */
-  --muted: 30.0 17.1% 16.1%;      /* {colors.dark-surface-soft} */
-  --muted-foreground: 26.9 13.6% 58.2%; /* {colors.dark-mute} */
+  --muted: 215.0 28.6% 16.5%;     /* {colors.dark-surface-soft} */
+  --muted-foreground: 217.1 17.0% 60.8%; /* {colors.dark-mute} */
   --accent: 27.4 60.7% 22.0%;     /* {colors.dark-accent} */
   --accent-foreground: 37.7 92.1% 85.1%; /* {colors.dark-accent-foreground} */
   --destructive: 3.0 80.3% 66.1%; /* {colors.dark-destructive} */
@@ -59,9 +59,9 @@
   --success: 131.9 34.5% 46.1%;   /* {colors.dark-success} */
   --warning: 28.1 95.1% 52.0%;    /* {colors.dark-warning} */
   --live: 33.4 92.5% 58.4%;       /* {colors.dark-live} */
-  --border: 32.0 14.9% 19.8%;     /* {colors.dark-border} */
-  --input: 32.0 14.9% 19.8%;      /* {colors.dark-border} */
-  --ring: 17.9 66.5% 55.5%;       /* {colors.dark-primary} */
+  --border: 216.9 23.6% 21.6%;    /* {colors.dark-border} */
+  --input: 216.9 23.6% 21.6%;     /* {colors.dark-border} */
+  --ring: 215.3 81.3% 64.3%;      /* {colors.dark-primary} */
 }
 
 /* ------------------------------------------------------------------ */
@@ -170,21 +170,21 @@ body {
   white-space: nowrap;
 }
 .menubar-chip--light {
-  background: rgba(253, 252, 250, 0.92);
-  color: #2b241e; /* {colors.ink} */
-  box-shadow: inset 0 0 0 1px rgba(43, 36, 30, 0.10), 0 1px 2px rgba(43, 36, 30, 0.06);
+  background: rgba(255, 255, 255, 0.92);
+  color: #16202e; /* {colors.ink} */
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 38, 0.10), 0 1px 2px rgba(15, 23, 38, 0.06);
 }
 .menubar-chip--dark {
-  background: rgba(26, 22, 19, 0.92);
-  color: #f2e9de; /* {colors.dark-ink} */
-  box-shadow: inset 0 0 0 1px rgba(242, 233, 222, 0.10), 0 1px 2px rgba(43, 36, 30, 0.12);
+  background: rgba(15, 22, 34, 0.92);
+  color: #e9eff8; /* {colors.dark-ink} */
+  box-shadow: inset 0 0 0 1px rgba(233, 239, 248, 0.10), 0 1px 2px rgba(15, 23, 38, 0.12);
 }
 .menubar-chip .menubar-glyph {
   opacity: 0.55;
 }
 
 /* Full menu-bar strip — "Dawn-light" and "night-dark" OS chrome. These are
-   platform chrome stand-ins (translucent white / warm near-black), mapped to
+   platform chrome stand-ins (translucent white / cool near-black), mapped to
    {colors.ink} / {colors.dark-ink} text; not product surfaces. */
 .menubar-bar {
   display: flex;
@@ -195,14 +195,14 @@ body {
   line-height: 1;
 }
 .menubar-bar--light {
-  background: rgba(253, 252, 250, 0.94); /* surface over canvas, near {colors.surface} */
-  color: #2b241e; /* {colors.ink} */
-  box-shadow: inset 0 0 0 1px rgba(43, 36, 30, 0.10), 0 1px 2px rgba(43, 36, 30, 0.06);
+  background: rgba(255, 255, 255, 0.94); /* surface over canvas, near {colors.surface} */
+  color: #16202e; /* {colors.ink} */
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 38, 0.10), 0 1px 2px rgba(15, 23, 38, 0.06);
 }
 .menubar-bar--dark {
-  background: rgba(26, 22, 19, 0.94); /* warm near-black, near {colors.dark-canvas} */
-  color: #f2e9de; /* {colors.dark-ink} */
-  box-shadow: inset 0 0 0 1px rgba(242, 233, 222, 0.10), 0 1px 2px rgba(43, 36, 30, 0.12);
+  background: rgba(15, 22, 34, 0.94); /* cool near-black, near {colors.dark-canvas} */
+  color: #e9eff8; /* {colors.dark-ink} */
+  box-shadow: inset 0 0 0 1px rgba(233, 239, 248, 0.10), 0 1px 2px rgba(15, 23, 38, 0.12);
 }
 /* Un-highlighted status item (default tray presentation). */
 .menubar-item {
@@ -211,4 +211,256 @@ body {
   gap: 6px;
   padding: 0 8px;
   border-radius: 7px;
+}
+
+/* ------------------------------------------------------------------ */
+/* Result panel (W4) — additions only; nothing above is modified.      */
+/* ------------------------------------------------------------------ */
+
+/* The Tauri `panel` window loads ?view=panel and must paint no page
+   background (transparent window + vibrancy surface). */
+html.panel-view,
+html.panel-view body {
+  background: transparent;
+}
+
+/* panel-shell surface: DESIGN.md vibrancy — surface at 78% + blur(24px)
+   saturate(140%); fallback = 97% opacity, no blur (RFC-0002 risk #3). */
+.panel-surface {
+  background: hsl(var(--card) / 0.78);
+  -webkit-backdrop-filter: blur(24px) saturate(140%);
+  backdrop-filter: blur(24px) saturate(140%);
+}
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .panel-surface {
+    background: hsl(var(--card) / 0.97);
+  }
+}
+
+.panel-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--border)) transparent;
+}
+.panel-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+.panel-scroll::-webkit-scrollbar-thumb {
+  border-radius: 9999px;
+  background: hsl(var(--border));
+}
+.panel-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Orb — the avatar; its soft inner glow is the one permitted glow. */
+.orb {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  border-radius: 9999px;
+}
+.orb-disc {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  box-shadow: inset 0 0 5px hsl(var(--primary-foreground) / 0.4);
+}
+.orb-breathe {
+  animation: breathe 3s ease-in-out infinite;
+}
+.orb-ring {
+  position: absolute;
+  inset: -1px;
+  border-radius: 9999px;
+  border: 2px solid hsl(var(--live));
+  animation: pulse-ring 1.2s ease-out infinite;
+}
+.orb-ring--error {
+  inset: -2px;
+  border-color: hsl(var(--destructive));
+  animation: none;
+}
+.orb-wave {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 1.5px solid hsl(var(--primary));
+  animation: orb-wave 0.9s ease-out infinite;
+}
+.orb-wave-2 {
+  animation-delay: 0.45s;
+}
+@keyframes orb-wave {
+  0% {
+    transform: scale(0.75);
+    opacity: 0.55;
+  }
+  100% {
+    transform: scale(1.45);
+    opacity: 0;
+  }
+}
+.orb-orbit {
+  position: absolute;
+  inset: 0;
+  animation: orbit 1.6s linear infinite;
+}
+.orb-orbit i {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 9999px;
+  background: hsl(var(--thinking-text));
+}
+.orb-orbit i:nth-child(1) {
+  top: 0;
+  left: 50%;
+  margin-left: -2px;
+}
+.orb-orbit i:nth-child(2) {
+  bottom: 0;
+  left: 1px;
+}
+.orb-orbit i:nth-child(3) {
+  bottom: 0;
+  right: 1px;
+}
+.orb-dots {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+.orb-dots i {
+  width: 2.5px;
+  height: 2.5px;
+  border-radius: 9999px;
+  background: hsl(var(--primary-foreground) / 0.9);
+}
+.orb-glyph {
+  position: absolute;
+  inset: 22%;
+  color: hsl(var(--primary-foreground) / 0.95);
+}
+
+/* Cloud indicator */
+.cloud-glyph {
+  flex: none;
+  width: 12px;
+  height: 12px;
+}
+
+/* Answer stream */
+.panel-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1.05em;
+  margin-left: 2px;
+  border-radius: 1px;
+  vertical-align: -0.15em;
+  background: hsl(var(--primary));
+  animation: token-caret 1s step-end infinite;
+}
+.panel-skeleton {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  background: hsl(var(--muted));
+}
+.panel-skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, hsl(var(--card) / 0.7), transparent);
+  animation: panel-shimmer 1.4s linear infinite;
+}
+@keyframes panel-shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+/* Tool steps — 3 fixed segments (AC-11). */
+.panel-steps {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.panel-steps i {
+  height: 4px;
+  flex: 1;
+  border-radius: 9999px;
+  background: hsl(var(--muted));
+}
+.panel-steps i[data-step="done"] {
+  background: hsl(var(--primary));
+}
+.panel-steps i[data-step="active"] {
+  background: hsl(var(--primary) / 0.45);
+}
+
+/* Banners + inline actions */
+.panel-banner {
+  border: 1px solid;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.panel-banner--error {
+  background: hsl(var(--primary-soft));
+  border-color: hsl(var(--destructive));
+  color: hsl(var(--destructive));
+}
+.panel-banner--degraded {
+  background: hsl(var(--primary-soft));
+  border-color: hsl(var(--warning));
+  color: hsl(var(--warning));
+}
+.dark .panel-banner--error,
+.dark .panel-banner--degraded {
+  background: hsl(var(--muted)); /* dark-surface-soft — surface-derived fill per DESIGN.md */
+}
+.panel-banner-glyph {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+}
+.panel-action {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--card));
+  color: hsl(var(--foreground));
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  transition: background-color 200ms;
+}
+.panel-action:hover {
+  background: hsl(var(--muted));
+}
+.panel-action:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+/* Motion law: freeze panel loops under reduced motion. */
+.reduced-motion .orb,
+.reduced-motion .orb *,
+.reduced-motion .panel-skeleton::after,
+.reduced-motion .panel-caret,
+.reduced-motion .cloud-glyph {
+  animation: none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .orb,
+  .orb *,
+  .panel-skeleton::after,
+  .panel-caret {
+    animation: none !important;
+  }
 }

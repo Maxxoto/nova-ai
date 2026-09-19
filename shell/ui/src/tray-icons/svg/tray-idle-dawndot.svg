@@ -1,6 +1,6 @@
-<!-- Ruòxī tray · idle concept B "Dawn Dot" (the design-system mark) · disc: {colors.primary} #c55026 · inner light: {colors.accent} #f8e3b7 -->
-<!-- The orb itself, shrunk to its essence: coral disc + soft inner-highlight crescent of first light. -->
+<!-- Ruòxī tray · idle concept B "Dawn Dot" (the design-system mark) · disc: {colors.primary} #2b64c9 · inner light: {colors.accent} #fbe6bd -->
+<!-- The orb itself, shrunk to its essence: blue disc + soft inner-highlight crescent of first light. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-  <circle cx="24" cy="24" r="14" fill="#c55026"/>
-  <path d="M10.48 20.37 A14 14 0 0 1 37.52 20.37 A24 24 0 0 0 10.48 20.37 Z" fill="#f8e3b7"/>
+  <circle cx="24" cy="24" r="14" fill="#2b64c9"/>
+  <path d="M10.48 20.37 A14 14 0 0 1 37.52 20.37 A24 24 0 0 0 10.48 20.37 Z" fill="#fbe6bd"/>
 </svg>

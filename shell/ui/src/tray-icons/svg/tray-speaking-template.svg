@@ -1,4 +1,4 @@
-<!-- Ruòxī tray · state: speaking · color: {colors.primary} #000000 (dawn coral — action/speaking) -->
+<!-- Ruòxī tray · state: speaking · color: {colors.primary} #000000 (dawn blue — action/speaking) -->
 <!-- Sound waves: source dot + two arcs radiating right. .tr-wave parts carry the live wave loop. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
   <circle class="tr-wave tr-wave-1" cx="15" cy="24" r="4.5" fill="#000000"/>

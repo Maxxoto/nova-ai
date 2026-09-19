@@ -40,9 +40,10 @@ pub fn install(app: &tauri::AppHandle) -> tauri::Result<()> {
         current.pause_captures,
         None::<&str>,
     )?;
+    let panel = MenuItem::with_id(app, "show_panel", "Show result panel", true, None::<&str>)?;
     let about = MenuItem::with_id(app, "about", "About Ruoxi", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit Ruoxi", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&pause, &about, &quit])?;
+    let menu = Menu::with_items(app, &[&panel, &pause, &about, &quit])?;
 
     TrayIconBuilder::with_id("main")
         .menu(&menu)
@@ -51,6 +52,7 @@ pub fn install(app: &tauri::AppHandle) -> tauri::Result<()> {
         .tooltip("Ruoxi — starting")
         .on_menu_event(|app, event| match event.id().as_ref() {
             "quit" => app.exit(0),
+            "show_panel" => crate::panel::show(app),
             "pause_captures" => {
                 let mut s = settings::load(app);
                 s.pause_captures = !s.pause_captures;

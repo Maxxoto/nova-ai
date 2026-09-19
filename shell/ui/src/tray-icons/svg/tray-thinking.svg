@@ -1,7 +1,7 @@
-<!-- Ruòxī tray · state: thinking · color: {colors.thinking-text} #35526e (sky ink) -->
+<!-- Ruòxī tray · state: thinking · color: {colors.thinking-text} #2f4770 (sky ink) -->
 <!-- Three orbit dots (6px-scale discs at 120°). Board rotates the whole mark: motion.orbit. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-  <circle cx="24" cy="11" r="5" fill="#35526e"/>
-  <circle cx="35.3" cy="30.5" r="5" fill="#35526e"/>
-  <circle cx="12.7" cy="30.5" r="5" fill="#35526e"/>
+  <circle cx="24" cy="11" r="5" fill="#2f4770"/>
+  <circle cx="35.3" cy="30.5" r="5" fill="#2f4770"/>
+  <circle cx="12.7" cy="30.5" r="5" fill="#2f4770"/>
 </svg>

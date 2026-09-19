@@ -34,9 +34,9 @@ export default {
         pill: "9999px", sharp: "2px",
       },
       boxShadow: {
-        e1: "0 1px 2px rgba(43,36,30,0.06)",
-        e2: "0 4px 12px rgba(43,36,30,0.10)",
-        e3: "0 8px 32px rgba(43,36,30,0.16), 0 2px 8px rgba(43,36,30,0.08)",
+        e1: "0 1px 2px rgba(15,23,38,0.06)",
+        e2: "0 4px 12px rgba(15,23,38,0.10)",
+        e3: "0 8px 32px rgba(15,23,38,0.18), 0 2px 8px rgba(15,23,38,0.08)",
       },
       backdropBlur: { panel: "24px" },
       keyframes: {

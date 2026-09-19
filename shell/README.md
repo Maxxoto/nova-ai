@@ -30,9 +30,13 @@ sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file \
 
 ## Status (M0)
 
-- W1: tray + menu (quit / pause captures / about), single-instance lock,
-  accessory activation policy, JSON settings persistence. No windows yet —
-  panel is W4.
+- W1: tray + menu (Show result panel / quit / pause captures / about),
+  single-instance lock, accessory activation policy, JSON settings persistence.
+- W4 (UI): result panel window + components per `docs/DESIGN.md` —
+  frameless, transparent, always-on-top, 424x480, hidden at launch; the
+  `panel` webview loads `../ui` at `?view=panel` (panel only, transparent
+  page, OS light/dark). Esc hides it (`hide_panel` command; AC-06). Capture
+  and IPC wiring still pending.
 - W5 (Rust side): sidecar supervisor — spawn, periodic JSON-RPC `ping`
   health-check, exponential backoff restarts, degraded tooltip after
   repeated failures. Python counterpart: `src/app/interfaces/sidecar/`.

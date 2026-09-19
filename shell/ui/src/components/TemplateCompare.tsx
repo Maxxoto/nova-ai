@@ -2,7 +2,7 @@ import { TRAY_STATES } from "../tray-icons";
 import MenuBar from "./MenuBar";
 import TrayMark from "./TrayMark";
 
-const DARK_INK = "#f2e9de"; /* {colors.dark-ink} — simulated macOS tint for template on dark bars */
+const DARK_INK = "#e9eff8"; /* {colors.dark-ink} — simulated macOS tint for template on dark bars */
 
 export default function TemplateCompare() {
   return (
