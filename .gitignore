@@ -216,3 +216,6 @@ dist/
 
 # OpenCode session files
 **/ses_*.json
+
+# Playwright MCP review artifacts (screenshots, logs, snapshots)
+.playwright-mcp/
