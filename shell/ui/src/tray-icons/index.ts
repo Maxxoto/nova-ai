@@ -9,22 +9,8 @@ import idleDawndot from "./svg/tray-idle-dawndot.svg?raw";
 import idleCompanion from "./svg/tray-idle-companion.svg?raw";
 import listening from "./svg/tray-listening.svg?raw";
 import listeningTemplate from "./svg/tray-listening-template.svg?raw";
-import thinking from "./svg/tray-thinking.svg?raw";
-import thinkingTemplate from "./svg/tray-thinking-template.svg?raw";
-import speaking from "./svg/tray-speaking.svg?raw";
-import speakingTemplate from "./svg/tray-speaking-template.svg?raw";
-import error from "./svg/tray-error.svg?raw";
-import errorTemplate from "./svg/tray-error-template.svg?raw";
-import degraded from "./svg/tray-degraded.svg?raw";
-import degradedTemplate from "./svg/tray-degraded-template.svg?raw";
 import capturesPaused from "./svg/tray-captures-paused.svg?raw";
 import capturesPausedTemplate from "./svg/tray-captures-paused-template.svg?raw";
-import offline from "./svg/tray-offline.svg?raw";
-import offlineTemplate from "./svg/tray-offline-template.svg?raw";
-import localOnly from "./svg/tray-local-only.svg?raw";
-import localOnlyTemplate from "./svg/tray-local-only-template.svg?raw";
-import callingCloud from "./svg/tray-calling-cloud.svg?raw";
-import callingCloudTemplate from "./svg/tray-calling-cloud-template.svg?raw";
 
 export type TrayAnim = "breathe" | "pulse" | "orbit" | "wave";
 
@@ -49,120 +35,30 @@ export interface TrayStateDef {
   loopName?: string;
 }
 
-export type TrayStateId =
-  | "idle"
-  | "listening"
-  | "thinking"
-  | "speaking"
-  | "error"
-  | "degraded"
-  | "captures-paused"
-  | "offline"
-  | "local-only"
-  | "calling-cloud";
+export type TrayStateId = "idle" | "listening" | "captures-paused";
 
 export const TRAY_STATES: TrayStateDef[] = [
   {
     id: "idle",
-    label: "idle",
+    label: "ready",
+    fullLabel: "ready · idle, offline, everything unlit",
     colorToken: "{colors.mute}",
     hexLight: "#64748c",
     hexDark: "#8a97ac",
     colorClass: "text-muted-foreground",
     svg: idle,
     templateSvg: idleTemplate,
-    anim: "breathe",
-    loopName: "motion.breathe · 3s",
   },
   {
     id: "listening",
     label: "listening",
+    fullLabel: "listening · mic open",
     colorToken: "{colors.live}",
     hexLight: "#d16405",
     hexDark: "#f7a033",
     colorClass: "text-live",
     svg: listening,
     templateSvg: listeningTemplate,
-    anim: "pulse",
-    loopName: "motion.pulse-ring · 1.2s",
-  },
-  {
-    id: "thinking",
-    label: "thinking",
-    colorToken: "{colors.thinking-text}",
-    hexLight: "#2f4770",
-    hexDark: "#93a5ef",
-    colorClass: "text-thinking-text",
-    svg: thinking,
-    templateSvg: thinkingTemplate,
-    anim: "orbit",
-    loopName: "motion.orbit · 1.6s",
-  },
-  {
-    id: "speaking",
-    label: "speaking",
-    colorToken: "{colors.primary}",
-    hexLight: "#2b64c9",
-    hexDark: "#6aa4f0",
-    colorClass: "text-primary",
-    svg: speaking,
-    templateSvg: speakingTemplate,
-    anim: "wave",
-    loopName: "motion.wave · 0.9s (mic level)",
-  },
-  {
-    id: "calling-cloud",
-    label: "sending to cloud",
-    fullLabel: "sending to cloud",
-    colorToken: "{colors.live} (pulse)",
-    hexLight: "#d16405",
-    hexDark: "#f7a033",
-    colorClass: "text-live",
-    svg: callingCloud,
-    templateSvg: callingCloudTemplate,
-    anim: "pulse",
-    loopName: "motion.pulse-ring · 1.2s",
-  },
-  {
-    id: "offline",
-    label: "offline",
-    fullLabel: "offline · nothing leaves this Mac",
-    colorToken: "{colors.mute}",
-    hexLight: "#64748c",
-    hexDark: "#8a97ac",
-    colorClass: "text-muted-foreground",
-    svg: offline,
-    templateSvg: offlineTemplate,
-  },
-  {
-    id: "local-only",
-    label: "local only",
-    colorToken: "{colors.success}",
-    hexLight: "#267326",
-    hexDark: "#4d9e5d",
-    colorClass: "text-success",
-    svg: localOnly,
-    templateSvg: localOnlyTemplate,
-  },
-  {
-    id: "error",
-    label: "error",
-    colorToken: "{colors.destructive}",
-    hexLight: "#bb2b1f",
-    hexDark: "#ee6a63",
-    colorClass: "text-destructive",
-    svg: error,
-    templateSvg: errorTemplate,
-  },
-  {
-    id: "degraded",
-    label: "Ruòxī is resting…",
-    colorToken: "{colors.warning}",
-    hexLight: "#9a4a04",
-    hexDark: "#f97d10",
-    colorClass: "text-warning",
-    svg: degraded,
-    templateSvg: degradedTemplate,
   },
   {
     id: "captures-paused",
@@ -176,7 +72,7 @@ export const TRAY_STATES: TrayStateDef[] = [
   },
 ];
 
-/** Idle-mark exploration concepts (review board only — B is the shipped idle mark). */
+/** Idle-mark exploration concepts (review board history — the v4 capture frame now ships as the resting mark). */
 export interface IdleConceptDef {
   id: "dawnrise" | "dawndot" | "companion";
   name: string;

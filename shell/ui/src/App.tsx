@@ -20,7 +20,7 @@ import TrayMark from "./components/TrayMark";
 import { invokeTauri, invokeTauriAsync, listenTauri } from "./tauri";
 import type { TauriUnlisten } from "./tauri";
 
-const SHIPPED_IDLE = IDLE_CONCEPTS[1]; /* B · Dawn Dot — matches src/tray-icons/svg/tray-idle.svg */
+const SHIPPED_IDLE = IDLE_CONCEPTS[1]; /* board record — the tray's resting mark is the v4 capture frame */
 
 const LIVE_ASK_TRANSCRIPT = "what is this?";
 
@@ -369,7 +369,7 @@ export default function App() {
         <header className="flex flex-col gap-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <TrayMark svg={TRAY_STATES[0].svg} size={28} anim={reducedMotion ? undefined : "breathe"} />
+              <TrayMark svg={TRAY_STATES[0].svg} size={28} />
               <div className="flex flex-col">
                 <span className="font-companion text-[15px] font-bold text-foreground">
                   Ruòxī · 若曦 — Tray Icon Review Board
@@ -385,13 +385,13 @@ export default function App() {
           <div className="flex flex-col gap-2 rounded-lg border border-border bg-card p-4 shadow-e1">
             <MenuBar theme="light">
               <span className="menubar-chip menubar-chip--light">
-                <TrayMark svg={TRAY_STATES[1].svg} size={18} anim={reducedMotion ? undefined : "pulse"} />
+                <TrayMark svg={TRAY_STATES[1].svg} size={18} />
                 <span className="font-companion text-[13px] font-semibold">listening</span>
               </span>
             </MenuBar>
             <MenuBar theme="dark">
               <span className="menubar-chip menubar-chip--dark">
-                <TrayMark svg={TRAY_STATES[1].svg} size={18} anim={reducedMotion ? undefined : "pulse"} />
+                <TrayMark svg={TRAY_STATES[1].svg} size={18} />
                 <span className="font-companion text-[13px] font-semibold">listening</span>
               </span>
             </MenuBar>
@@ -412,16 +412,16 @@ export default function App() {
             ))}
           </div>
           <p className="rounded-md border border-border bg-muted p-3 text-[13px] leading-[1.45] text-foreground">
-            <span className="font-semibold">Verdict — B · Dawn Dot ships.</span> It is the orb-avatar at tray
-            scale, so menu bar and panel read as one companion; A and C stay on the board as fallbacks if the
-            crescent ever proves noisy on Windows taskbars.
+            <span className="font-semibold">Verdict — kept as history.</span> The v4 design replaced the
+            resting mark with the capture-frame glyph (§ 2); B · Dawn Dot lives on as the panel avatar's
+            tray-scale ancestor, and A / C stay on the board as idle-mark history.
           </p>
         </Section>
 
         <Section
-          eyebrow="§ 2 · honest states"
-          title="The full state set — icon + label, exact state colors"
-          lede="Ten states from the DESIGN.md honest-states table. Only genuinely-live conditions loop (breathe / pulse-ring / orbit / wave); everything else is static. The reduced-motion switch freezes loops and halves durations, per the motion law."
+          eyebrow="§ 2 · tray glyph"
+          title="One frame, three shapes"
+          lede="The v4 design carries tray state by shape alone: ready, listening, captures paused. Offline and every other state are confirmed in words (tray menu + tooltip); colour stays in the panel, not the bar. The reduced-motion switch still freezes board loops, per the motion law."
         >
           <StateSet reducedMotion={reducedMotion} />
           <p className="font-mono text-[11px] text-muted-foreground">
