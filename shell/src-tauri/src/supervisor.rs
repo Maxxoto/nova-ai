@@ -187,6 +187,7 @@ async fn stream_ask(
                 AskSignal::Complete(answer) => {
                     emit(app, "panel:complete", serde_json::json!({ "answer": answer }));
                     crate::tts::speak_answer(app, &answer);
+                    log_episodic(app, params, &answer);
                     return true;
                 }
                 AskSignal::Failed(message) => {
@@ -261,7 +262,58 @@ fn capture_router(app: &tauri::AppHandle) -> Option<Arc<dyn RequestRouter>> {
     use tauri::Manager;
     let dir = app.path().app_data_dir().ok()?;
     let store = crate::capture_store::CaptureStore::open(&dir).ok()?;
-    Some(Arc::new(crate::capture_store::CaptureRouter::new(store)))
+    let memory = crate::memory::MemoryStore::open(&dir).ok()?;
+    Some(Arc::new(ChainedRouter(vec![
+        Arc::new(crate::capture_store::CaptureRouter::new(store)),
+        Arc::new(crate::memory::MemoryRouter::new(Arc::new(memory))),
+    ])))
+}
+
+/// Tries each router in order; the first that knows the method answers.
+struct ChainedRouter(Vec<Arc<dyn RequestRouter>>);
+
+impl RequestRouter for ChainedRouter {
+    fn route(&self, method: &str, params: &Value) -> Result<Value, String> {
+        for router in &self.0 {
+            if router.handles(method) {
+                return router.route(method, params);
+            }
+        }
+        Err(format!("unknown method: {method}"))
+    }
+}
+
+/// Episodic auto-log (RFC-0006 §4.3): every completed ask becomes a diary
+/// entry referencing its captures. Never agent-writable.
+fn log_episodic(app: &tauri::AppHandle, params: &Value, answer: &str) {
+    use tauri::Manager;
+    let Ok(dir) = app.path().app_data_dir() else {
+        return;
+    };
+    let Ok(store) = crate::memory::MemoryStore::open(&dir) else {
+        return;
+    };
+    let question = params
+        .get("transcript")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let captures = params
+        .get("capture_ids")
+        .and_then(|v| v.as_array())
+        .map(|ids| {
+            ids.iter()
+                .filter_map(|id| id.as_str().map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default();
+    let mut entry = crate::memory::MemoryEntry::new(
+        crate::memory::MemoryType::Episodic,
+        format!("Q: {question}\nA: {answer}"),
+    );
+    entry.source_refs = captures;
+    if let Err(e) = store.write(&entry) {
+        eprintln!("ruoxi: episodic log failed: {e}");
+    }
 }
 
 fn emit(app: &tauri::AppHandle, event: &str, payload: Value) {

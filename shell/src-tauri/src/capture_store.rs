@@ -444,6 +444,10 @@ impl CaptureRouter {
 }
 
 impl RequestRouter for CaptureRouter {
+    fn handles(&self, method: &str) -> bool {
+        matches!(method, "capture.lookup" | "timeline.query")
+    }
+
     fn route(
         &self,
         method: &str,

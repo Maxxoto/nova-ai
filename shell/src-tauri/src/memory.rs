@@ -566,6 +566,33 @@ pub struct MemoryHit {
     pub source_refs: Vec<String>,
 }
 
+#[tauri::command]
+pub fn memory_save_semantic(
+    app: tauri::AppHandle,
+    title: String,
+    body: String,
+    tags: Vec<String>,
+    source_refs: Vec<String>,
+) -> Result<String, String> {
+    use tauri::Manager;
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("data dir: {e}"))?;
+    let store = MemoryStore::open(&dir)?;
+    let body = if body.trim_start().starts_with('#') {
+        body.trim().to_string()
+    } else {
+        format!("# {title}\n\n{body}")
+    };
+    let mut entry = MemoryEntry::new(MemoryType::Semantic, body);
+    entry.tags = tags;
+    entry.source_refs = source_refs;
+    entry.origin = "user-save".to_string();
+    store.write(&entry)?;
+    Ok(entry.id)
+}
+
 pub struct MemoryRouter {
     store: std::sync::Arc<MemoryStore>,
 }
@@ -608,6 +635,10 @@ impl MemoryRouter {
 }
 
 impl RequestRouter for MemoryRouter {
+    fn handles(&self, method: &str) -> bool {
+        matches!(method, "memory.search" | "memory.lookup")
+    }
+
     fn route(&self, method: &str, params: &serde_json::Value) -> Result<serde_json::Value, String> {
         match method {
             "memory.search" => self.search(params),

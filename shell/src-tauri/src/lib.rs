@@ -33,6 +33,12 @@ use serde_json::Value;
 /// Routes upstream JSON-RPC methods issued by the Python brain (Rust-backed
 /// tools per RFC-0008): `capture.lookup`, `timeline.query`, …
 pub trait RequestRouter: Send + Sync {
+    /// Whether this router owns `method`; chains use it to dispatch without
+    /// mistaking a domain error for an unknown method.
+    fn handles(&self, method: &str) -> bool {
+        let _ = method;
+        true
+    }
     fn route(&self, method: &str, params: &Value) -> Result<Value, String>;
 }
 
@@ -64,6 +70,7 @@ pub fn run() {
             hotkeys::validate_hotkey,
             panel::show_panel,
             panel::hide_panel,
+            memory::memory_save_semantic,
             brain::session_ask,
             brain::session_abort,
             models::stt_catalog,
