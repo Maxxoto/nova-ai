@@ -22,6 +22,8 @@ export default {
         "primary-active": "hsl(var(--primary-active))",
         "thinking-text": "hsl(var(--thinking-text))",
         "speaking-text": "hsl(var(--speaking-text))",
+        body: "hsl(var(--body))",
+        "border-strong": "hsl(var(--border-strong))",
         card: { DEFAULT: "hsl(var(--card))", foreground: "hsl(var(--card-foreground))" },
       },
       fontFamily: {

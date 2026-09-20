@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { IDLE_CONCEPTS, TRAY_STATES } from "./tray-icons";
 import ConceptCard from "./components/ConceptCard";
@@ -10,7 +10,7 @@ import CaptureOverlay from "./components/overlay/CaptureOverlay";
 import type { OverlaySelection } from "./components/overlay/CaptureOverlay";
 import ResultPanel from "./components/panel/ResultPanel";
 import { isNetState, isPanelState, NET_STATES, PANEL_STATES } from "./components/panel/types";
-import type { NetState, PanelState } from "./components/panel/types";
+import type { CaptureInfo, CaptureScope, NetState, PanelState } from "./components/panel/types";
 import Section from "./components/Section";
 import SettingsWindow from "./components/settings/SettingsWindow";
 import StateSet from "./components/StateSet";
@@ -22,9 +22,15 @@ import type { TauriUnlisten } from "./tauri";
 
 const SHIPPED_IDLE = IDLE_CONCEPTS[1]; /* board record — the tray's resting mark is the v4 capture frame */
 
-const LIVE_ASK_TRANSCRIPT = "what is this?";
-
-type CapturePayload = { id: string; at_ms: number };
+type CapturePayload = {
+  id: string;
+  at_ms?: number;
+  time?: string;
+  scope?: string;
+  width?: number;
+  height?: number;
+};
+type TranscriptPayload = { text: string };
 type TokenPayload = { delta: string };
 type CompletePayload = { answer: string };
 type ErrorPayload = { message: string };
@@ -32,6 +38,43 @@ type ErrorPayload = { message: string };
 function formatHHMM(atMs: number): string {
   const d = new Date(atMs);
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+const SCOPE_DIM: Record<CaptureScope, { width: number; height: number }> = {
+  region: { width: 412, height: 96 },
+  window: { width: 1440, height: 900 },
+  screen: { width: 2560, height: 1600 },
+};
+
+const HOTKEY_MODIFIER_GLYPHS: Record<string, string> = {
+  alt: "⌥",
+  option: "⌥",
+  shift: "⇧",
+  ctrl: "⌃",
+  control: "⌃",
+  cmd: "⌘",
+  command: "⌘",
+  meta: "⌘",
+  super: "⌘",
+};
+
+function formatHotkey(accelerator: unknown): string {
+  const raw = typeof accelerator === "string" ? accelerator.trim() : "";
+  const parts = raw.split("+").map((part) => part.trim()).filter((part) => part.length > 0);
+  if (parts.length === 0) return "⌥⇧V";
+  return parts.map((part) => HOTKEY_MODIFIER_GLYPHS[part.toLowerCase()] ?? part).join("");
+}
+
+function readScope(raw: unknown): CaptureScope {
+  if (raw === "window") return "window";
+  if (raw === "screen" || raw === "fullscreen") return "screen";
+  return "region";
+}
+
+function parseDimension(raw: string | null, fallback: number): number {
+  if (raw === null) return fallback;
+  const value = Number(raw);
+  return Number.isFinite(value) && value > 0 ? Math.round(value) : fallback;
 }
 
 const THEMES = ["system", "dawn", "night"] as const;
@@ -61,7 +104,15 @@ function parseOverlaySelection(raw: string | null): OverlaySelection | undefined
 const DEMO_ANSWER =
   "Here's what the capture shows: the test suite is failing on the **sidecar handshake** — the JSON-RPC read loop times out before the first ping returns. Same class as the earlier respawn failure, which points at the supervisor's **restart backoff** rather than the protocol itself.";
 
-const DEMO_CAPTURE = { id: "cap_01J8ZF5Q2W9R3T4", time: "14:02" };
+const DEMO_CAPTURE: CaptureInfo = {
+  id: "cap_20250923140200",
+  time: "14:02",
+  scope: "region",
+  width: 412,
+  height: 96,
+};
+
+const DEMO_TRANSCRIPT = "explain this simply";
 
 const GALLERY: { state: PanelState; net: NetState }[] = [
   { state: "thinking", net: "local_only" },
@@ -164,8 +215,12 @@ export default function App() {
   const [panelVisible, setPanelVisible] = useState(true);
   const [liveState, setLiveState] = useState<PanelState>("idle");
   const [liveAnswer, setLiveAnswer] = useState("");
-  const [liveCapture, setLiveCapture] = useState<{ id: string; time: string } | undefined>(undefined);
+  const [liveTranscript, setLiveTranscript] = useState("");
+  const [liveCapture, setLiveCapture] = useState<CaptureInfo | undefined>(undefined);
   const [liveNet, setLiveNet] = useState<NetState>("local_only");
+  const [hotkeyLabel, setHotkeyLabel] = useState("⌥⇧V");
+  const lastSpokenQuestionRef = useRef("");
+  const pttHeldRef = useRef(false);
 
   const params = new URLSearchParams(window.location.search);
   const panelView = params.get("view") === "panel";
@@ -182,6 +237,17 @@ export default function App() {
   const rawNet = params.get("net");
   const panelViewState: PanelState = isPanelState(rawState) ? rawState : "streaming";
   const panelViewNet: NetState = isNetState(rawNet) ? rawNet : "local_only";
+  const panelViewCapture: CaptureInfo = (() => {
+    const rawScope = params.get("scope");
+    const scope = rawScope !== null ? readScope(rawScope) : DEMO_CAPTURE.scope;
+    const dim = SCOPE_DIM[scope];
+    return {
+      ...DEMO_CAPTURE,
+      scope,
+      width: parseDimension(params.get("w"), dim.width),
+      height: parseDimension(params.get("h"), dim.height),
+    };
+  })();
 
   useEffect(() => {
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -270,14 +336,40 @@ export default function App() {
       );
       track(
         await listenTauri<CapturePayload>("panel:capture", (p) => {
-          setLiveCapture({ id: p.id, time: formatHHMM(p.at_ms) });
+          const scope = readScope(p.scope);
+          const dim = SCOPE_DIM[scope];
+          setLiveCapture({
+            id: p.id,
+            time: typeof p.time === "string" && p.time.trim().length > 0 ? p.time : formatHHMM(p.at_ms ?? Date.now()),
+            scope,
+            width: typeof p.width === "number" && p.width > 0 ? p.width : dim.width,
+            height: typeof p.height === "number" && p.height > 0 ? p.height : dim.height,
+          });
           setLiveAnswer("");
-          setLiveState("thinking");
-          /* Tauri maps camelCase JS args to snake_case Rust params: captureIds → capture_ids. */
-          invokeTauriAsync("session_ask", {
-            transcript: LIVE_ASK_TRANSCRIPT,
-            captureIds: [p.id],
-          })?.catch(() => undefined);
+          setLiveTranscript("");
+          lastSpokenQuestionRef.current = "";
+          setLiveState("ask");
+        }),
+      );
+      track(
+        await listenTauri("panel:listening", () => {
+          setLiveAnswer("");
+          setLiveTranscript("");
+          lastSpokenQuestionRef.current = "";
+          setLiveState("listening");
+        }),
+      );
+      track(
+        await listenTauri<TranscriptPayload>("panel:transcript", (p) => {
+          setLiveTranscript(p.text);
+          lastSpokenQuestionRef.current = p.text;
+        }),
+      );
+      track(
+        await listenTauri("panel:ask_cancelled", () => {
+          setLiveTranscript("");
+          lastSpokenQuestionRef.current = "";
+          setLiveState("ask");
         }),
       );
       track(
@@ -296,8 +388,9 @@ export default function App() {
       const pendingSettings = invokeTauriAsync("get_settings");
       pendingSettings?.then(
         (raw) => {
-          const offline = !!(raw && typeof raw === "object" && (raw as { offline?: unknown }).offline);
-          setLiveNet(offline ? "offline" : "local_only");
+          const record = raw && typeof raw === "object" ? (raw as { offline?: unknown; ptt_hotkey?: unknown }) : {};
+          setLiveNet(record.offline ? "offline" : "local_only");
+          setHotkeyLabel(formatHotkey(record.ptt_hotkey));
         },
         () => undefined,
       );
@@ -315,6 +408,19 @@ export default function App() {
     };
   }, [panelView, isTauri]);
 
+  const pttStart = () => {
+    pttHeldRef.current = true;
+    invokeTauriAsync("voice_ask_start");
+  };
+  const pttStop = () => {
+    pttHeldRef.current = false;
+    invokeTauriAsync("voice_ask_stop");
+  };
+  const pttCancel = () => {
+    pttHeldRef.current = false;
+    invokeTauriAsync("voice_ask_cancel");
+  };
+
   if (overlayView) {
     return <CaptureOverlay selection={overlaySelection} />;
   }
@@ -322,22 +428,37 @@ export default function App() {
   if (panelView) {
     return (
       <div
-        className={`flex min-h-screen items-start justify-center p-3${reducedMotion ? " reduced-motion rm-halve" : ""}`}
+        className={`flex min-h-screen items-start justify-center p-3 text-[14px] leading-[1.45]${reducedMotion ? " reduced-motion rm-halve" : ""}`}
       >
         <ResultPanel
           state={isTauri ? liveState : panelViewState}
           net={isTauri ? liveNet : panelViewNet}
           answer={isTauri ? liveAnswer : DEMO_ANSWER}
-          capture={isTauri ? liveCapture : DEMO_CAPTURE}
+          transcript={isTauri ? liveTranscript : DEMO_TRANSCRIPT}
+          capture={isTauri ? liveCapture : panelViewCapture}
+          hotkeyLabel={hotkeyLabel}
           reducedMotion={reducedMotion}
+          onPttStart={isTauri ? pttStart : undefined}
+          onPttStop={isTauri ? pttStop : undefined}
+          onPttCancel={isTauri ? pttCancel : undefined}
+          onEscape={
+            isTauri
+              ? () => {
+                  if (liveState === "listening" || liveState === "transcribing" || pttHeldRef.current) {
+                    pttCancel();
+                    return true;
+                  }
+                  return false;
+                }
+              : undefined
+          }
           onRetry={
             isTauri
               ? () => {
-                  if (!liveCapture) return;
                   setLiveState("thinking");
                   invokeTauriAsync("session_ask", {
-                    transcript: LIVE_ASK_TRANSCRIPT,
-                    captureIds: [liveCapture.id],
+                    transcript: lastSpokenQuestionRef.current || "what is this?",
+                    captureIds: liveCapture ? [liveCapture.id] : [],
                   })?.catch(() => undefined);
                 }
               : undefined
@@ -495,6 +616,7 @@ export default function App() {
                   net={panelNet}
                   answer={DEMO_ANSWER}
                   capture={DEMO_CAPTURE}
+                  transcript={DEMO_TRANSCRIPT}
                   reducedMotion={reducedMotion}
                   onSaveMemory={() => undefined}
                   onRetry={() => setPanelState("thinking")}
@@ -511,6 +633,7 @@ export default function App() {
                   net={panelNet}
                   answer={DEMO_ANSWER}
                   capture={DEMO_CAPTURE}
+                  transcript={DEMO_TRANSCRIPT}
                   reducedMotion={reducedMotion}
                   onSaveMemory={() => undefined}
                   onRetry={() => setPanelState("thinking")}
@@ -532,6 +655,7 @@ export default function App() {
                     net={net}
                     answer={DEMO_ANSWER}
                     capture={DEMO_CAPTURE}
+                    transcript={DEMO_TRANSCRIPT}
                     reducedMotion={reducedMotion}
                     onSaveMemory={() => undefined}
                     onRetry={() => undefined}
@@ -543,6 +667,7 @@ export default function App() {
                     net={net}
                     answer={DEMO_ANSWER}
                     capture={DEMO_CAPTURE}
+                    transcript={DEMO_TRANSCRIPT}
                     reducedMotion={reducedMotion}
                     onSaveMemory={() => undefined}
                     onRetry={() => undefined}

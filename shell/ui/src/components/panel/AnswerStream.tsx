@@ -1,8 +1,10 @@
 import type { ReactNode } from "react";
 import { invokeTauriAsync } from "../../tauri";
+import ContextRow, { SCOPE_LABELS } from "./ContextRow";
 import PanelBanner from "./PanelBanner";
+import PttPill from "./PttPill";
 import ToolStepIndicator from "./ToolStepIndicator";
-import type { NetState, PanelState } from "./types";
+import type { CaptureInfo, NetState, PanelState } from "./types";
 
 /** Renders the answer's inline markdown (**bold**) as real <strong> runs. */
 function renderInline(text: string): ReactNode[] {
@@ -39,13 +41,7 @@ function AnswerText({ text, caret = false }: { text: string; caret?: boolean }) 
   );
 }
 
-const CAPTION = "inline-flex flex-wrap items-center gap-2 font-ui text-[11px] font-medium leading-[1.4] text-muted-foreground";
-
-const QUIET: Partial<Record<PanelState, { text: string; className: string }>> = {
-  idle: { text: "no answer yet", className: "font-ui text-[13px] text-muted-foreground" },
-  listening: { text: "listening…", className: "font-companion text-[13px] font-semibold text-muted-foreground" },
-  transcribing: { text: "transcribing…", className: "font-ui text-[13px] text-muted-foreground" },
-};
+const CAPTION = "flex flex-wrap items-center gap-2 font-ui text-[11px] font-medium leading-[1.4] text-muted-foreground";
 
 function CiteChip({ capture }: { capture: { id: string; time: string } }) {
   return (
@@ -53,7 +49,7 @@ function CiteChip({ capture }: { capture: { id: string; time: string } }) {
       <button
         type="button"
         onClick={() => invokeTauriAsync("show_timeline")?.catch(() => undefined)}
-        className="inline-flex items-center gap-1.5 rounded-[6px] border border-primary/25 bg-primary-soft px-2 py-[3px] font-mono text-[11px] leading-[1.4] text-primary transition-colors duration-200 hover:border-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        className="inline-flex items-center gap-1.5 rounded-[6px] border border-primary/25 bg-primary-soft px-2 py-[3px] font-mono text-[11px] leading-[1.4] text-primary-active transition-colors duration-200 hover:border-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       >
         {capture.id} · {capture.time}
       </button>
@@ -76,54 +72,130 @@ function CiteChip({ capture }: { capture: { id: string; time: string } }) {
 export default function AnswerStream({
   state,
   answer,
+  transcript,
   capture,
   net,
+  hotkeyLabel = "⌥⇧V",
+  onPttStart,
+  onPttStop,
+  onPttCancel,
   onRetry,
 }: {
   state: PanelState;
   answer?: string;
-  capture?: { id: string; time: string };
+  transcript?: string;
+  capture?: CaptureInfo;
   net: NetState;
+  hotkeyLabel?: string;
+  onPttStart?: () => void;
+  onPttStop?: () => void;
+  onPttCancel?: () => void;
   onRetry?: () => void;
 }) {
-  if (state === "thinking") {
+  const start = onPttStart ?? (() => undefined);
+  const stop = onPttStop ?? (() => undefined);
+  const cancel = onPttCancel ?? (() => undefined);
+
+  if (state === "error") {
+    return <PanelBanner kind="error" capture={capture} offline={net === "offline"} onAction={onRetry} />;
+  }
+  if (state === "degraded") return <PanelBanner kind="degraded" />;
+
+  const context = capture ? (
+    <ContextRow scope={capture.scope} width={capture.width} height={capture.height} />
+  ) : null;
+
+  if (state === "ask") {
     return (
-      <div className="flex flex-col gap-2.5">
-        <span className={CAPTION}>
+      <>
+        {context}
+        <div className="ask-stage">
+          <PttPill label={`Hold ${hotkeyLabel} to ask`} onPressStart={start} onRelease={stop} onCancel={cancel} />
+        </div>
+        <p className="ask-note font-ui text-[11px] font-medium leading-[1.4] text-muted-foreground">
+          Speak the question about what you captured. Release to send.
+        </p>
+      </>
+    );
+  }
+
+  if (state === "listening") {
+    return (
+      <>
+        {context}
+        <div className="ask-stage">
+          <PttPill live label="Listening…" onPressStart={start} onRelease={stop} onCancel={cancel} />
+        </div>
+        <p className="ask-note font-ui text-[11px] font-medium leading-[1.4] text-muted-foreground">
+          Release to send · Esc cancels.
+        </p>
+      </>
+    );
+  }
+
+  if (state === "transcribing") {
+    return (
+      <>
+        {context}
+        <div className="transcript">
+          {transcript && transcript.trim() ? <p className="text-[13px] text-body">{transcript}</p> : null}
+        </div>
+        <span className="font-ui text-[11px] font-medium leading-[1.4] text-muted-foreground">Transcribing…</span>
+      </>
+    );
+  }
+
+  if (state === "thinking") {
+    const scopeWord = capture ? SCOPE_LABELS[capture.scope].toLowerCase() : "capture";
+    return (
+      <>
+        {context}
+        <span className={`${CAPTION} mb-2.5`}>
           <ToolStepIndicator active={1} />
-          <span>reading the {capture ? "region" : "transcript"}</span>
+          <span>reading the {scopeWord}</span>
         </span>
         <div className="flex flex-col gap-2" aria-hidden="true">
           <span className="panel-skeleton h-[9px] w-[94%] rounded-[3px]" />
           <span className="panel-skeleton h-[9px] w-[86%] rounded-[3px]" />
           <span className="panel-skeleton h-[9px] w-[62%] rounded-[3px]" />
         </div>
-      </div>
+      </>
     );
   }
-  if (state === "error") {
-    return <PanelBanner kind="error" capture={capture} offline={net === "offline"} onAction={onRetry} />;
+
+  if (state === "idle") {
+    return <p className="font-ui text-[13px] text-muted-foreground">no answer yet</p>;
   }
-  if (state === "degraded") return <PanelBanner kind="degraded" />;
 
-  const quiet = QUIET[state];
-  if (quiet) return <p className={quiet.className}>{quiet.text}</p>;
-  if (!answer) return null;
-
-  return (
-    <div className="flex flex-col gap-3">
-      <AnswerText text={answer} caret={state === "streaming"} />
-      {state === "streaming" ? (
-        <span className={CAPTION}>
+  if (state === "streaming") {
+    return (
+      <>
+        {context}
+        {answer ? (
+          <AnswerText text={answer} caret />
+        ) : (
+          <p className="font-ui text-[14px] leading-[1.5] text-foreground">
+            <span className="panel-caret" aria-hidden="true" />
+          </p>
+        )}
+        <span className={`${CAPTION} mt-2.5`}>
           <ToolStepIndicator active={2} />
           <span>writing the answer</span>
         </span>
-      ) : (
-        <span className="flex flex-wrap items-center gap-2">
-          {capture ? <CiteChip capture={capture} /> : null}
-          <ToolStepIndicator active={3} />
-        </span>
-      )}
-    </div>
+      </>
+    );
+  }
+
+  if (!answer) return null;
+
+  return (
+    <>
+      {context}
+      <AnswerText text={answer} />
+      <span className="mt-3 flex flex-wrap items-center gap-2">
+        {capture ? <CiteChip capture={capture} /> : null}
+        <ToolStepIndicator active={3} />
+      </span>
+    </>
   );
 }

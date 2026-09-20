@@ -36,8 +36,10 @@ fn default_default_scope() -> String {
     "window".to_string()
 }
 
+/// Voice-ask chord per the design convention (⌥⇧V); stored settings keep
+/// their own binding, this only seeds fresh (or unrecoverable) profiles.
 fn default_ptt_hotkey() -> String {
-    "F8".to_string()
+    "Alt+Shift+V".to_string()
 }
 
 fn default_stt() -> SttSettings {
@@ -334,7 +336,7 @@ mod tests {
         assert_eq!(settings.theme, "system");
         assert_eq!(settings.default_scope, "window");
         assert_eq!(settings.fullscreen_display_id, None);
-        assert_eq!(settings.ptt_hotkey, "F8");
+        assert_eq!(settings.ptt_hotkey, "Alt+Shift+V");
         assert_eq!(settings.tts.rate, 1.0);
     }
 
@@ -433,14 +435,14 @@ mod tests {
             ..Settings::default()
         };
         unmappable.normalize();
-        assert_eq!(unmappable.ptt_hotkey, "F8");
+        assert_eq!(unmappable.ptt_hotkey, "Alt+Shift+V");
 
         let mut blank = Settings {
             ptt_hotkey: String::new(),
             ..Settings::default()
         };
         blank.normalize();
-        assert_eq!(blank.ptt_hotkey, "F8");
+        assert_eq!(blank.ptt_hotkey, "Alt+Shift+V");
 
         let mut valid = Settings {
             ptt_hotkey: "Cmd+Shift+Space".to_string(),

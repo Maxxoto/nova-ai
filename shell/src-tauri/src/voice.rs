@@ -129,15 +129,30 @@ pub fn transcribe(app: &tauri::AppHandle, samples: &[f32]) -> Result<String, Str
     transcribe_with(&resolve_model_path(app)?, samples)
 }
 
-/// Dispatches on the model file's magic: `ggml` → whisper, `lmgg` →
-/// parakeet (separate library in whisper.cpp ≥1.9, never routed through
-/// the whisper loader).
+/// Loader owner for a model file, resolved from the catalog by file name.
+/// ggml's on-disk magic is shared by whisper and parakeet artifacts, so the
+/// family — not the bytes — picks the loader; uncatalogued files take the
+/// whisper route (keeps `transcribe_with` usable from the examples) and log.
+fn family_for_path(path: &std::path::Path) -> crate::models::ModelFamily {
+    let name = path.file_name().and_then(|n| n.to_str()).unwrap_or_default();
+    match crate::models::CATALOG
+        .iter()
+        .chain(crate::models::TTS_CATALOG.iter())
+        .find(|m| m.file == name)
+        .map(|m| m.family)
+    {
+        Some(family) => family,
+        None => {
+            eprintln!("ruoxi: uncatalogued model {name:?}; using the whisper loader");
+            crate::models::ModelFamily::Whisper
+        }
+    }
+}
+
+/// Routes by catalog family: parakeet has its own library in whisper.cpp
+/// ≥1.9, every other STT family goes through the whisper loader.
 pub fn transcribe_with(path: &std::path::Path, samples: &[f32]) -> Result<String, String> {
-    let mut magic = [0u8; 4];
-    let known = std::fs::File::open(path)
-        .and_then(|mut f| std::io::Read::read_exact(&mut f, &mut magic))
-        .is_ok();
-    if known && magic == *b"lmgg" {
+    if family_for_path(path) == crate::models::ModelFamily::Parakeet {
         return transcribe_parakeet(path, samples);
     }
     transcribe_whisper(path, samples)
@@ -211,6 +226,38 @@ mod tests {
     #[test]
     fn target_rate_is_whisper_native() {
         assert_eq!(TARGET_RATE, 16_000);
+    }
+
+    #[test]
+    fn family_routing_follows_the_catalog_not_the_shared_ggml_magic() {
+        use crate::models::ModelFamily;
+        assert_eq!(
+            family_for_path(std::path::Path::new("/models/ggml-base-q5_1.bin")),
+            ModelFamily::Whisper
+        );
+        assert_eq!(
+            family_for_path(std::path::Path::new("/models/ggml-small-q5_1.bin")),
+            ModelFamily::Whisper
+        );
+        assert_eq!(
+            family_for_path(std::path::Path::new(
+                "/models/ggml-parakeet-tdt-0.6b-v2-q5_0.bin"
+            )),
+            ModelFamily::Parakeet
+        );
+    }
+
+    #[test]
+    fn uncatalogued_files_fall_back_to_whisper() {
+        use crate::models::ModelFamily;
+        assert_eq!(
+            family_for_path(std::path::Path::new("/models/mystery.bin")),
+            ModelFamily::Whisper
+        );
+        assert_eq!(
+            family_for_path(std::path::Path::new("")),
+            ModelFamily::Whisper
+        );
     }
 }
 

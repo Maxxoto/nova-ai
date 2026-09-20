@@ -4,11 +4,12 @@ import type { NetState, PanelState } from "./types";
 
 const LABELS: Record<PanelState, string> = {
   idle: "Ruòxī",
+  ask: "Ready",
   listening: "Listening",
   transcribing: "Transcribing",
   thinking: "Thinking",
   speaking: "Speaking",
-  streaming: "Streaming",
+  streaming: "Writing",
   complete: "Complete",
   error: "Error",
   degraded: "Resting",

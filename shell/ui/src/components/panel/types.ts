@@ -1,5 +1,6 @@
 export type PanelState =
   | "idle"
+  | "ask"
   | "listening"
   | "transcribing"
   | "thinking"
@@ -13,6 +14,7 @@ export type NetState = "offline" | "local_only" | "calling_cloud";
 
 export const PANEL_STATES: PanelState[] = [
   "idle",
+  "ask",
   "listening",
   "transcribing",
   "thinking",
@@ -22,6 +24,16 @@ export const PANEL_STATES: PanelState[] = [
   "error",
   "degraded",
 ];
+
+export type CaptureScope = "region" | "window" | "screen";
+
+export type CaptureInfo = {
+  id: string;
+  time: string;
+  scope: CaptureScope;
+  width: number;
+  height: number;
+};
 
 export const NET_STATES: NetState[] = ["offline", "local_only", "calling_cloud"];
 

@@ -4,28 +4,40 @@ import AnswerStream from "./AnswerStream";
 import PanelHeader from "./PanelHeader";
 import ReadAloudButton from "./ReadAloudButton";
 import SaveMemoryButton from "./SaveMemoryButton";
-import type { NetState, PanelState } from "./types";
+import type { CaptureInfo, NetState, PanelState } from "./types";
 
 export type ResultPanelProps = {
   state: PanelState;
   net: NetState;
   answer?: string;
-  capture?: { id: string; time: string };
+  transcript?: string;
+  capture?: CaptureInfo;
+  hotkeyLabel?: string;
   reducedMotion?: boolean;
   onDismiss?: () => void;
+  onEscape?: () => boolean;
   onSaveMemory?: () => void;
   onRetry?: () => void;
+  onPttStart?: () => void;
+  onPttStop?: () => void;
+  onPttCancel?: () => void;
 };
 
 export default function ResultPanel({
   state,
   net,
   answer,
+  transcript,
   capture,
+  hotkeyLabel,
   reducedMotion,
   onDismiss,
+  onEscape,
   onSaveMemory,
   onRetry,
+  onPttStart,
+  onPttStop,
+  onPttCancel,
 }: ResultPanelProps) {
   const [closing, setClosing] = useState(false);
   const [reading, setReading] = useState(false);
@@ -69,13 +81,14 @@ export default function ResultPanel({
     if (!onDismiss) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
+      if (onEscape?.()) return;
       stopReading();
       setClosing(true);
       window.setTimeout(() => onDismiss(), 120);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onDismiss]);
+  }, [onDismiss, onEscape]);
 
   useEffect(
     () => () => {
@@ -87,9 +100,11 @@ export default function ResultPanel({
 
   const caption = (
     <span className="font-ui text-[11px] font-medium leading-[1.4] text-muted-foreground">
-      Three steps maximum · <span className="font-mono">Esc</span> aborts mid-loop
+      Three steps maximum · <span className="font-mono">Esc</span> aborts
     </span>
   );
+  const inFlight =
+    state === "ask" || state === "listening" || state === "transcribing" || state === "thinking" || state === "streaming";
 
   return (
     <section
@@ -103,10 +118,21 @@ export default function ResultPanel({
     >
       <PanelHeader state={state} net={net} />
       <div className="panel-scroll max-h-[60vh] overflow-y-auto px-4 py-3.5">
-        <AnswerStream state={state} answer={answer} capture={capture} net={net} onRetry={onRetry} />
+        <AnswerStream
+          state={state}
+          answer={answer}
+          transcript={transcript}
+          capture={capture}
+          net={net}
+          hotkeyLabel={hotkeyLabel}
+          onPttStart={onPttStart}
+          onPttStop={onPttStop}
+          onPttCancel={onPttCancel}
+          onRetry={onRetry}
+        />
       </div>
-      {state === "thinking" || state === "streaming" ? (
-        <div className="border-t border-border px-3 py-2.5">{caption}</div>
+      {inFlight ? (
+        <div className="flex items-center border-t border-border px-3 py-2.5">{caption}</div>
       ) : state === "complete" ? (
         <div className="flex items-center justify-between gap-2 border-t border-border px-3 py-2.5">
           {onSaveMemory ? (

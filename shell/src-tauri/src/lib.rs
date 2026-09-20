@@ -6,6 +6,7 @@
 //! - Settings persisted as JSON in the app data dir.
 //! - Brain sidecar supervised per RFC-0002 §4.7 (W5 counterpart).
 
+pub mod ask;
 pub mod brain;
 pub mod capture;
 pub mod capture_store;
@@ -70,6 +71,9 @@ pub fn run() {
             hotkeys::validate_hotkey,
             panel::show_panel,
             panel::hide_panel,
+            ask::voice_ask_start,
+            ask::voice_ask_stop,
+            ask::voice_ask_cancel,
             memory::memory_save_semantic,
             brain::session_ask,
             brain::session_abort,
@@ -143,7 +147,6 @@ pub fn run() {
                         eprintln!("ruoxi: ptt listener active (keycode {keycode})");
                         let handle = app.handle().clone();
                         std::thread::spawn(move || {
-                            let mut recording: Option<voice::Recording> = None;
                             while let Ok(pressed) = rx.recv() {
                                 eprintln!(
                                     "ruoxi: ptt {}",
@@ -151,11 +154,12 @@ pub fn run() {
                                 );
                                 let app = handle.clone();
                                 if pressed {
-                                    if recording.is_none() {
-                                        match voice::Recording::start() {
-                                            Ok(session) => recording = Some(session),
-                                            Err(e) => eprintln!("ruoxi: microphone: {e}"),
+                                    if panel::is_visible() {
+                                        if let Err(e) = ask::begin_ask(&app) {
+                                            eprintln!("ruoxi: ask recording: {e}");
                                         }
+                                    } else if let Err(e) = ask::start_recording() {
+                                        eprintln!("ruoxi: microphone: {e}");
                                     }
                                     tray::show_listening(&app);
                                     let runner = app.clone();
@@ -167,13 +171,18 @@ pub fn run() {
                                 } else {
                                     tray::refresh_icon(&app);
                                     let runner = app.clone();
+                                    let tooltip_app = app.clone();
                                     let _ = runner.run_on_main_thread(move || {
-                                        if let Some(tray) = app.tray_by_id("main") {
+                                        if let Some(tray) = tooltip_app.tray_by_id("main") {
                                             let _ =
                                                 tray.set_tooltip(Some("Ruoxi — brain connected"));
                                         }
                                     });
-                                    if let Some(session) = recording.take() {
+                                    if ask::is_active() {
+                                        if let Err(e) = ask::finish_ask(&app) {
+                                            eprintln!("ruoxi: voice ask: {e}");
+                                        }
+                                    } else if let Some(session) = ask::take_recording() {
                                         let samples = session.stop();
                                         eprintln!(
                                             "ruoxi: captured {} samples ({:.1}s)",
@@ -332,10 +341,8 @@ fn capture_worker(
 #[cfg(target_os = "macos")]
 pub(crate) fn emit_capture(handle: &tauri::AppHandle, record: &capture_store::CaptureRecord) {
     use tauri::Emitter;
-    if let Err(e) = handle.emit(
-        "panel:capture",
-        serde_json::json!({ "id": &record.capture_id, "at_ms": record.ts }),
-    ) {
+    ask::set_current_capture(record);
+    if let Err(e) = handle.emit("panel:capture", ask::capture_event(record)) {
         eprintln!("ruoxi: panel:capture emit failed: {e}");
     }
 }

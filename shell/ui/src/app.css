@@ -18,7 +18,7 @@
   --primary-soft: 218.4 75.8% 93.5%; /* {colors.primary-soft} */
   --primary-active: 218.6 66.7% 32.9%; /* {colors.primary-active} */
   --thinking-text: 217.8 40.9% 31.2%; /* {colors.thinking-text} */
-  --sky: 228.3 74.2% 75.7%;           /* {colors.dark-thinking} — the orb's sky, theme-independent */
+  --sky: 230.2 60% 59.8%;             /* {colors.secondary} — the thinking orb's sky (dawn) */
   --speaking-text: 218.4 64.8% 47.8%; /* {colors.primary} */
   --secondary: 230.2 60.0% 59.8%; /* {colors.secondary} */
   --secondary-foreground: 233.3 53.6% 29.6%; /* {colors.secondary-foreground} */
@@ -34,6 +34,8 @@
   --border: 213.8 33.3% 90.6%;    /* {colors.border} */
   --input: 213.8 33.3% 90.6%;     /* {colors.border} */
   --ring: 218.4 64.8% 47.8%;      /* {colors.primary} */
+  --body: 216 21% 34%;            /* {colors.body} — paragraph / secondary text */
+  --border-strong: 214 28% 83%;   /* {colors.border-strong} */
   --radius: 10px;                 /* {rounded.md} — shadcn default radius */
 }
 .dark {
@@ -63,6 +65,9 @@
   --border: 216.9 23.6% 21.6%;    /* {colors.dark-border} */
   --input: 216.9 23.6% 21.6%;     /* {colors.dark-border} */
   --ring: 215.3 81.3% 64.3%;      /* {colors.dark-primary} */
+  --sky: 228.3 74.2% 75.7%;       /* {colors.dark-thinking} — the thinking orb's sky (night) */
+  --body: 216 27% 78%;            /* {colors.dark-body} */
+  --border-strong: 216.9 23.6% 21.6%; /* {colors.dark-border} — the design folds strong into border at night */
 }
 
 /* ------------------------------------------------------------------ */
@@ -333,7 +338,7 @@ html.panel-view body {
   height: 6px;
   margin: -3px;
   border-radius: 9999px;
-  background: hsl(var(--thinking-text));
+  background: hsl(var(--sky));
 }
 .orb-orbit i:nth-child(1) {
   transform: translate(19px, 0);
@@ -393,6 +398,105 @@ html.panel-view body {
 @keyframes panel-shimmer {
   to {
     transform: translateX(100%);
+  }
+}
+
+/* Capture-and-ask — context row + push-to-talk pill (F-02 · F-06).
+   Selector names mirror the design so the DOM stays comparable. */
+.ctx {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 6px;
+  background: hsl(var(--muted));
+  margin-bottom: 14px;
+}
+.ctx svg {
+  width: 14px;
+  height: 14px;
+  color: hsl(var(--muted-foreground));
+  flex: none;
+}
+.ctx-label {
+  font-size: 12px;
+  color: hsl(var(--body));
+}
+.ctx-dim {
+  margin-left: auto;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+}
+.ask-stage {
+  display: grid;
+  place-items: center;
+  padding: 6px 0 2px;
+}
+.ask-note {
+  text-align: center;
+  margin-top: 10px;
+}
+.transcript {
+  min-height: 38px;
+  color: hsl(var(--body));
+}
+
+.ptt {
+  border-radius: 9999px;
+  transition: border-color 120ms cubic-bezier(0.4, 0, 0.2, 1), transform 80ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.ptt:active {
+  transform: translateY(1px);
+}
+.ptt-dot {
+  position: relative;
+  flex: none;
+  border-radius: 9999px;
+  background: hsl(var(--border-strong));
+}
+.ptt-wave i {
+  height: 6px;
+  border-radius: 2px;
+  background: hsl(var(--border-strong));
+  transform: scaleY(0.62);
+}
+.ptt-label {
+  white-space: nowrap;
+}
+.ptt.is-live {
+  border-color: color-mix(in oklch, hsl(var(--live)) 55%, hsl(var(--border)));
+}
+.ptt.is-live .ptt-dot {
+  background: hsl(var(--live));
+}
+.ptt.is-live .ptt-dot::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 9999px;
+  border: 1.5px solid hsl(var(--live));
+  animation: pulse-ring 1.2s cubic-bezier(0.2, 0.8, 0.3, 1) infinite;
+}
+.ptt.is-live .ptt-wave i {
+  background: hsl(var(--live));
+  height: 20px;
+  transform: none;
+  animation: ptt-wave 0.9s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+.ptt.is-live .ptt-wave i:nth-child(1) { animation-delay: 0s; height: 7px; }
+.ptt.is-live .ptt-wave i:nth-child(2) { animation-delay: 0.1s; height: 13px; }
+.ptt.is-live .ptt-wave i:nth-child(3) { animation-delay: 0.2s; height: 19px; }
+.ptt.is-live .ptt-wave i:nth-child(4) { animation-delay: 0.3s; height: 12px; }
+.ptt.is-live .ptt-wave i:nth-child(5) { animation-delay: 0.4s; height: 8px; }
+@keyframes ptt-wave {
+  0%,
+  100% {
+    transform: scaleY(0.45);
+  }
+  50% {
+    transform: scaleY(1);
   }
 }
 
@@ -466,15 +570,25 @@ html.panel-view body {
 .reduced-motion .orb *,
 .reduced-motion .panel-skeleton::after,
 .reduced-motion .panel-caret,
-.reduced-motion .cloud-glyph {
+.reduced-motion .cloud-glyph,
+.reduced-motion .ptt-dot::after,
+.reduced-motion .ptt-wave i {
   animation: none !important;
+}
+.reduced-motion .orb-ring {
+  display: none;
 }
 @media (prefers-reduced-motion: reduce) {
   .orb,
   .orb *,
   .panel-skeleton::after,
-  .panel-caret {
+  .panel-caret,
+  .ptt-dot::after,
+  .ptt-wave i {
     animation: none !important;
+  }
+  .orb-ring {
+    display: none;
   }
 }
 

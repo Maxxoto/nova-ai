@@ -5,13 +5,26 @@
 //! keep flowing to the user's app) and a listen-only event tap delivers Esc
 //! pass-through while the panel is visible (AC-01/AC-06).
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicPtr, Ordering};
+use std::sync::Arc;
 
 use tauri::{AppHandle, Manager};
+
+#[link(name = "CoreGraphics", kind = "framework")]
+extern "C" {
+    /// Re-arms a tap after macOS disables it (timeout / user input).
+    fn CGEventTapEnable(tap: *mut std::os::raw::c_void, enable: bool);
+}
 
 pub const PANEL_LABEL: &str = "panel";
 
 pub static PANEL_VISIBLE: AtomicBool = AtomicBool::new(false);
+
+/// Whether the result panel is currently up — the PTT consumer routes a press
+/// into the capture-scoped ask only while it is.
+pub fn is_visible() -> bool {
+    PANEL_VISIBLE.load(Ordering::Relaxed)
+}
 
 const NS_STYLE_NONACTIVATING: usize = 1 << 7;
 const NS_COLL_CAN_JOIN_ALL_SPACES: usize = 1 << 0;
@@ -56,6 +69,8 @@ pub fn show(app: &AppHandle) {
 
 pub fn hide(app: &AppHandle) {
     crate::tts::stop_speaking();
+    crate::ask::clear_current_capture();
+    crate::ask::discard_ask();
     if let Some(win) = app.get_webview_window(PANEL_LABEL) {
         let _ = win.hide();
         PANEL_VISIBLE.store(false, Ordering::Relaxed);
@@ -76,21 +91,51 @@ pub fn spawn_esc_dismiss(app: AppHandle) -> Result<(), String> {
 
     let (ready_tx, ready_rx) = std::sync::mpsc::channel::<Result<(), String>>();
     std::thread::spawn(move || {
+        // The callback cannot capture the tap it belongs to, so the tap port
+        // reaches it through this slot and is used to re-arm on disable.
+        let tap_port: Arc<AtomicPtr<std::os::raw::c_void>> =
+            Arc::new(AtomicPtr::new(std::ptr::null_mut()));
+        let port = Arc::clone(&tap_port);
         let tap = CGEventTap::new(
             CGEventTapLocation::Session,
             CGEventTapPlacement::HeadInsertEventTap,
             CGEventTapOptions::ListenOnly,
-            vec![CGEventType::KeyDown],
-            move |_proxy, _ty, event| {
+            vec![
+                CGEventType::KeyDown,
+                CGEventType::TapDisabledByTimeout,
+                CGEventType::TapDisabledByUserInput,
+            ],
+            move |_proxy, ty, event| {
                 use core_graphics::event::CGEventFlags as F;
-                let modifier_mask = F::CGEventFlagCommand
-                    | F::CGEventFlagShift
-                    | F::CGEventFlagAlternate
-                    | F::CGEventFlagControl;
-                let bare = (event.get_flags() & modifier_mask) == F::CGEventFlagNull;
+                if matches!(
+                    ty,
+                    CGEventType::TapDisabledByTimeout | CGEventType::TapDisabledByUserInput
+                ) {
+                    eprintln!("ruoxi: esc tap {ty:?} — re-enabling");
+                    let port = port.load(Ordering::Relaxed);
+                    if !port.is_null() {
+                        unsafe { CGEventTapEnable(port, true) };
+                    }
+                    return CallbackResult::Keep;
+                }
+                let flags = event.get_flags();
                 let keycode = event.get_integer_value_field(EventField::KEYBOARD_EVENT_KEYCODE);
-                if keycode == ESC_KEYCODE && bare && PANEL_VISIBLE.load(Ordering::Relaxed) {
-                    hide(&app);
+                eprintln!("ruoxi: esc tap {ty:?} keycode={keycode} flags={flags:?}");
+                if keycode == ESC_KEYCODE && PANEL_VISIBLE.load(Ordering::Relaxed) {
+                    if crate::ask::is_active() {
+                        // Accepted with the ⌥⇧V chord still held — chord + Esc
+                        // is the design's cancel gesture.
+                        crate::ask::cancel_ask(&app);
+                    } else {
+                        let modifier_mask = F::CGEventFlagCommand
+                            | F::CGEventFlagShift
+                            | F::CGEventFlagAlternate
+                            | F::CGEventFlagControl;
+                        let bare = (flags & modifier_mask) == F::CGEventFlagNull;
+                        if bare {
+                            hide(&app);
+                        }
+                    }
                 }
                 CallbackResult::Keep
             },
@@ -102,6 +147,10 @@ pub fn spawn_esc_dismiss(app: AppHandle) -> Result<(), String> {
                 return;
             }
         };
+        tap_port.store(
+            tap.mach_port().as_concrete_TypeRef() as *mut std::os::raw::c_void,
+            Ordering::Relaxed,
+        );
         let source = match tap.mach_port().create_runloop_source(0) {
             Ok(s) => s,
             Err(_) => {
