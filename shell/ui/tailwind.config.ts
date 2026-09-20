@@ -32,7 +32,7 @@ export default {
         mono: ["JetBrains Mono", "ui-monospace", "monospace"],
       },
       borderRadius: {
-        sm: "6px", DEFAULT: "var(--radius)", lg: "14px", xl: "18px",
+        sm: "6px", DEFAULT: "var(--radius)", md: "10px", lg: "14px", xl: "18px",
         pill: "9999px", sharp: "2px",
       },
       boxShadow: {

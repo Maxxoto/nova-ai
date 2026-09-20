@@ -1,62 +1,80 @@
-import { BODY, CAPTION, EYEBROW, KBD, STEP_HEADING } from "./styles";
-import { PTT_KEY_LABEL, REGISTERED_CAPTURE_ACCELERATORS } from "./types";
+import { invokeTauriAsync } from "../../tauri";
+import { BODY, EYEBROW, GHOST_BUTTON, KBD, SECONDARY_BUTTON, STEP_HEADING } from "./styles";
+import type { ReactNode } from "react";
 
-function KeyCaps({ keys }: { keys: readonly string[] }) {
+const MODIFIER_GLYPHS: Record<string, string> = {
+  alt: "⌥",
+  option: "⌥",
+  shift: "⇧",
+  ctrl: "⌃",
+  control: "⌃",
+  cmd: "⌘",
+  command: "⌘",
+  meta: "⌘",
+  super: "⌘",
+};
+
+/** `"Alt+Shift+V"` → `"⌥ ⇧ V"`; unknown tokens pass through (`"F8"` → `"F8"`). */
+function formatMacHotkey(accel: string): string {
+  const parts = accel
+    .split("+")
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+  return parts.map((part) => MODIFIER_GLYPHS[part.toLowerCase()] ?? part).join(" ");
+}
+
+function ShortcutRow({ label, keys }: { label: string; keys: string }) {
   return (
-    <span className="flex flex-none items-center gap-1">
-      {keys.map((key) => (
-        <kbd key={key} className={KBD}>
-          {key}
-        </kbd>
-      ))}
-    </span>
+    <div className="flex items-center justify-between gap-4">
+      <span className="font-ui text-[13px] leading-[1.45] text-body">{label}</span>
+      <kbd className={KBD}>{keys}</kbd>
+    </div>
   );
 }
 
-const REGION_KEYS = REGISTERED_CAPTURE_ACCELERATORS[0].keys.split("+");
+function ArrowButton({
+  children,
+  onClick,
+}: {
+  children: ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <button type="button" onClick={onClick} className={`group ${GHOST_BUTTON}`}>
+      {children}
+      <span aria-hidden className="transition-transform duration-150 group-hover:translate-x-0.5">
+        →
+      </span>
+    </button>
+  );
+}
 
-export default function ReadyStep({ pttHotkey = PTT_KEY_LABEL }: { pttHotkey?: string }) {
-  const pttKeys = pttHotkey.split("+");
-  const pttNote = pttHotkey === PTT_KEY_LABEL ? "" : " (next app start)";
+export default function ReadyStep({ pttHotkey, offline }: { pttHotkey: string; offline: boolean }) {
+  const pttKeys = formatMacHotkey(pttHotkey);
+  const readyLine = offline ? "Ruoxi is in your menu bar." : "Cloud answers are allowed on request.";
 
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-col gap-3">
-        <span className={EYEBROW}>Step 5 of 5</span>
-        <h2 data-step-heading tabIndex={-1} className={STEP_HEADING}>
-          You&rsquo;re set up. Three keys to remember.
-        </h2>
-        <p className={BODY}>Everything is on your machine, and the tray is where you check on me.</p>
-      </div>
+    <div className="flex flex-col">
+      <span className={EYEBROW}>Step 6 of 6</span>
+      <h2 data-step-heading tabIndex={-1} className={STEP_HEADING}>
+        You&rsquo;re set up.
+      </h2>
+      <p className={`${BODY} mt-2.5 max-w-[50ch]`}>{readyLine}</p>
 
-      <div className="flex flex-col gap-1 rounded-lg border border-border bg-muted px-4 py-2">
-        <div className="flex items-center justify-between gap-4 border-b border-border py-3">
-          <div className="flex min-w-0 flex-col">
-            <span className="font-ui text-[13px] font-semibold text-foreground">Ask by voice, anywhere</span>
-            <span className={CAPTION}>hold to talk{pttNote}</span>
-          </div>
-          <KeyCaps keys={pttKeys} />
-        </div>
-        <div className="flex items-center justify-between gap-4 border-b border-border py-3">
-          <div className="flex min-w-0 flex-col">
-            <span className="font-ui text-[13px] font-semibold text-foreground">Box something and ask about it</span>
-            <span className={CAPTION}>{REGISTERED_CAPTURE_ACCELERATORS[0].intent}</span>
-          </div>
-          <KeyCaps keys={REGION_KEYS} />
-        </div>
-        <div className="flex items-center justify-between gap-4 py-3">
-          <span className="font-ui text-[13px] font-semibold text-foreground">
-            The tray — brief, pause, offline
-          </span>
-          <span className={CAPTION}>menu bar</span>
+      <div className="mt-[18px] rounded-lg border border-border bg-muted p-4">
+        <div className="flex flex-col gap-2.5 [&>*+*]:mt-3">
+          <ShortcutRow label="Ask by voice" keys={pttKeys} />
+          <ShortcutRow label="Capture a region" keys="⌥ ⇧ R" />
+          <ShortcutRow label="Dismiss any panel" keys="Esc" />
         </div>
       </div>
 
-      <p className={CAPTION}>
-        Accelerators registered in this build:{" "}
-        {REGISTERED_CAPTURE_ACCELERATORS.map((item) => item.keys).join(" · ")} · push-to-talk {pttHotkey}
-        {pttNote}.
-      </p>
+      <div className="mt-5 flex flex-wrap items-center gap-3">
+        <button type="button" onClick={() => invokeTauriAsync("start_region_capture")} className={SECONDARY_BUTTON}>
+          Open capture
+        </button>
+        <ArrowButton onClick={() => invokeTauriAsync("show_settings")}>Settings</ArrowButton>
+      </div>
     </div>
   );
 }

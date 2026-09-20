@@ -3,12 +3,13 @@ import { getPermissionsStatus, requestPermission } from "../../permissions";
 import type { PermissionKind, PermissionsStatus } from "../../permissions";
 import { invokeTauriAsync } from "../../tauri";
 import FirstCaptureStep from "./FirstCaptureStep";
+import ModelsStep from "./ModelsStep";
 import PermissionStep from "./PermissionStep";
 import PreferencesStep from "./PreferencesStep";
 import ReadyStep from "./ReadyStep";
 import StepRail from "./StepRail";
 import WelcomeStep from "./WelcomeStep";
-import { CAPTION, GHOST_BUTTON, PRIMARY_BUTTON } from "./styles";
+import { CAPTION, GHOST_BUTTON_SM, PRIMARY_BUTTON, SECONDARY_BUTTON } from "./styles";
 import { PTT_KEY_LABEL, RITUAL_STEPS } from "./types";
 import type { PreferenceField, PreferenceValues } from "./PreferencesStep";
 import type { RitualStep } from "./types";
@@ -35,16 +36,13 @@ export default function OnboardingRitual({ initialStep, reducedMotion }: Onboard
     accessibility: false,
   });
   const [pendingKind, setPendingKind] = useState<PermissionKind | null>(null);
-  const [captureDone, setCaptureDone] = useState(false);
+  const [demoDone, setDemoDone] = useState(false);
   const [preferences, setPreferences] = useState<PreferenceValues>(DEFAULT_PREFERENCES);
-  const [completed, setCompleted] = useState(false);
   const [skipped, setSkipped] = useState(false);
   const [pttHotkey, setPttHotkey] = useState(PTT_KEY_LABEL);
 
   const settingsRef = useRef<SettingsRecord | null>(null);
   const stepRegionRef = useRef<HTMLDivElement>(null);
-
-  const isTauri = !!window.__TAURI_INTERNALS__?.invoke;
 
   const refresh = useCallback(async () => {
     setStatus(await getPermissionsStatus());
@@ -112,8 +110,8 @@ export default function OnboardingRitual({ initialStep, reducedMotion }: Onboard
     }
   };
 
-  const handleCaptureChange = useCallback((captured: boolean) => {
-    setCaptureDone(captured);
+  const handleDemoDone = useCallback((done: boolean) => {
+    setDemoDone(done);
   }, []);
 
   const handleToggle = (field: PreferenceField, next: boolean) => {
@@ -126,8 +124,8 @@ export default function OnboardingRitual({ initialStep, reducedMotion }: Onboard
   };
 
   const handleContinue = () => {
+    if (blocked) return;
     if (step === "ready") {
-      setCompleted(true);
       window.setTimeout(() => invokeTauriAsync("hide_onboarding"), 900);
       return;
     }
@@ -139,86 +137,80 @@ export default function OnboardingRitual({ initialStep, reducedMotion }: Onboard
     go(RITUAL_STEPS.indexOf("preferences"));
   };
 
+  // Honest relaxation: macOS may not report the microphone, so its status is
+  // never a blocker — only Screen Recording + Accessibility gate the ritual.
   const capturePermissionsGranted = status.screen_recording && status.accessibility;
-  const micUnreadable = status.microphone === "unknown";
-  const blocked = step === "permissions" && isTauri && !capturePermissionsGranted;
+  const blocked = (step === "permissions" && !capturePermissionsGranted) || (step === "first-capture" && !demoDone);
 
   const gateMessage = (): string => {
-    if (completed) return "Setup saved. The tray is in your menu bar.";
-    if (skipped && step === "preferences") {
-      return "Skipped the ritual — permissions can be granted later from Settings → Permissions.";
-    }
-    if (step === "permissions") {
-      if (capturePermissionsGranted && !micUnreadable) return "All three granted. Ready when you are.";
-      if (capturePermissionsGranted) {
-        return "Screen Recording and Accessibility are on — macOS doesn't report the microphone's status to Ruòxī; grant it in System Settings for voice.";
-      }
-      return isTauri
-        ? "Grant Screen Recording and Accessibility to continue — or skip and finish later."
-        : "Grant the permissions in the real app — this browser preview can continue.";
-    }
-    if (step === "first-capture" && !captureDone) return "Box the paragraph to see it work — Continue stays open.";
-    if (step === "ready") return "You can re-run setup from Settings → Permissions.";
+    if (step === "permissions" && !capturePermissionsGranted) return "Grant all three to continue.";
+    if (step === "first-capture" && !demoDone) return "Run the capture to continue.";
+    if (skipped && step === "preferences") return "You can grant access later in Settings.";
     return "";
   };
 
   return (
-    <section
-      aria-label="Ruòxī onboarding"
-      className={`w-full max-w-[680px]${reducedMotion ? " reduced-motion" : ""}`}
-    >
-      <div className="overflow-hidden rounded-xl border border-border bg-card shadow-e1">
-        <StepRail current={step} />
+    <div className="w-[640px] max-w-full overflow-hidden rounded-xl border border-border bg-card shadow-e3">
+      <StepRail current={step} />
 
-        <div ref={stepRegionRef} aria-live="polite" aria-atomic="true" className="px-7 py-7">
-          <div key={step} className="ritual-step">
-            {step === "welcome" && <WelcomeStep />}
-            {step === "permissions" && (
-              <PermissionStep
-                status={status}
-                pendingKind={pendingKind}
-                onRequest={(kind) => {
-                  void handleRequest(kind);
-                }}
-              />
-            )}
-            {step === "first-capture" && (
-              <FirstCaptureStep permissionsStatus={status} onCaptureChange={handleCaptureChange} />
-            )}
-            {step === "preferences" && <PreferencesStep values={preferences} onToggle={handleToggle} />}
-            {step === "ready" && <ReadyStep pttHotkey={pttHotkey} />}
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3 border-t border-border px-5 py-3">
-          <button type="button" onClick={() => go(stepIndex - 1)} disabled={stepIndex === 0} className={GHOST_BUTTON}>
-            Back
-          </button>
-          <span aria-live="polite" className={`${CAPTION} min-w-0 flex-1`}>
-            {gateMessage()}
-          </span>
-          <button type="button" onClick={handleSkip} className={GHOST_BUTTON}>
-            Skip setup
-          </button>
-          <button
-            type="button"
-            onClick={handleContinue}
-            disabled={blocked}
-            aria-disabled={blocked ? "true" : "false"}
-            className={blocked ? `${GHOST_BUTTON} border border-border` : PRIMARY_BUTTON}
-          >
-            {step === "ready" ? "Finish setup" : "Continue"}
-          </button>
+      <div
+        ref={stepRegionRef}
+        aria-live="polite"
+        aria-atomic="true"
+        className="min-h-[320px] px-[30px] py-7"
+      >
+        <div key={step} className="ritual-step">
+          {step === "welcome" && <WelcomeStep />}
+          {step === "permissions" && (
+            <PermissionStep
+              status={status}
+              pendingKind={pendingKind}
+              onRequest={(kind) => {
+                void handleRequest(kind);
+              }}
+            />
+          )}
+          {step === "first-capture" && <FirstCaptureStep reducedMotion={reducedMotion} onDemoDone={handleDemoDone} />}
+          {step === "preferences" && <PreferencesStep values={preferences} onToggle={handleToggle} />}
+          {step === "models" && (
+            <ModelsStep offline={preferences.offline} onTurnOffOffline={() => handleToggle("offline", false)} />
+          )}
+          {step === "ready" && <ReadyStep pttHotkey={pttHotkey} offline={preferences.offline} />}
         </div>
       </div>
-    </section>
+
+      <div className="flex items-center gap-3 border-t border-border px-[18px] py-3.5">
+        <button
+          type="button"
+          onClick={() => go(stepIndex - 1)}
+          disabled={stepIndex === 0}
+          className={GHOST_BUTTON_SM}
+        >
+          Back
+        </button>
+        <span aria-live="polite" className={`${CAPTION} min-w-0 flex-1`}>
+          {gateMessage()}
+        </span>
+        <button type="button" onClick={handleSkip} className={GHOST_BUTTON_SM}>
+          Skip
+        </button>
+        <button
+          type="button"
+          onClick={handleContinue}
+          aria-disabled={blocked ? "true" : "false"}
+          className={blocked ? SECONDARY_BUTTON : PRIMARY_BUTTON}
+        >
+          {step === "ready" ? "Finish" : "Continue"}
+        </button>
+      </div>
+    </div>
   );
 }
 
 /*
  * Dev params:
  *   ?view=onboarding
- *   ?step=welcome | permissions | first-capture | preferences | ready
+ *   ?step=welcome | permissions | first-capture | preferences | models | ready
  *   legacy: screen | microphone | accessibility → permissions, launch → preferences, finale → ready
  * Missing or unknown `step` falls back to `welcome`.
  */

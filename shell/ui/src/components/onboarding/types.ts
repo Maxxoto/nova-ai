@@ -1,14 +1,15 @@
 import type { PermissionKind } from "../../permissions";
 
 /**
- * The 5-step onboarding ritual (J8 · AC-12), refreshed to the new OpenDesign
- * flow: welcome → permissions → first-capture → preferences → ready.
+ * The 6-step onboarding ritual (J8 · AC-12), matching the new OpenDesign flow:
+ * welcome → permissions → first-capture → preferences → models → ready.
  */
 export const RITUAL_STEPS = [
   "welcome",
   "permissions",
   "first-capture",
   "preferences",
+  "models",
   "ready",
 ] as const;
 
@@ -17,6 +18,7 @@ export type RitualStep = (typeof RITUAL_STEPS)[number];
 /**
  * Legacy `?step=` slugs from the pre-refresh D-pad flow. They resolve to the
  * step that now carries the same responsibility so old dev links keep working.
+ * `models` needs no alias — it is now a first-class step.
  */
 const LEGACY_STEP_ALIASES: Record<string, RitualStep> = {
   screen: "permissions",
@@ -40,53 +42,51 @@ export function parseRitualStep(value: string | null): RitualStep {
 export interface PermissionStepSpec {
   kind: PermissionKind;
   name: string;
-  /** Her voice — the reason, shown before the OS dialog. Nunito. */
+  /** Her voice — the reason, shown before the OS dialog. Inter 14/600. */
   why: string;
   /** macOS path hint. Mono caption. */
   path: string;
   /** The OS-dialog quote the user is about to see. */
   dialog: string;
-  /** The quiet reassurance appended to the dialog quote. */
-  dialogNote: string;
 }
 
 /**
  * Permission copy verbatim from the new design, with one honesty fix: the
- * design's Accessibility why-line names the mock ⌘⇧4, which is NOT a
- * registered accelerator. The real region accelerator is Alt+Shift+R
- * (shell/src-tauri/src/hotkeys.rs · ALL_ACCELERATORS).
+ * design's Accessibility why-line names the mock ⌥⇧R, and that one IS real —
+ * the region accelerator is Alt+Shift+R (shell/src-tauri/src/hotkeys.rs ·
+ * ALL_ACCELERATORS), which macOS renders as ⌥ ⇧ R.
+ *
+ * The quoted app name stays `Ruòxī`: that is the name macOS prints in the
+ * system dialog, so the preview shows exactly what the user will see.
  */
 export const PERMISSION_STEPS: PermissionStepSpec[] = [
   {
     kind: "screen_recording",
     name: "Screen Recording",
-    why: "So I can see the part of your screen you point at — and only that part.",
-    path: "macOS · System Settings → Privacy & Security → Screen Recording",
+    why: "So Ruoxi can see the part of the screen you point at.",
+    path: "System Settings → Privacy & Security → Screen Recording",
     dialog: "“Ruòxī” would like to record this computer's screen.",
-    dialogNote: "Nothing is captured until you ask.",
   },
   {
     kind: "microphone",
     name: "Microphone",
-    why: "So I can hear the question you speak — while you hold the key, and not a moment longer.",
-    path: "macOS · Privacy & Security → Microphone · audio deleted ≈1 min after release",
+    why: "So Ruoxi can hear the question while you hold the key.",
+    path: "System Settings → Privacy & Security → Microphone",
     dialog: "“Ruòxī” would like to access the microphone.",
-    dialogNote: "Push-to-talk only.",
   },
   {
     kind: "accessibility",
     name: "Accessibility",
-    why: "So Alt+Shift+R works while you're inside another app — that's all I use it for.",
-    path: "macOS · Privacy & Security → Accessibility · global hotkey registration only",
+    why: "So ⌥⇧R works while you are inside another app.",
+    path: "System Settings → Privacy & Security → Accessibility",
     dialog: "“Ruòxī” would like to control this computer using accessibility features.",
-    dialogNote: "Hotkeys only — never clicks or typing.",
   },
 ];
 
 /**
  * The accelerators this build actually registers
- * (shell/src-tauri/src/hotkeys.rs · ALL_ACCELERATORS). The design mock shows
- * ⌘⇧4 / ⌘⇧Space, which are not registered — the UI prints these instead.
+ * (shell/src-tauri/src/hotkeys.rs · ALL_ACCELERATORS). Kept for reference and
+ * parity with the Settings surface.
  */
 export const REGISTERED_CAPTURE_ACCELERATORS = [
   { keys: "Alt+Shift+R", intent: "capture a region" },
@@ -95,7 +95,8 @@ export const REGISTERED_CAPTURE_ACCELERATORS = [
 ] as const;
 
 /**
- * Push-to-talk key. `DEFAULT_PTT_KEYCODE = 100` (shell/src-tauri/src/ptt.rs)
- * is macOS virtual keycode kVK_F8 — hold to talk.
+ * Push-to-talk accelerator. Matches the shell default
+ * (`shell/src-tauri/src/settings.rs` · `default_ptt_hotkey` = `Alt+Shift+V`),
+ * which the Ready step renders mac-style as `⌥ ⇧ V`.
  */
-export const PTT_KEY_LABEL = "F8";
+export const PTT_KEY_LABEL = "Alt+Shift+V";
