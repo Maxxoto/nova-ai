@@ -421,6 +421,35 @@ export default function App() {
     invokeTauriAsync("voice_ask_cancel");
   };
 
+  const onboardingStageRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!isTauri || !onboardingView) return;
+    const stage = onboardingStageRef.current;
+    if (!stage) return;
+
+    let lastSent = -1;
+    let timer: number | null = null;
+
+    const send = () => {
+      const target = stage.getBoundingClientRect().height + 48;
+      if (lastSent >= 0 && Math.abs(target - lastSent) <= 2) return;
+      lastSent = target;
+      invokeTauriAsync("resize_onboarding", { height: target, contentHeight: window.innerHeight });
+    };
+
+    const observer = new ResizeObserver(() => {
+      if (timer !== null) window.clearTimeout(timer);
+      timer = window.setTimeout(send, 80);
+    });
+    observer.observe(stage);
+
+    return () => {
+      observer.disconnect();
+      if (timer !== null) window.clearTimeout(timer);
+    };
+  }, [isTauri, onboardingView]);
+
   if (overlayView) {
     return <CaptureOverlay selection={overlaySelection} />;
   }
@@ -479,12 +508,13 @@ export default function App() {
   if (onboardingView) {
     return (
       <div
-        className={`flex h-screen bg-background p-6${reducedMotion ? " reduced-motion rm-halve" : ""}`}
+        className={`flex min-h-screen items-start justify-center bg-background p-6${reducedMotion ? " reduced-motion rm-halve" : ""}`}
       >
-        <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-border-strong bg-muted">
-          <div className="grid min-h-full w-full place-items-center justify-center px-6 py-8">
-            <OnboardingRitual initialStep={onboardingStep} reducedMotion={reducedMotion} />
-          </div>
+        <div
+          ref={onboardingStageRef}
+          className="w-full max-w-[688px] rounded-lg border border-border-strong bg-muted px-6 py-8"
+        >
+          <OnboardingRitual initialStep={onboardingStep} reducedMotion={reducedMotion} />
         </div>
       </div>
     );
