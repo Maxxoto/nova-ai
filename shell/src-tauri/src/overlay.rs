@@ -112,6 +112,7 @@ pub fn start(app: &tauri::AppHandle) -> Result<(), String> {
         if let Err(e) = win.set_visible_on_all_workspaces(true) {
             eprintln!("ruoxi: overlay visible-on-all-workspaces: {e}");
         }
+        crate::panel::raise_above_fullscreen(&win);
         eprintln!("ruoxi: overlay re-shown (existing window)");
         let _ = win.set_focus();
         return Ok(());
@@ -167,6 +168,7 @@ pub fn start(app: &tauri::AppHandle) -> Result<(), String> {
             if let Err(e) = win.set_visible_on_all_workspaces(true) {
                 eprintln!("ruoxi: overlay visible-on-all-workspaces: {e}");
             }
+            crate::panel::raise_above_fullscreen(&win);
             eprintln!("ruoxi: overlay built");
             let _ = win.set_focus();
             Ok(())

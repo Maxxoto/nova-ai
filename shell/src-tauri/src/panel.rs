@@ -33,6 +33,10 @@ const NS_COLL_FULLSCREEN_AUXILIARY: usize = 1 << 8;
 
 const ESC_KEYCODE: i64 = 53; // kVK_Escape
 
+/// A fullscreen app lives in its own Space and outranks Tauri's floating
+/// level (3); pop-up-menu level is what keeps the panel drawn above it.
+const NS_POPUP_MENU_WINDOW_LEVEL: isize = 101;
+
 /// One-time macOS window tuning: non-activating, visible on every space
 /// incl. fullscreen, excluded from the window cycle.
 pub fn apply_macos_panel_style(app: &AppHandle) {
@@ -54,6 +58,23 @@ pub fn apply_macos_panel_style(app: &AppHandle) {
                 | NS_COLL_IGNORES_CYCLE
                 | NS_COLL_FULLSCREEN_AUXILIARY
         ];
+        let (): () = objc2::msg_send![&*ns_win, setHidesOnDeactivate: false];
+        let (): () = objc2::msg_send![&*ns_win, setLevel: NS_POPUP_MENU_WINDOW_LEVEL];
+    }
+}
+
+/// Raises the panel above fullscreen apps. Must run AFTER Tauri's
+/// always-on-top, which resets the level to floating on every call.
+pub(crate) fn raise_above_fullscreen(win: &tauri::WebviewWindow) {
+    let Ok(raw) = win.ns_window() else {
+        return;
+    };
+    let ns_win = raw as *mut objc2::runtime::AnyObject;
+    unsafe {
+        let (): () = objc2::msg_send![&*ns_win, setHidesOnDeactivate: false];
+        let (): () = objc2::msg_send![&*ns_win, setLevel: NS_POPUP_MENU_WINDOW_LEVEL];
+        let level: isize = objc2::msg_send![&*ns_win, level];
+        eprintln!("ruoxi: panel window level {level} (above fullscreen)");
     }
 }
 
@@ -62,6 +83,7 @@ pub fn show(app: &AppHandle) {
         let _ = win.show();
         if let Err(e) = win.set_always_on_top(true) { eprintln!("ruoxi: panel always-on-top: {e}"); }
         if let Err(e) = win.set_visible_on_all_workspaces(true) { eprintln!("ruoxi: panel visible-on-all-workspaces: {e}"); }
+        raise_above_fullscreen(&win);
         PANEL_VISIBLE.store(true, Ordering::Relaxed);
         eprintln!("ruoxi: panel shown (non-activating)");
     }
