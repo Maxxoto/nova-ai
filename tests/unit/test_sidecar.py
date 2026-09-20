@@ -260,3 +260,83 @@ def test_eof_shuts_down_cleanly() -> None:
     sidecar.request(1, "ping")
     sidecar.close()
     assert sidecar.proc.returncode == 0
+
+
+def test_memory_block_lists_hits_and_citation_rules() -> None:
+    from app.interfaces.sidecar.server import SidecarServer
+
+    hits = [
+        {
+            "id": "mem_01H",
+            "kind": "semantic",
+            "snippet": "Krebs cycle summary",
+            "source_refs": ["cap_9"],
+        },
+        {"id": "mem_02H", "kind": "procedural", "snippet": "prefers simple first", "source_refs": []},
+    ]
+    block = SidecarServer._memory_block(hits)
+    assert "[mem_01H] (semantic)" in block
+    assert "(captures: cap_9)" in block
+    assert "cite it as [mem_id]" in block
+    assert SidecarServer._memory_block([]) == ""
+
+
+def test_strip_bogus_citations_keeps_valid_ids() -> None:
+    from app.interfaces.sidecar.server import SidecarServer
+
+    hits = [{"id": "mem_01H", "kind": "semantic", "snippet": "s", "source_refs": []}]
+    answer = "Krebs makes ATP [mem_01H] per [cap_C1], see [mem_FAKE]."
+    cleaned, bogus = SidecarServer._strip_bogus_citations(answer, hits, ["cap_C1"])
+    assert bogus == 1
+    assert "[mem_01H]" in cleaned
+    assert "[cap_C1]" in cleaned
+    assert "[mem_FAKE]" not in cleaned
+
+
+def test_memory_search_flows_upstream_on_real_path() -> None:
+    sidecar = SidecarProcess(
+        {
+            "RUOXI_LLM_MOCK": "",
+            "RUOXI_LLM_BASE_URL": "http://127.0.0.1:9",
+            "RUOXI_LLM_API_KEY": "sk-test",
+        }
+    )
+    try:
+        sidecar.request(1, "ping")
+        sidecar.send(
+            {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "session.ask",
+                "params": {"transcript": "what did I save about krebs", "capture_ids": []},
+            }
+        )
+        search_seen = False
+        final: dict[str, object] | None = None
+        for _ in range(200):
+            msg = sidecar.read_msg()
+            if msg.get("method") == "memory.search":
+                assert msg["params"]["query"] == "what did I save about krebs"
+                sidecar.send(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": msg["id"],
+                        "result": [
+                            {
+                                "id": "mem_01H",
+                                "kind": "semantic",
+                                "snippet": "krebs cycle notes",
+                                "score": 0.9,
+                                "source_refs": [],
+                            }
+                        ],
+                    }
+                )
+                search_seen = True
+            if msg.get("id") == 2:
+                final = msg
+                break
+        assert search_seen, "session.ask must query memory.search upstream on the real path"
+        assert final is not None
+    finally:
+        sidecar.close()
