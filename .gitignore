@@ -81,6 +81,7 @@ docs/_build/
 # PyBuilder
 .pybuilder/
 target/
+target-probe/
 
 # Jupyter Notebook
 .ipynb_checkpoints
@@ -213,3 +214,12 @@ build/
 dist/
 .bmad
 .opencode
+
+# OpenCode session files
+**/ses_*.json
+
+# Playwright MCP review artifacts (screenshots, logs, snapshots)
+.playwright-mcp/
+
+.omo/
+tmp/

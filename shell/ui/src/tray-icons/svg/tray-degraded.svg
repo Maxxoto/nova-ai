@@ -1,0 +1,5 @@
+<!-- Ruòxī tray · state: degraded · color: {colors.warning} #9a4a04 (AA ember for warning text/fills) -->
+<!-- Moon — "Ruòxī is resting". Label in tray menu + panel banner carries the words. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <path d="M24 6a12 12 0 0 0 18 18 18 18 0 1 1-18-18Z" fill="#9a4a04"/>
+</svg>

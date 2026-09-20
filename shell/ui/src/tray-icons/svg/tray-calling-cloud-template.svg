@@ -1,0 +1,8 @@
+<!-- Ruòxī tray · state: calling-cloud · color: {colors.live} #000000 (ember = live egress, pulsing) -->
+<!-- Cloud-upload; .tr-live-ring hosts the pulse while a request is in flight (event-driven). -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <circle class="tr-live-ring" cx="24" cy="24" r="21" fill="none" stroke="#000000" stroke-width="3" opacity="0"/>
+  <path d="M35 34H18a14 14 0 1 1 13.42-18h3.58a9 9 0 1 1 0 18Z" fill="none" stroke="#000000" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M17.5 35.5 L24 29 L30.5 35.5" fill="none" stroke="#000000" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M24 41 V32" fill="none" stroke="#000000" stroke-width="4" stroke-linecap="round"/>
+</svg>

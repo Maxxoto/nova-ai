@@ -1,0 +1,6 @@
+# ggml (whisper-rs-sys) compiles C++17 std::filesystem, which needs macOS
+# 10.15+. The Command Line Tools' clang otherwise defaults to 10.13 and the
+# release build fails inside whisper.cpp; pin the floor for every cargo
+# invocation from this workspace.
+[env]
+MACOSX_DEPLOYMENT_TARGET = "10.15"

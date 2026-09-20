@@ -1,0 +1,644 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ------------------------------------------------------------------ */
+/* Token layer — VERBATIM from docs/DESIGN.md § "Tailwind + shadcn    */
+/* Implementation" (app.css shadcn theme bridge). Do not edit values. */
+/* ------------------------------------------------------------------ */
+:root {
+  --background: 214.3 53.8% 97.5%; /* {colors.canvas} */
+  --foreground: 215.0 35.3% 13.3%; /* {colors.ink} */
+  --card: 0.0 0.0% 100.0%;        /* {colors.surface} */
+  --card-foreground: 215.0 35.3% 13.3%; /* {colors.ink} */
+  --popover: 0.0 0.0% 100.0%;     /* {colors.surface} */
+  --popover-foreground: 215.0 35.3% 13.3%; /* {colors.ink} */
+  --primary: 218.4 64.8% 47.8%;   /* {colors.primary} */
+  --primary-foreground: 0.0 0.0% 100.0%; /* {colors.primary-foreground} */
+  --primary-soft: 218.4 75.8% 93.5%; /* {colors.primary-soft} */
+  --primary-active: 218.6 66.7% 32.9%; /* {colors.primary-active} */
+  --thinking-text: 217.8 40.9% 31.2%; /* {colors.thinking-text} */
+  --sky: 230.2 60% 59.8%;             /* {colors.secondary} — the thinking orb's sky (dawn) */
+  --speaking-text: 218.4 64.8% 47.8%; /* {colors.primary} */
+  --secondary: 230.2 60.0% 59.8%; /* {colors.secondary} */
+  --secondary-foreground: 233.3 53.6% 29.6%; /* {colors.secondary-foreground} */
+  --muted: 214.3 50.0% 94.5%;     /* {colors.surface-soft} */
+  --muted-foreground: 217.5 18.2% 43.1%; /* {colors.mute} */
+  --accent: 39.7 88.6% 86.3%;     /* {colors.accent} */
+  --accent-foreground: 38.2 42.3% 20.4%; /* {colors.accent-foreground} */
+  --destructive: 4.6 71.6% 42.7%; /* {colors.destructive} */
+  --destructive-foreground: 0.0 0.0% 100.0%; /* {colors.destructive-foreground} */
+  --success: 120.0 50.3% 30.0%;   /* {colors.success} */
+  --warning: 28.0 94.9% 31.0%;    /* {colors.warning} */
+  --live: 27.9 95.3% 42.0%;       /* {colors.live} */
+  --border: 213.8 33.3% 90.6%;    /* {colors.border} */
+  --input: 213.8 33.3% 90.6%;     /* {colors.border} */
+  --ring: 218.4 64.8% 47.8%;      /* {colors.primary} */
+  --body: 216 21% 34%;            /* {colors.body} — paragraph / secondary text */
+  --border-strong: 214 28% 83%;   /* {colors.border-strong} */
+  --radius: 10px;                 /* {rounded.md} — shadcn default radius */
+}
+.dark {
+  --background: 217.9 38.8% 9.6%; /* {colors.dark-canvas} */
+  --foreground: 216.0 51.7% 94.3%; /* {colors.dark-ink} */
+  --card: 216.5 34.3% 13.1%;      /* {colors.dark-surface} */
+  --card-foreground: 216.0 51.7% 94.3%; /* {colors.dark-ink} */
+  --popover: 216.5 34.3% 13.1%;   /* {colors.dark-surface} */
+  --popover-foreground: 216.0 51.7% 94.3%; /* {colors.dark-ink} */
+  --primary: 215.3 81.3% 64.3%;   /* {colors.dark-primary} */
+  --primary-foreground: 216.0 53.2% 9.2%; /* {colors.dark-primary-foreground} */
+  --primary-soft: 216.4 53.0% 22.5%; /* {colors.dark-primary-soft} */
+  --primary-active: 216.3 85.0% 79.0%; /* {colors.dark-primary-active} */
+  --thinking-text: 228.3 74.2% 75.7%; /* {colors.dark-thinking} */
+  --speaking-text: 214.0 81.7% 67.8%; /* {colors.dark-speaking} */
+  --secondary: 213.2 32.8% 22.7%; /* {colors.dark-secondary} */
+  --secondary-foreground: 206.4 53.2% 90.8%; /* {colors.dark-secondary-foreground} */
+  --muted: 215.0 28.6% 16.5%;     /* {colors.dark-surface-soft} */
+  --muted-foreground: 217.1 17.0% 60.8%; /* {colors.dark-mute} */
+  --accent: 27.4 60.7% 22.0%;     /* {colors.dark-accent} */
+  --accent-foreground: 37.7 92.1% 85.1%; /* {colors.dark-accent-foreground} */
+  --destructive: 3.0 80.3% 66.1%; /* {colors.dark-destructive} */
+  --destructive-foreground: 24.7 41.5% 8.0%; /* {colors.dark-destructive-foreground} */
+  --success: 131.9 34.5% 46.1%;   /* {colors.dark-success} */
+  --warning: 28.1 95.1% 52.0%;    /* {colors.dark-warning} */
+  --live: 33.4 92.5% 58.4%;       /* {colors.dark-live} */
+  --border: 216.9 23.6% 21.6%;    /* {colors.dark-border} */
+  --input: 216.9 23.6% 21.6%;     /* {colors.dark-border} */
+  --ring: 215.3 81.3% 64.3%;      /* {colors.dark-primary} */
+  --sky: 228.3 74.2% 75.7%;       /* {colors.dark-thinking} — the thinking orb's sky (night) */
+  --body: 216 27% 78%;            /* {colors.dark-body} */
+  --border-strong: 216.9 23.6% 21.6%; /* {colors.dark-border} — the design folds strong into border at night */
+}
+
+/* ------------------------------------------------------------------ */
+/* Base                                                                */
+/* ------------------------------------------------------------------ */
+html {
+  color-scheme: light;
+}
+html.dark {
+  color-scheme: dark;
+}
+body {
+  @apply bg-background font-ui text-foreground antialiased;
+}
+
+/* Keyframes for tray-mark inner parts (same names/values as the
+   tailwind.config.ts keyframes — these target elements *inside* the
+   injected SVG markup, which utilities can't reach). */
+@keyframes breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.03); }
+}
+@keyframes pulse-ring {
+  0% { transform: scale(1); opacity: 0.5; }
+  100% { transform: scale(1.35); opacity: 0; }
+}
+@keyframes orbit {
+  to { transform: rotate(360deg); }
+}
+@keyframes wave-live {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+/* ------------------------------------------------------------------ */
+/* Tray marks                                                          */
+/* ------------------------------------------------------------------ */
+.tray-mark {
+  display: inline-flex;
+  flex: none;
+  line-height: 0;
+}
+.tray-mark svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Live-state loops — only applied when the board is simulating the
+   live condition AND reduced motion is off. GPU-only properties. */
+.tray-mark[data-anim="breathe"] svg {
+  transform-origin: center;
+  animation: breathe 3s ease-in-out infinite;
+}
+.tray-mark[data-anim="pulse"] .tr-live-ring {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: pulse-ring 1.2s ease-out infinite;
+}
+.tray-mark[data-anim="orbit"] svg {
+  transform-origin: center;
+  animation: orbit 1.6s linear infinite;
+}
+.tray-mark[data-anim="wave"] .tr-wave {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: wave-live 0.9s ease-in-out infinite;
+}
+.tray-mark[data-anim="wave"] .tr-wave-2 { animation-delay: 0.15s; }
+.tray-mark[data-anim="wave"] .tr-wave-3 { animation-delay: 0.3s; }
+
+/* Reduced motion (manual toggle + media query): freeze loops to a
+   static labeled state, halve transition durations. */
+.reduced-motion .tray-mark svg,
+.reduced-motion .tray-mark .tr-live-ring,
+.reduced-motion .tray-mark .tr-wave {
+  animation: none !important;
+}
+.reduced-motion .tray-mark .tr-live-ring {
+  opacity: 0 !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tray-mark svg,
+  .tray-mark .tr-live-ring,
+  .tray-mark .tr-wave {
+    animation: none !important;
+  }
+  .tray-mark .tr-live-ring {
+    opacity: 0 !important;
+  }
+  .rm-halve,
+  .rm-halve * {
+    transition-duration: 100ms !important;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Menu-bar mockup chrome                                              */
+/* ------------------------------------------------------------------ */
+.menubar-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border-radius: 7px;
+  white-space: nowrap;
+}
+.menubar-chip--light {
+  background: rgba(255, 255, 255, 0.92);
+  color: #16202e; /* {colors.ink} */
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 38, 0.10), 0 1px 2px rgba(15, 23, 38, 0.06);
+}
+.menubar-chip--dark {
+  background: rgba(15, 22, 34, 0.92);
+  color: #e9eff8; /* {colors.dark-ink} */
+  box-shadow: inset 0 0 0 1px rgba(233, 239, 248, 0.10), 0 1px 2px rgba(15, 23, 38, 0.12);
+}
+.menubar-chip .menubar-glyph {
+  opacity: 0.55;
+}
+
+/* Full menu-bar strip — "Dawn-light" and "night-dark" OS chrome. These are
+   platform chrome stand-ins (translucent white / cool near-black), mapped to
+   {colors.ink} / {colors.dark-ink} text; not product surfaces. */
+.menubar-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: 7px;
+  font-size: 13px;
+  line-height: 1;
+}
+.menubar-bar--light {
+  background: rgba(255, 255, 255, 0.94); /* surface over canvas, near {colors.surface} */
+  color: #16202e; /* {colors.ink} */
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 38, 0.10), 0 1px 2px rgba(15, 23, 38, 0.06);
+}
+.menubar-bar--dark {
+  background: rgba(15, 22, 34, 0.94); /* cool near-black, near {colors.dark-canvas} */
+  color: #e9eff8; /* {colors.dark-ink} */
+  box-shadow: inset 0 0 0 1px rgba(233, 239, 248, 0.10), 0 1px 2px rgba(15, 23, 38, 0.12);
+}
+/* Un-highlighted status item (default tray presentation). */
+.menubar-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  border-radius: 7px;
+}
+
+/* ------------------------------------------------------------------ */
+/* Result panel (W4) — additions only; nothing above is modified.      */
+/* ------------------------------------------------------------------ */
+
+/* The Tauri `panel` window loads ?view=panel and must paint no page
+   background (transparent window + vibrancy surface). */
+html.panel-view,
+html.panel-view body {
+  background: transparent;
+}
+
+/* panel-shell surface: DESIGN.md vibrancy — surface at 78% + blur(24px)
+   saturate(140%); fallback = 97% opacity, no blur (RFC-0002 risk #3). */
+.panel-surface {
+  background: hsl(var(--card) / 0.94);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+  backdrop-filter: blur(22px) saturate(140%);
+}
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .panel-surface {
+    background: hsl(var(--card) / 0.97);
+  }
+}
+
+.panel-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--border)) transparent;
+}
+.panel-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+.panel-scroll::-webkit-scrollbar-thumb {
+  border-radius: 9999px;
+  background: hsl(var(--border));
+}
+.panel-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Orb — the avatar; its soft inner glow is the one permitted glow. */
+.orb {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  border-radius: 9999px;
+}
+.orb-disc {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: hsl(var(--primary));
+  background: radial-gradient(
+    circle at 34% 30%,
+    color-mix(in oklch, hsl(var(--primary)) 58%, white),
+    hsl(var(--primary)) 70%
+  );
+  box-shadow: 0 0 0 1px color-mix(in oklch, hsl(var(--primary)) 42%, transparent);
+}
+.orb-disc--thinking {
+  background: hsl(var(--sky));
+  background: radial-gradient(
+    circle at 34% 30%,
+    color-mix(in oklch, hsl(var(--sky)) 55%, white),
+    hsl(var(--sky)) 72%
+  );
+  box-shadow: 0 0 0 1px color-mix(in oklch, hsl(var(--sky)) 42%, transparent);
+}
+.orb-disc--live {
+  background: hsl(var(--live));
+  box-shadow: 0 0 0 1px hsl(var(--live));
+}
+.orb-disc--error {
+  background: hsl(var(--destructive));
+  box-shadow: 0 0 0 1px hsl(var(--destructive));
+}
+.orb-disc--degraded {
+  background: hsl(var(--warning));
+  box-shadow: 0 0 0 1px hsl(var(--warning));
+}
+.orb-breathe {
+  animation: breathe 3s ease-in-out infinite;
+}
+.orb-ring {
+  position: absolute;
+  inset: -1px;
+  border-radius: 9999px;
+  border: 2px solid hsl(var(--live));
+  animation: pulse-ring 1.2s ease-out infinite;
+}
+.orb-ring--error {
+  inset: -2px;
+  border-color: hsl(var(--destructive));
+  animation: none;
+}
+.orb-speaking {
+  animation: orb-speak 0.9s ease-in-out infinite;
+}
+@keyframes orb-speak {
+  0%,
+  100% {
+    transform: scaleY(0.45);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+.orb-orbit {
+  position: absolute;
+  inset: -8px;
+  animation: orbit 1.6s linear infinite;
+}
+.orb-orbit i {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  margin: -3px;
+  border-radius: 9999px;
+  background: hsl(var(--sky));
+}
+.orb-orbit i:nth-child(1) {
+  transform: translate(19px, 0);
+}
+.orb-orbit i:nth-child(2) {
+  transform: translate(-9px, 16px);
+}
+.orb-orbit i:nth-child(3) {
+  transform: translate(-9px, -16px);
+}
+.orb-dots {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+.orb-dots i {
+  width: 2.5px;
+  height: 2.5px;
+  border-radius: 9999px;
+  background: hsl(var(--primary-foreground) / 0.9);
+}
+/* Cloud indicator */
+.cloud-glyph {
+  flex: none;
+  width: 13px;
+  height: 13px;
+}
+
+/* Answer stream */
+.panel-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1.05em;
+  margin-left: 2px;
+  border-radius: 1px;
+  vertical-align: -0.15em;
+  background: hsl(var(--primary));
+  animation: token-caret 1s step-end infinite;
+}
+.panel-skeleton {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  background: hsl(var(--muted));
+}
+.panel-skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, hsl(var(--card) / 0.7), transparent);
+  animation: panel-shimmer 1.4s linear infinite;
+}
+@keyframes panel-shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+/* Capture-and-ask — context row + push-to-talk pill (F-02 · F-06).
+   Selector names mirror the design so the DOM stays comparable. */
+.ctx {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 6px;
+  background: hsl(var(--muted));
+  margin-bottom: 14px;
+}
+.ctx svg {
+  width: 14px;
+  height: 14px;
+  color: hsl(var(--muted-foreground));
+  flex: none;
+}
+.ctx-label {
+  font-size: 12px;
+  color: hsl(var(--body));
+}
+.ctx-dim {
+  margin-left: auto;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+}
+.ask-stage {
+  display: grid;
+  place-items: center;
+  padding: 6px 0 2px;
+}
+.ask-note {
+  text-align: center;
+  margin-top: 10px;
+}
+.transcript {
+  min-height: 38px;
+  color: hsl(var(--body));
+}
+
+.ptt {
+  border-radius: 9999px;
+  transition: border-color 120ms cubic-bezier(0.4, 0, 0.2, 1), transform 80ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.ptt:active {
+  transform: translateY(1px);
+}
+.ptt-dot {
+  position: relative;
+  flex: none;
+  border-radius: 9999px;
+  background: hsl(var(--border-strong));
+}
+.ptt-wave i {
+  height: 6px;
+  border-radius: 2px;
+  background: hsl(var(--border-strong));
+  transform: scaleY(0.62);
+}
+.ptt-label {
+  white-space: nowrap;
+}
+.ptt.is-live {
+  border-color: color-mix(in oklch, hsl(var(--live)) 55%, hsl(var(--border)));
+}
+.ptt.is-live .ptt-dot {
+  background: hsl(var(--live));
+}
+.ptt.is-live .ptt-dot::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 9999px;
+  border: 1.5px solid hsl(var(--live));
+  animation: pulse-ring 1.2s cubic-bezier(0.2, 0.8, 0.3, 1) infinite;
+}
+.ptt.is-live .ptt-wave i {
+  background: hsl(var(--live));
+  height: 20px;
+  transform: none;
+  animation: ptt-wave 0.9s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+.ptt.is-live .ptt-wave i:nth-child(1) { animation-delay: 0s; height: 7px; }
+.ptt.is-live .ptt-wave i:nth-child(2) { animation-delay: 0.1s; height: 13px; }
+.ptt.is-live .ptt-wave i:nth-child(3) { animation-delay: 0.2s; height: 19px; }
+.ptt.is-live .ptt-wave i:nth-child(4) { animation-delay: 0.3s; height: 12px; }
+.ptt.is-live .ptt-wave i:nth-child(5) { animation-delay: 0.4s; height: 8px; }
+@keyframes ptt-wave {
+  0%,
+  100% {
+    transform: scaleY(0.45);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+/* Tool steps — 3 fixed segments (AC-11). */
+.panel-steps {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.panel-steps i {
+  height: 4px;
+  flex: 1;
+  border-radius: 9999px;
+  background: hsl(var(--muted));
+}
+.panel-steps i[data-step="done"] {
+  background: hsl(var(--primary));
+}
+.panel-steps i[data-step="active"] {
+  background: hsl(var(--primary) / 0.45);
+}
+
+/* Banners + inline actions */
+.panel-banner {
+  border: 1px solid;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.panel-banner--error {
+  background: hsl(var(--primary-soft));
+  border-color: hsl(var(--destructive));
+  color: hsl(var(--destructive));
+}
+.panel-banner--degraded {
+  background: hsl(var(--primary-soft));
+  border-color: hsl(var(--warning));
+  color: hsl(var(--warning));
+}
+.dark .panel-banner--error,
+.dark .panel-banner--degraded {
+  background: hsl(var(--muted)); /* dark-surface-soft — surface-derived fill per DESIGN.md */
+}
+.panel-banner-glyph {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+}
+.panel-action {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--card));
+  color: hsl(var(--foreground));
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  transition: background-color 200ms;
+}
+.panel-action:hover {
+  background: hsl(var(--muted));
+}
+.panel-action:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+/* Motion law: freeze panel loops under reduced motion. */
+.reduced-motion .orb,
+.reduced-motion .orb *,
+.reduced-motion .panel-skeleton::after,
+.reduced-motion .panel-caret,
+.reduced-motion .cloud-glyph,
+.reduced-motion .ptt-dot::after,
+.reduced-motion .ptt-wave i {
+  animation: none !important;
+}
+.reduced-motion .orb-ring {
+  display: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .orb,
+  .orb *,
+  .panel-skeleton::after,
+  .panel-caret,
+  .ptt-dot::after,
+  .ptt-wave i {
+    animation: none !important;
+  }
+  .orb-ring {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Onboarding ritual (J8, AC-12) — additions only.                     */
+/* ------------------------------------------------------------------ */
+.ritual-step {
+  animation: ritual-step-in 480ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes ritual-step-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes ritual-step-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.reduced-motion .ritual-step {
+  animation: ritual-step-fade 240ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ritual-step {
+    animation: ritual-step-fade 240ms cubic-bezier(0.4, 0, 0.2, 1) both;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Capture overlay (F-03/F-04/F-05, AC-03) — additions only.           */
+/* ------------------------------------------------------------------ */
+
+/* App-side token: the DESIGN.md shadcn bridge carries hsl channels, not the
+   rgba {colors.overlay-dim}; consumed as hsl(var(--overlay-dim) / 0.4).
+   Verbatim from docs/DESIGN.md front matter: rgba(15, 22, 34, 0.40). */
+:root {
+  --overlay-dim: 214 39% 10%;
+}
+
+/* The Tauri `overlay` window loads ?view=overlay; like the panel window it
+   paints no page background so the desktop shows through the selection. */
+html.overlay-view,
+html.overlay-view body {
+  background: transparent;
+}

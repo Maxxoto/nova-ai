@@ -1,23 +1,42 @@
-# Makefile for nova-api project
+# Makefile for the Ruòxī / nova-ai monorepo
 
-.PHONY: help install test lint format clean run-dev run-prod run-cli
+.PHONY: help install test lint format clean shell shell-dev shell-ui shell-test run-cli
 
 help:
 	@echo "Available commands:"
-	@echo "  install    - Install dependencies"
-	@echo "  test       - Run tests"
+	@echo "  install    - Install Python deps (uv sync) + UI deps (pnpm install)"
+	@echo "  test       - Run Python test suite"
+	@echo "  shell      - ONE COMMAND: install+build UI, then run the tray shell (static, no hot reload)"
+	@echo "  shell-dev  - Run tray shell in dev mode (Vite hot-reload + tauri dev)"
+	@echo "  shell-ui   - Typecheck + build the panel UI only"
+	@echo "  shell-test - Run the Rust shell test suite"
+	@echo "  run-cli    - Run the Python brain CLI chat"
 	@echo "  lint       - Run linting"
 	@echo "  format     - Format code"
 	@echo "  clean      - Clean build artifacts"
-	@echo "  run-dev    - Run development server"
-	@echo "  run-prod   - Run production server"
-	@echo "  run-cli    - Run CLI chat interface"
 
 install:
 	uv sync
+	pnpm --dir shell/ui install
 
 test:
 	uv run pytest
+
+shell:
+	./shell/dev.sh
+
+shell-dev:
+	pnpm --dir shell/ui install
+	cd shell/src-tauri && npx --yes @tauri-apps/cli@2 dev
+
+shell-ui:
+	pnpm --dir shell/ui build
+
+shell-test:
+	cd shell/src-tauri && cargo test
+
+run-cli:
+	uv run nova
 
 lint:
 	uv run flake8 src/ tests/
@@ -26,15 +45,6 @@ format:
 	uv run black src/ tests/
 
 clean:
-	rm -rf build/ dist/ *.egg-info/ .venv/
+	rm -rf build/ dist/ *.egg-info
 	find . -type f -name "*.pyc" -delete
 	find . -type d -name "__pycache__" -delete
-
-run-dev:
-	uv run uvicorn src.infrastructure.interfaces.api.fastapi_app:app --reload --host 0.0.0.0 --port 8000
-
-run-prod:
-	uv run uvicorn src.infrastructure.interfaces.api.fastapi_app:app --host 0.0.0.0 --port 8000
-
-run-cli:
-	uv run python src/infrastructure/interfaces/cli/chat_interface.py

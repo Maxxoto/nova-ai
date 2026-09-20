@@ -1,0 +1,9 @@
+<!-- Ruòxī tray · state: listening (mic open) · color: {colors.live} #d16405 (live states only — never text) -->
+<!-- Design v4: capture-frame + centre dot — the live shape; paused swaps the dot for the slash. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" fill="none" stroke="#d16405" stroke-width="1.6" stroke-linecap="round">
+  <path d="M2.5 6.5V4a1.5 1.5 0 0 1 1.5-1.5h2.5"/>
+  <path d="M11.5 2.5H14A1.5 1.5 0 0 1 15.5 4v2.5"/>
+  <path d="M15.5 11.5V14a1.5 1.5 0 0 1-1.5 1.5h-2.5"/>
+  <path d="M6.5 15.5H4A1.5 1.5 0 0 1 2.5 14v-2.5"/>
+  <circle cx="9" cy="9" r="1.7" fill="#d16405" stroke="none"/>
+</svg>
