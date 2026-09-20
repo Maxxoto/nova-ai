@@ -220,3 +220,6 @@ dist/
 
 # Playwright MCP review artifacts (screenshots, logs, snapshots)
 .playwright-mcp/
+
+.omo/
+tmp/
