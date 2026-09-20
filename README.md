@@ -18,6 +18,28 @@ Powered by **LiteLLM multi-provider support** and **pure Python agentic loop**, 
 
 ---
 
+## 🎬 Demo
+
+<p align="center">
+  <a href="docs/demo/ruoxi-demo.mp4">
+    <img src="docs/demo/ruoxi-demo.webp" alt="Ruòxī demo — box a region, hold to talk, and the answer arrives beside your work" width="900">
+  </a>
+  <br>
+  <sub>Click the preview for the full-quality MP4 (24s · 1920×1080). Every frame is a real capture of the app.</sub>
+</p>
+
+The clip walks the whole loop in 24 seconds: box a region with <kbd>⌥⇧R</kbd>, the result panel opens **Ready** with that capture as its context, hold <kbd>⌥⇧V</kbd> and ask out loud, and the answer lands beside your work — cited to the capture you made. It closes on the six-step setup, where the voice, voice-model and language-model choices stay on this Mac.
+
+Made with [HyperFrames](https://github.com/heygen-com/hyperframes) — HTML in, deterministic MP4 out. Rebuild it any time:
+
+```bash
+cd docs/demo && npx hyperframes render -o ruoxi-demo.mp4
+```
+
+The composition, its fonts and the source captures live in [`docs/demo/`](docs/demo/).
+
+---
+
 ## 🚀 Running It
 
 **Prerequisites:** Python 3.11+ with [`uv`](https://docs.astral.sh/uv/); Node + `pnpm` and a Rust toolchain for the desktop shell; macOS for the tray shell (Tauri).
