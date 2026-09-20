@@ -18,6 +18,26 @@ Powered by **LiteLLM multi-provider support** and **pure Python agentic loop**, 
 
 ---
 
+## 🚀 Running It
+
+**Prerequisites:** Python 3.11+ with [`uv`](https://docs.astral.sh/uv/); Node + `pnpm` and a Rust toolchain for the desktop shell; macOS for the tray shell (Tauri).
+
+From the repo root, the `make` targets cover the common paths:
+
+| Command | What it does |
+|---------|--------------|
+| `make shell` | Install + build the UI, then launch the tray app (static build, no hot reload) |
+| `make shell-dev` | Same app in dev mode: Vite hot-reload on `:5173` + file watcher (Rust changes rebuild + relaunch) |
+| `make run-cli` | Terminal chat (`uv run nova`) |
+| `make test` | Python test suite (`uv run pytest`) |
+| `make shell-test` | Rust shell test suite |
+
+The desktop shell automatically spawns the Python brain sidecar (`python -m app.interfaces.sidecar`) over stdio JSON-RPC, so there's no separate command to run. On macOS the first run asks for Screen Recording, Accessibility, and Microphone permissions through the onboarding ritual, which can be replayed later from Settings.
+
+For the CLI, copy `.env.example` to `.env` and set `LITE_LLM_API_KEY` (plus `BRAVE_API_KEY` for web search). The [brain sidecar](src/app/interfaces/sidecar) is a plain Python module the shell supervises. Desktop shell details live in [`shell/README.md`](shell/README.md).
+
+---
+
 ## 🎓 Research Project: Framework-less Agentic AI
 
 This project explores how to build an **agentic AI system without relying on complex frameworks**—using pure Python and LiteLLM. It serves as a learning resource for understanding the core mechanics of agentic loops, tool calling, and LLM integration.
@@ -314,10 +334,14 @@ By studying this codebase, you'll understand:
 
 ### Entry Points
 
-| Entry Point | File | Use Case |
-|-------------|------|----------|
-| **CLI Chat** | `app/interfaces/cli/app.py:352` | Interactive terminal chat |
-| **Main Loop** | `app/main.py` | Telegram bot + message bus |
+| Entry Point | Command | File | Use Case |
+|-------------|---------|------|----------|
+| **CLI chat** | `nova` / `uv run nova` | `src/app/interfaces/cli/app.py` | Interactive terminal chat |
+| **Telegram daemon** | `python -m src.app.main` | `src/app/main.py` | Bus + AgentLoop + Telegram channel |
+| **Desktop tray companion** | `make shell` / `make shell-dev` | `shell/` | Tauri app; supervises the brain sidecar |
+| **Brain sidecar** | `python -m app.interfaces.sidecar` | `src/app/interfaces/sidecar/` | stdio JSON-RPC brain used by the desktop shell (spawned automatically) |
+
+`langgraph.json` is stale (it references a missing `src/studio.py`) and is not used. The live runtime is the pure-Python loop above.
 
 ---
 </div>
