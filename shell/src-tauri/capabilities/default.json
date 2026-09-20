@@ -3,5 +3,5 @@
   "identifier": "default",
   "description": "Core IPC for every Ruòxī window — events (model:progress, settings:changed, panel:*), window control, app info.",
   "windows": ["*"],
-  "permissions": ["core:default"]
+  "permissions": ["core:default", "core:window:allow-start-dragging"]
 }

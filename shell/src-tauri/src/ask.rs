@@ -175,11 +175,19 @@ fn recorder_slot() -> std::sync::MutexGuard<'static, Option<crate::voice::Record
 /// Opens the shared microphone. Starting while a recording already exists is
 /// refused with an error string — never a second stream, never a panic.
 pub fn start_recording() -> Result<(), String> {
+    start_recording_with(false)
+}
+
+fn start_recording_with(auto: bool) -> Result<(), String> {
     let mut slot = recorder_slot();
     if slot.is_some() {
         return Err("microphone is already recording".to_string());
     }
-    *slot = Some(crate::voice::Recording::start()?);
+    *slot = Some(if auto {
+        crate::voice::Recording::start_auto()?
+    } else {
+        crate::voice::Recording::start()?
+    });
     Ok(())
 }
 
@@ -208,9 +216,37 @@ fn emit(app: &AppHandle, event: &str, payload: Value) {
 /// to `Recording` before the microphone opens, and the state lock is held
 /// across the open, so a release racing the press cannot miss the recording.
 pub fn begin_ask(app: &AppHandle) -> Result<(), String> {
+    begin_ask_inner(app, false)
+}
+
+/// Hands-free ask (capture flow): the mic opens without a hotkey and a
+/// watcher thread finishes the ask when the trailing-silence rule ends the
+/// take. Esc still cancels; the generation check makes a late watcher run
+/// a no-op after a cancel.
+pub fn begin_ask_auto(app: &AppHandle) -> Result<(), String> {
+    begin_ask_inner(app, true)?;
+    let watcher = app.clone();
+    std::thread::spawn(move || {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(34);
+        while std::time::Instant::now() < deadline {
+            let done = recorder_slot()
+                .as_ref()
+                .map(crate::voice::Recording::is_done)
+                .unwrap_or(true);
+            if done {
+                let _ = finish_ask(&watcher);
+                return;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+    });
+    Ok(())
+}
+
+fn begin_ask_inner(app: &AppHandle, auto: bool) -> Result<(), String> {
     let mut state = ask_slot();
     claim_ask(&mut state)?;
-    if let Err(e) = start_recording() {
+    if let Err(e) = start_recording_with(auto) {
         state.phase = Phase::Idle;
         state.generation = state.generation.wrapping_add(1);
         return Err(e);

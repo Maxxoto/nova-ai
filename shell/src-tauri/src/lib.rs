@@ -346,6 +346,11 @@ pub(crate) fn emit_capture(handle: &tauri::AppHandle, record: &capture_store::Ca
     if let Err(e) = handle.emit("panel:capture", ask::capture_event(record)) {
         eprintln!("ruoxi: panel:capture emit failed: {e}");
     }
+    // Capture flow is hands-free from here: the mic opens by itself and the
+    // trailing-silence rule ends the take (PTT hotkey stays available).
+    if let Err(e) = ask::begin_ask_auto(handle) {
+        eprintln!("ruoxi: hands-free ask after capture: {e}");
+    }
 }
 
 #[cfg(target_os = "macos")]

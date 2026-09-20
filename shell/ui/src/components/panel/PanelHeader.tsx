@@ -17,7 +17,10 @@ const LABELS: Record<PanelState, string> = {
 
 export default function PanelHeader({ state, net }: { state: PanelState; net: NetState }) {
   return (
-    <header className="flex items-center gap-2.5 border-b border-border px-3.5 py-2.5">
+    <header
+    data-tauri-drag-region
+    className="flex cursor-default items-center gap-2.5 border-b border-border px-3.5 py-2.5"
+  >
       <Orb state={state} size={22} />
       <span className="min-w-0 truncate font-ui text-[13px] font-semibold text-foreground">{LABELS[state]}</span>
       <span className="min-w-2 flex-1" />

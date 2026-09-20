@@ -8,19 +8,77 @@ use crate::settings;
 
 pub const TARGET_RATE: u32 = 16_000;
 
+/// Trailing-silence auto-stop for hands-free capture: once speech has been
+/// heard, `SPEECH_TRAILING_SILENCE_MS` of quiet ends the take; a take that
+/// never hears speech is capped at `MAX_TAKE_MS`.
+pub struct AutoStopRule {
+    speech_seen: bool,
+    silence_ms: f64,
+    total_ms: f64,
+}
+
+const SPEECH_RMS: f32 = 0.015;
+const SPEECH_TRAILING_SILENCE_MS: f64 = 1200.0;
+const MAX_TAKE_MS: f64 = 30_000.0;
+const WAIT_FOR_SPEECH_MS: f64 = 8_000.0;
+
+impl AutoStopRule {
+    pub fn new() -> Self {
+        Self { speech_seen: false, silence_ms: 0.0, total_ms: 0.0 }
+    }
+
+    /// Feed one resampled chunk: its RMS and duration in ms. Returns true
+    /// when the take should end.
+    pub fn update(&mut self, chunk_rms: f32, chunk_ms: f64) -> bool {
+        self.total_ms += chunk_ms;
+        if self.speech_seen {
+            if chunk_rms >= SPEECH_RMS {
+                self.silence_ms = 0.0;
+            } else {
+                self.silence_ms += chunk_ms;
+                if self.silence_ms >= SPEECH_TRAILING_SILENCE_MS {
+                    return true;
+                }
+            }
+        } else if chunk_rms >= SPEECH_RMS {
+            self.speech_seen = true;
+        } else if self.total_ms >= WAIT_FOR_SPEECH_MS {
+            return true;
+        }
+        self.total_ms >= MAX_TAKE_MS
+    }
+}
+
 /// One press-to-talk recording session: collects mono f32 samples at
-/// whisper's 16 kHz from the default input device until `stop` is called.
+/// whisper's 16 kHz from the default input device until `stop` is called —
+/// or, in auto mode, until the trailing-silence rule fires.
 pub struct Recording {
     samples: Arc<std::sync::Mutex<Vec<f32>>>,
     stop: Arc<std::sync::atomic::AtomicBool>,
     callbacks: Arc<std::sync::atomic::AtomicUsize>,
     finished: std::sync::mpsc::Receiver<()>,
+    done: Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl Recording {
     /// Begins capturing from the default input device. The stream runs on
     /// cpal's callback thread and downsamples from the device rate.
     pub fn start() -> Result<Self, String> {
+        Self::start_inner(false)
+    }
+
+    /// Capture that ends itself: speech followed by ~1.2 s of quiet, no
+    /// speech for 8 s, or a 30 s hard cap.
+    pub fn start_auto() -> Result<Self, String> {
+        Self::start_inner(true)
+    }
+
+    /// True once the stream has fully torn down (external stop or auto rule).
+    pub fn is_done(&self) -> bool {
+        self.done.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    fn start_inner(auto: bool) -> Result<Self, String> {
         use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
         let host = cpal::default_host();
         let device = host
@@ -44,6 +102,7 @@ impl Recording {
         let samples = Arc::new(std::sync::Mutex::new(Vec::<f32>::new()));
         let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
         let callbacks = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let done = Arc::new(std::sync::atomic::AtomicBool::new(false));
         let (done_tx, done_rx) = std::sync::mpsc::channel::<()>();
         let sink_samples = Arc::clone(&samples);
         let sink_stop = Arc::clone(&stop);
@@ -51,17 +110,29 @@ impl Recording {
 
         let input_rate = config.sample_rate as f64;
         let mut resample_cursor = 0.0f64;
+        let mut auto_rule = if auto { Some(AutoStopRule::new()) } else { None };
         let mut callback = move |data: &[f32]| {
             if sink_stop.load(std::sync::atomic::Ordering::Relaxed) {
                 return;
             }
             sink_callbacks.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             let mut buffer = sink_samples.lock().expect("sample lock");
+            let mut emitted = 0usize;
+            let mut sum_squares = 0.0f32;
             for &sample in data {
+                sum_squares += sample * sample;
                 resample_cursor += TARGET_RATE as f64 / input_rate;
                 while resample_cursor >= 1.0 {
                     resample_cursor -= 1.0;
                     buffer.push(sample);
+                    emitted += 1;
+                }
+            }
+            if let Some(rule) = auto_rule.as_mut() {
+                let rms = (sum_squares / data.len().max(1) as f32).sqrt();
+                let chunk_ms = emitted as f64 * 1000.0 / TARGET_RATE as f64;
+                if emitted > 0 && rule.update(rms, chunk_ms) {
+                    sink_stop.store(true, std::sync::atomic::Ordering::Relaxed);
                 }
             }
         };
@@ -81,11 +152,13 @@ impl Recording {
         // stream BEFORE signalling — releasing the device and the callback's
         // sample handle so the final read sees a quiesced buffer.
         let guard_stop = Arc::clone(&stop);
+        let guard_done = Arc::clone(&done);
         std::thread::spawn(move || {
             while !guard_stop.load(std::sync::atomic::Ordering::Relaxed) {
                 std::thread::sleep(std::time::Duration::from_millis(50));
             }
             drop(stream);
+            guard_done.store(true, std::sync::atomic::Ordering::Relaxed);
             let _ = done_tx.send(());
         });
 
@@ -94,6 +167,7 @@ impl Recording {
             stop,
             callbacks,
             finished: done_rx,
+            done,
         })
     }
 
@@ -412,5 +486,49 @@ fn transcribe_parakeet(path: &std::path::Path, samples: &[f32]) -> Result<String
         parakeet_free_state(state);
         parakeet_free(ctx);
         Ok(text.trim().to_string())
+    }
+}
+
+#[cfg(test)]
+mod auto_stop_tests {
+    use super::AutoStopRule;
+
+    #[test]
+    fn stops_after_trailing_silence_following_speech() {
+        let mut rule = AutoStopRule::new();
+        assert!(!rule.update(0.05, 500.0), "speech heard");
+        assert!(!rule.update(0.001, 600.0), "first quiet chunk");
+        assert!(!rule.update(0.001, 500.0), "still under 1.2s");
+        assert!(rule.update(0.001, 200.0), "1.3s of quiet ends the take");
+    }
+
+    #[test]
+    fn silence_before_any_speech_waits_then_gives_up() {
+        let mut rule = AutoStopRule::new();
+        assert!(!rule.update(0.001, 7_000.0));
+        assert!(rule.update(0.001, 1_500.0), "8s with no speech gives up");
+    }
+
+    #[test]
+    fn speaking_resets_the_silence_window() {
+        let mut rule = AutoStopRule::new();
+        rule.update(0.05, 300.0);
+        rule.update(0.001, 900.0);
+        assert!(!rule.update(0.05, 400.0), "more speech resets silence");
+        assert!(!rule.update(0.001, 1_100.0), "window restarted");
+        assert!(rule.update(0.001, 100.0));
+    }
+
+    #[test]
+    fn hard_cap_ends_even_mid_speech() {
+        let mut rule = AutoStopRule::new();
+        let mut stopped = false;
+        for _ in 0..60 {
+            if rule.update(0.05, 1_000.0) {
+                stopped = true;
+                break;
+            }
+        }
+        assert!(stopped, "30s cap");
     }
 }
