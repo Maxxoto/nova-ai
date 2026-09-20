@@ -264,12 +264,16 @@ class SidecarServer:
     ) -> dict[str, object]:
         script = os.environ.get("RUOXI_LLM_SCRIPT", "").strip()
         if script:
-            LOG.info("llm.call | scripted turn")
+            LOG.info(
+                "llm.call | scripted turn tools=%s image=%s", use_tools, has_image
+            )
             queue: list[dict[str, object]] = json.loads(
                 Path(script).read_text(encoding="utf-8")
             )
             item = queue[min(self._script_cursor, len(queue) - 1)]
             self._script_cursor += 1
+            if item.get("raise"):
+                raise RuntimeError(str(item["raise"]))
             return item
 
         import litellm
@@ -307,6 +311,54 @@ class SidecarServer:
             ],
         }
 
+    @staticmethod
+    def _strip_images(messages: list[dict[str, object]]) -> list[dict[str, object]]:
+        stripped = []
+        for message in messages:
+            content = message.get("content")
+            if not isinstance(content, list):
+                stripped.append(message)
+                continue
+            parts = []
+            for part in content:
+                if isinstance(part, dict) and part.get("type") == "image_url":
+                    parts.append({"type": "text", "text": "[image omitted]"})
+                else:
+                    parts.append(part)
+            stripped.append({**message, "content": parts})
+        return stripped
+
+    async def _llm_call_degraded(
+        self, working: list[dict[str, object]], use_tools: bool, has_image: bool
+    ) -> dict[str, object]:
+        attempts: list[tuple[bool, bool]] = []
+        if use_tools and has_image:
+            attempts = [(True, True), (False, True), (False, False)]
+        elif use_tools:
+            attempts = [(True, False), (False, False)]
+        elif has_image:
+            attempts = [(False, True), (False, False)]
+        else:
+            attempts = [(False, False)]
+        last_exc: Exception | None = None
+        for tools, image in attempts:
+            messages = working if image else self._strip_images(working)
+            try:
+                outcome = await asyncio.to_thread(
+                    self._complete_with_tools, messages, tools, image
+                )
+                if (tools, image) != attempts[0]:
+                    LOG.warning(
+                        "llm.call degraded to tools=%s image=%s after provider rejection",
+                        tools, image,
+                    )
+                return outcome
+            except Exception as exc:
+                last_exc = exc
+                LOG.warning("llm.call tools=%s image=%s failed: %s", tools, image, exc)
+        assert last_exc is not None
+        raise last_exc
+
     async def _agent_loop(
         self, params: AskParams, messages: list[dict[str, object]], answer_id: str
     ) -> str | None:
@@ -329,9 +381,7 @@ class SidecarServer:
                 )
             use_tools = steps < self._MAX_TOOL_STEPS
             llm_t0 = time.monotonic()
-            outcome = await asyncio.to_thread(
-                self._complete_with_tools, working, use_tools, has_image
-            )
+            outcome = await self._llm_call_degraded(working, use_tools, has_image)
             self._timing["llm"] = self._timing.get("llm", 0.0) + (
                 time.monotonic() - llm_t0
             ) * 1000
@@ -702,6 +752,7 @@ class SidecarServer:
                 )
             )
         except Exception as exc:
+            LOG.exception("ask %s | failed", answer_id)
             await self._send(
                 RpcResponse(
                     id=request_id,
