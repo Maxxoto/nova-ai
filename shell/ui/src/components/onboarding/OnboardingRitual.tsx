@@ -44,6 +44,8 @@ export default function OnboardingRitual({ initialStep, reducedMotion }: Onboard
   const settingsRef = useRef<SettingsRecord | null>(null);
   const stepRegionRef = useRef<HTMLDivElement>(null);
 
+  const isTauri = !!window.__TAURI_INTERNALS__?.invoke;
+
   const refresh = useCallback(async () => {
     setStatus(await getPermissionsStatus());
   }, []);
@@ -139,11 +141,17 @@ export default function OnboardingRitual({ initialStep, reducedMotion }: Onboard
 
   // Honest relaxation: macOS may not report the microphone, so its status is
   // never a blocker — only Screen Recording + Accessibility gate the ritual.
+  // Outside Tauri the status is always all-false, so the browser preview is
+  // exempt from the gate (it can continue) and says so explicitly.
   const capturePermissionsGranted = status.screen_recording && status.accessibility;
-  const blocked = (step === "permissions" && !capturePermissionsGranted) || (step === "first-capture" && !demoDone);
+  const blocked =
+    (step === "permissions" && isTauri && !capturePermissionsGranted) || (step === "first-capture" && !demoDone);
 
   const gateMessage = (): string => {
-    if (step === "permissions" && !capturePermissionsGranted) return "Grant all three to continue.";
+    if (step === "permissions") {
+      if (!isTauri) return "Grant the permissions in the real app — this browser preview can continue.";
+      if (!capturePermissionsGranted) return "Grant all three to continue.";
+    }
     if (step === "first-capture" && !demoDone) return "Run the capture to continue.";
     if (skipped && step === "preferences") return "You can grant access later in Settings.";
     return "";

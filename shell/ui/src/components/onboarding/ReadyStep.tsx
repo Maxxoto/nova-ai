@@ -1,5 +1,6 @@
 import { invokeTauriAsync } from "../../tauri";
 import { BODY, EYEBROW, GHOST_BUTTON, KBD, SECONDARY_BUTTON, STEP_HEADING } from "./styles";
+import { REGISTERED_CAPTURE_ACCELERATORS } from "./types";
 import type { ReactNode } from "react";
 
 const MODIFIER_GLYPHS: Record<string, string> = {
@@ -22,6 +23,9 @@ function formatMacHotkey(accel: string): string {
     .filter((part) => part.length > 0);
   return parts.map((part) => MODIFIER_GLYPHS[part.toLowerCase()] ?? part).join(" ");
 }
+
+const REGION_ACCELERATOR = REGISTERED_CAPTURE_ACCELERATORS[0];
+const REGION_LABEL = REGION_ACCELERATOR.intent.charAt(0).toUpperCase() + REGION_ACCELERATOR.intent.slice(1);
 
 function ShortcutRow({ label, keys }: { label: string; keys: string }) {
   return (
@@ -57,14 +61,14 @@ export default function ReadyStep({ pttHotkey, offline }: { pttHotkey: string; o
     <div className="flex flex-col">
       <span className={EYEBROW}>Step 6 of 6</span>
       <h2 data-step-heading tabIndex={-1} className={STEP_HEADING}>
-        You&rsquo;re set up.
+        You&apos;re set up.
       </h2>
       <p className={`${BODY} mt-2.5 max-w-[50ch]`}>{readyLine}</p>
 
       <div className="mt-[18px] rounded-lg border border-border bg-muted p-4">
         <div className="flex flex-col gap-2.5 [&>*+*]:mt-3">
           <ShortcutRow label="Ask by voice" keys={pttKeys} />
-          <ShortcutRow label="Capture a region" keys="⌥ ⇧ R" />
+          <ShortcutRow label={REGION_LABEL} keys={formatMacHotkey(REGION_ACCELERATOR.keys)} />
           <ShortcutRow label="Dismiss any panel" keys="Esc" />
         </div>
       </div>
