@@ -351,8 +351,15 @@ pub(crate) fn emit_capture(handle: &tauri::AppHandle, record: &capture_store::Ca
 fn run_ptt_transcription(handle: tauri::AppHandle, samples: Vec<f32>) {
     use tauri::Emitter;
     let _ = handle.emit("panel:transcribing", serde_json::json!({}));
+    let started = std::time::Instant::now();
+    let audio_secs = samples.len() as f64 / voice::TARGET_RATE as f64;
     match voice::transcribe(&handle, &samples) {
         Ok(transcript) if !transcript.is_empty() => {
+            eprintln!(
+                "ruoxi: stt latency: {}ms for {:.1}s audio",
+                started.elapsed().as_millis(),
+                audio_secs
+            );
             eprintln!("ruoxi: transcript: {transcript}");
             use tauri::Manager;
             let brain = handle.state::<brain::BrainLink>();
