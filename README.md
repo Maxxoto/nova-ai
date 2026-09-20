@@ -25,10 +25,10 @@ Powered by **LiteLLM multi-provider support** and **pure Python agentic loop**, 
     <img src="docs/demo/ruoxi-demo.webp" alt="Ruòxī demo — box a region, hold to talk, and the answer arrives beside your work" width="900">
   </a>
   <br>
-  <sub>Click the preview for the full-quality MP4 (24s · 1920×1080). Every frame is a real capture of the app.</sub>
+  <sub>Click the preview for the full-quality MP4 (19.5s · 1920×1080). Every frame is a real screenshot of an app window — no desktop.</sub>
 </p>
 
-The clip walks the whole loop in 24 seconds: box a region with <kbd>⌥⇧R</kbd>, the result panel opens **Ready** with that capture as its context, hold <kbd>⌥⇧V</kbd> and ask out loud, and the answer lands beside your work — cited to the capture you made. It closes on the six-step setup, where the voice, voice-model and language-model choices stay on this Mac.
+The clip walks the loop panel-first in under 20 seconds: the result panel opens **Ready** with your capture as its context, you hold <kbd>⌥⇧V</kbd> and speak, it **Transcribes** your question, and the answer lands beside your work — cited to the capture you made. It closes on the six-step setup, where the speech, voice and language-model choices stay on this Mac.
 
 Made with [HyperFrames](https://github.com/heygen-com/hyperframes) — HTML in, deterministic MP4 out. Rebuild it any time:
 

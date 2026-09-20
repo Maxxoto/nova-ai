@@ -72,7 +72,7 @@
         background: radial-gradient(1300px 760px at 50% 18%, #ffffff 0%, #f5f8fc 58%, #e9eff8 100%);
       }
 
-      /* ── shared scene layout (inner wrapper is what animates) ────────── */
+      /* ── scene shell (only the inner wrapper animates) ───────────────── */
       .rx-scene {
         position: absolute;
         inset: 0;
@@ -84,14 +84,14 @@
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: 30px;
+        gap: 34px;
       }
 
-      /* ── the captured app, framed ────────────────────────────────────── */
+      /* ── an app window, as captured ──────────────────────────────────── */
       .frame {
         display: inline-block;
         overflow: hidden;
-        border-radius: 18px;
+        border-radius: 16px;
         border: 1px solid #dfe6ef;
         background: #ffffff;
         box-shadow:
@@ -103,15 +103,15 @@
         width: auto;
         height: auto;
         max-width: 1180px;
-        max-height: 660px;
+        max-height: 640px;
       }
 
-      /* montage: three frames stacked, cross-faded */
+      /* montage: window captures stacked, cross-faded */
       .montage {
         position: relative;
         display: block;
         width: 1180px;
-        height: 660px;
+        height: 640px;
       }
       .montage .frame {
         position: absolute;
@@ -125,9 +125,9 @@
         overflow: visible;
       }
       .montage .frame img {
-        max-height: 660px;
+        max-height: 640px;
         max-width: 1180px;
-        border-radius: 18px;
+        border-radius: 16px;
         border: 1px solid #dfe6ef;
         background: #ffffff;
         box-shadow:
@@ -209,7 +209,7 @@
         font-size: 20px;
         font-weight: 500;
         letter-spacing: 0.06em;
-        /* --mute from the product's design system: AA 5.2:1 on the canvas */
+        /* the product's --mute: AA 5.2:1 on the canvas */
         color: #5a6982;
       }
     </style>
@@ -219,12 +219,12 @@
       id="root"
       data-composition-id="ruoxi-demo"
       data-start="0"
-      data-duration="24"
+      data-duration="19.5"
       data-width="1920"
       data-height="1080"
     >
       <!-- 1 · title -->
-      <section class="clip rx-scene" id="s1" data-start="0" data-duration="2.6" data-track-index="0">
+      <section class="clip rx-scene" id="s1" data-start="0" data-duration="2.5" data-track-index="0">
         <div class="inner">
           <span class="eyebrow">DESKTOP COMPANION</span>
           <h1 class="wordmark">Ruòxī<span>·</span>若曦</h1>
@@ -232,88 +232,82 @@
         </div>
       </section>
 
-      <!-- 2 · capture -->
-      <section class="clip rx-scene" id="s2" data-start="2.6" data-duration="3.2" data-track-index="0">
+      <!-- 2 · the panel, ready -->
+      <section class="clip rx-scene" id="s2" data-start="2.5" data-duration="2.4" data-track-index="0">
         <div class="inner">
           <span class="frame"
             ><img
-              class="kenburns" data-layout-allow-overflow
-              src="assets/01-capture.jpg"
-              alt="Region capture overlay dimming a real screen with a sharp selection"
-          /></span>
-          <div class="row"><span class="chip">⌥ ⇧ R</span><span class="cap">box what you want explained</span></div>
-        </div>
-      </section>
-
-      <!-- 3 · ready -->
-      <section class="clip rx-scene" id="s3" data-start="5.8" data-duration="2.4" data-track-index="0">
-        <div class="inner">
-          <span class="frame"
-            ><img
-              class="kenburns" data-layout-allow-overflow
-              src="assets/02-ready.jpg"
-              alt="Result panel in the Ready state with the capture as context"
+              class="kenburns"
+              data-layout-allow-overflow
+              src="assets/panel-1-ready.png"
+              alt="Result panel in the Ready state: the capture as context and the hold-to-talk pill"
           /></span>
           <div class="row"><span class="chip">READY</span><span class="cap">the capture becomes the context</span></div>
         </div>
       </section>
 
-      <!-- 4 · listening -->
-      <section class="clip rx-scene" id="s4" data-start="8.2" data-duration="2.4" data-track-index="0">
+      <!-- 3 · listening -->
+      <section class="clip rx-scene" id="s3" data-start="4.9" data-duration="2.4" data-track-index="0">
         <div class="inner">
           <span class="frame"
-            ><img class="kenburns" data-layout-allow-overflow src="assets/03-listening.jpg" alt="Result panel listening while the hotkey is held"
+            ><img
+              class="kenburns"
+              data-layout-allow-overflow
+              src="assets/panel-2-listening.png"
+              alt="Result panel while the push-to-talk key is held: Listening"
           /></span>
           <div class="row"><span class="chip">⌥ ⇧ V</span><span class="cap">hold, and speak your question</span></div>
         </div>
       </section>
 
-      <!-- 5 · complete -->
-      <section class="clip rx-scene" id="s5" data-start="10.6" data-duration="3.4" data-track-index="0">
+      <!-- 4 · transcribing -->
+      <section class="clip rx-scene" id="s4" data-start="7.3" data-duration="2.2" data-track-index="0">
         <div class="inner">
           <span class="frame"
             ><img
-              class="kenburns" data-layout-allow-overflow
-              src="assets/04-complete.jpg"
-              alt="Result panel showing a finished answer with its capture citation"
+              class="kenburns"
+              data-layout-allow-overflow
+              src="assets/panel-3-transcribing.png"
+              alt="Result panel transcribing what was just said"
+          /></span>
+          <div class="row"><span class="chip">TRANSCRIBING</span><span class="cap">your words become the question</span></div>
+        </div>
+      </section>
+
+      <!-- 5 · complete -->
+      <section class="clip rx-scene" id="s5" data-start="9.5" data-duration="3.2" data-track-index="0">
+        <div class="inner">
+          <span class="frame"
+            ><img
+              class="kenburns"
+              data-layout-allow-overflow
+              src="assets/panel-4-complete.png"
+              alt="Result panel with a finished answer and the capture it came from"
           /></span>
           <div class="row"><span class="chip">COMPLETE</span><span class="cap">an answer beside your work — with its source</span></div>
         </div>
       </section>
 
-      <!-- 6 · always on top -->
-      <section class="clip rx-scene" id="s6" data-start="14" data-duration="3" data-track-index="0">
-        <div class="inner">
-          <span class="frame"
-            ><img
-              class="kenburns" data-layout-allow-overflow
-              src="assets/05-float.jpg"
-              alt="Result panel floating above another app's window"
-          /></span>
-          <div class="row"><span class="chip">ALWAYS ON TOP</span><span class="cap">never buried under your windows</span></div>
-        </div>
-      </section>
-
-      <!-- 7 · onboarding montage -->
-      <section class="clip rx-scene" id="s7" data-start="17" data-duration="4" data-track-index="0">
+      <!-- 6 · setup windows -->
+      <section class="clip rx-scene" id="s6" data-start="12.7" data-duration="4" data-track-index="0">
         <div class="inner">
           <div class="montage">
             <span class="frame" id="mon1"
-              ><img src="assets/06-onboarding-welcome.jpg" alt="Setup step one: point at anything"
+              ><img src="assets/onboard-1-welcome.jpg" alt="Setup window, step one: point at anything"
             /></span>
             <span class="frame" id="mon2"
-              ><img src="assets/07-onboarding-capture.jpg" alt="Setup step three: capture one thing"
+              ><img src="assets/onboard-2-models.jpg" alt="Setup window, step five: models"
             /></span>
             <span class="frame" id="mon3"
-              ><img src="assets/08-onboarding-ready.jpg" alt="Setup step six: you are set up"
+              ><img src="assets/onboard-3-ready.jpg" alt="Setup window, step six: you are set up"
             /></span>
           </div>
           <div class="row"><span class="chip">SETUP</span><span class="cap">six steps — models stay on this Mac</span></div>
         </div>
       </section>
 
-      <!-- 8 · end card -->
-      <section class="clip rx-scene" id="s8" data-start="21" data-duration="3" data-track-index="0">
+      <!-- 7 · end card -->
+      <section class="clip rx-scene" id="s7" data-start="16.7" data-duration="2.8" data-track-index="0">
         <div class="inner">
           <h1 class="wordmark">Ruòxī<span>·</span>若曦</h1>
           <div class="rule"></div>
@@ -331,8 +325,8 @@
         var tl = gsap.timeline({ paused: true });
 
         /* scene boundaries (seconds) — must match the clips' data-start */
-        var BOUNDS = [0, 2.6, 5.8, 8.2, 10.6, 14, 17, 21, 24];
-        var SCENES = ["#s1", "#s2", "#s3", "#s4", "#s5", "#s6", "#s7", "#s8"];
+        var BOUNDS = [0, 2.5, 4.9, 7.3, 9.5, 12.7, 16.7, 19.5];
+        var SCENES = ["#s1", "#s2", "#s3", "#s4", "#s5", "#s6", "#s7"];
 
         SCENES.forEach(function (sel, i) {
           var start = BOUNDS[i];
@@ -349,20 +343,15 @@
           /* slow push-in on each still (transform only, no CSS initial transform) */
           var still = document.querySelector(sel + " .kenburns");
           if (still) {
-            tl.fromTo(
-              still,
-              { scale: 1 },
-              { scale: 1.045, duration: end - start, ease: "none" },
-              start
-            );
+            tl.fromTo(still, { scale: 1 }, { scale: 1.045, duration: end - start, ease: "none" }, start);
           }
         });
 
-        /* montage cross-fades inside scene 7 (17 → 21) */
-        tl.to("#mon1", { opacity: 0, duration: 0.35, ease: "power2.inOut" }, 18.25);
-        tl.fromTo("#mon2", { opacity: 0 }, { opacity: 1, duration: 0.35, ease: "power2.inOut" }, 18.25);
-        tl.to("#mon2", { opacity: 0, duration: 0.35, ease: "power2.inOut" }, 19.5);
-        tl.fromTo("#mon3", { opacity: 0 }, { opacity: 1, duration: 0.35, ease: "power2.inOut" }, 19.5);
+        /* setup montage cross-fades inside scene 6 (12.7 → 16.7) */
+        tl.to("#mon1", { opacity: 0, duration: 0.35, ease: "power2.inOut" }, 13.95);
+        tl.fromTo("#mon2", { opacity: 0 }, { opacity: 1, duration: 0.35, ease: "power2.inOut" }, 13.95);
+        tl.to("#mon2", { opacity: 0, duration: 0.35, ease: "power2.inOut" }, 15.2);
+        tl.fromTo("#mon3", { opacity: 0 }, { opacity: 1, duration: 0.35, ease: "power2.inOut" }, 15.2);
 
         window.__timelines["ruoxi-demo"] = tl;
         tl.seek(0);
