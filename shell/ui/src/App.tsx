@@ -421,18 +421,18 @@ export default function App() {
     invokeTauriAsync("voice_ask_cancel");
   };
 
-  const onboardingStageRef = useRef<HTMLDivElement | null>(null);
+  const wizardRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!isTauri || !onboardingView) return;
-    const stage = onboardingStageRef.current;
-    if (!stage) return;
+    const wizard = wizardRef.current;
+    if (!wizard) return;
 
     let lastSent = -1;
     let timer: number | null = null;
 
     const send = () => {
-      const target = stage.getBoundingClientRect().height + 48;
+      const target = wizard.getBoundingClientRect().height;
       if (lastSent >= 0 && Math.abs(target - lastSent) <= 2) return;
       lastSent = target;
       invokeTauriAsync("resize_onboarding", { height: target, contentHeight: window.innerHeight });
@@ -442,7 +442,7 @@ export default function App() {
       if (timer !== null) window.clearTimeout(timer);
       timer = window.setTimeout(send, 80);
     });
-    observer.observe(stage);
+    observer.observe(wizard);
 
     return () => {
       observer.disconnect();
@@ -507,13 +507,8 @@ export default function App() {
 
   if (onboardingView) {
     return (
-      <div
-        className={`flex min-h-screen items-start justify-center bg-background p-6${reducedMotion ? " reduced-motion rm-halve" : ""}`}
-      >
-        <div
-          ref={onboardingStageRef}
-          className="w-full max-w-[688px] rounded-lg border border-border-strong bg-muted px-6 py-8"
-        >
+      <div className={`min-h-screen bg-background${reducedMotion ? " reduced-motion rm-halve" : ""}`}>
+        <div ref={wizardRef} className="w-full">
           <OnboardingRitual initialStep={onboardingStep} reducedMotion={reducedMotion} />
         </div>
       </div>
