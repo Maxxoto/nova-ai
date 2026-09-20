@@ -290,7 +290,7 @@ answer loop end to end.
 
 - `docs/SYSTEM_FLOW.md`: mermaid flow diagrams, current.
 - `docs/DESIGN.md`: design system.
-- `docs/rfc/RFC-0001` through `RFC-0009`.
+- `docs/rfc/RFC-0001` through `RFC-0010`.
 - `docs/ruoxi_prd.md`.
 - `shell/README.md`.
 - `plans/m0-build-plan.md`.
