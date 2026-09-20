@@ -122,18 +122,34 @@ impl Recording {
     }
 }
 
-/// Transcribes 16 kHz mono samples with the configured whisper model.
-/// Empty input returns an empty string without touching the model.
 pub fn transcribe(app: &tauri::AppHandle, samples: &[f32]) -> Result<String, String> {
     if samples.is_empty() {
         return Ok(String::new());
     }
-    let model_path = resolve_model_path(app)?;
+    transcribe_with(&resolve_model_path(app)?, samples)
+}
+
+/// Dispatches on the model file's magic: `ggml` → whisper, `lmgg` →
+/// parakeet (separate library in whisper.cpp ≥1.9, never routed through
+/// the whisper loader).
+pub fn transcribe_with(path: &std::path::Path, samples: &[f32]) -> Result<String, String> {
+    let mut magic = [0u8; 4];
+    let known = std::fs::File::open(path)
+        .and_then(|mut f| std::io::Read::read_exact(&mut f, &mut magic))
+        .is_ok();
+    if known && magic == *b"lmgg" {
+        return transcribe_parakeet(path, samples);
+    }
+    transcribe_whisper(path, samples)
+}
+
+fn transcribe_whisper(path: &std::path::Path, samples: &[f32]) -> Result<String, String> {
     let mut params =
         whisper_rs::WhisperContextParameters::new();
     params.use_gpu = true;
+    let path_str = path.display().to_string();
     let context = whisper_rs::WhisperContext::new_with_params(
-        &model_path.display().to_string(),
+        &path_str,
         params,
     )
     .map_err(|e| format!("load whisper model: {e}"))?;
@@ -162,7 +178,7 @@ pub fn transcribe(app: &tauri::AppHandle, samples: &[f32]) -> Result<String, Str
     Ok(text.trim().to_string())
 }
 
-fn resolve_model_path(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+pub(crate) fn resolve_model_path(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
     let selected = settings::load(app).stt.model;
     let id = if selected.is_empty() {
         "whisper-base-q5"
@@ -229,4 +245,125 @@ pub fn write_corpus_wav(dir: &str, samples: &[f32]) -> Result<std::path::PathBuf
     wav.extend_from_slice(&pcm);
     std::fs::write(&path, wav).map_err(|e| format!("write wav: {e}"))?;
     Ok(path)
+}
+
+#[allow(non_snake_case)]
+mod parakeet_ffi {
+    use std::os::raw::{c_int, c_void};
+
+    #[repr(C)]
+    pub struct parakeet_context {
+        _private: [u8; 0],
+    }
+
+    #[repr(C)]
+    pub struct parakeet_state {
+        _private: [u8; 0],
+    }
+
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct parakeet_context_params {
+        pub use_gpu: bool,
+        pub gpu_device: c_int,
+    }
+
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct parakeet_full_params {
+        pub strategy: c_int,
+        pub n_threads: c_int,
+        pub offset_ms: c_int,
+        pub duration_ms: c_int,
+        pub no_context: bool,
+        pub audio_ctx: c_int,
+        pub new_segment_callback: *const c_void,
+        pub new_segment_callback_user_data: *mut c_void,
+        pub new_token_callback: *const c_void,
+        pub new_token_callback_user_data: *mut c_void,
+        pub progress_callback: *const c_void,
+        pub progress_callback_user_data: *mut c_void,
+        pub encoder_begin_callback: *const c_void,
+        pub encoder_begin_callback_user_data: *mut c_void,
+        pub abort_callback: *const c_void,
+        pub abort_callback_user_data: *mut c_void,
+    }
+
+    pub const PARAKEET_SAMPLING_GREEDY: c_int = 0;
+
+    extern "C" {
+        pub fn parakeet_context_default_params() -> parakeet_context_params;
+        pub fn parakeet_full_default_params(
+            strategy: c_int,
+        ) -> parakeet_full_params;
+        pub fn parakeet_init_from_file_with_params(
+            path: *const std::os::raw::c_char,
+            params: parakeet_context_params,
+        ) -> *mut parakeet_context;
+        pub fn parakeet_init_state(ctx: *mut parakeet_context) -> *mut parakeet_state;
+        pub fn parakeet_free(ctx: *mut parakeet_context);
+        pub fn parakeet_free_state(state: *mut parakeet_state);
+        pub fn parakeet_full_with_state(
+            ctx: *mut parakeet_context,
+            state: *mut parakeet_state,
+            params: parakeet_full_params,
+            samples: *const f32,
+            n_samples: c_int,
+        ) -> c_int;
+        pub fn parakeet_full_n_segments_from_state(state: *mut parakeet_state) -> c_int;
+        pub fn parakeet_full_get_segment_text_from_state(
+            state: *mut parakeet_state,
+            i_segment: c_int,
+        ) -> *const std::os::raw::c_char;
+    }
+}
+
+/// Parakeet TDT route (English-only; whisper.cpp's sibling library).
+/// Model loads per call, mirroring the whisper lifecycle.
+fn transcribe_parakeet(path: &std::path::Path, samples: &[f32]) -> Result<String, String> {
+    use parakeet_ffi::*;
+    let path_c = std::ffi::CString::new(path.display().to_string())
+        .map_err(|e| format!("path: {e}"))?;
+    unsafe {
+        let mut ctx_params = parakeet_context_default_params();
+        ctx_params.use_gpu = true;
+        let ctx = parakeet_init_from_file_with_params(path_c.as_ptr(), ctx_params);
+        if ctx.is_null() {
+            return Err("load parakeet model: InitError".to_string());
+        }
+        let state = parakeet_init_state(ctx);
+        if state.is_null() {
+            parakeet_free(ctx);
+            return Err("parakeet state alloc failed".to_string());
+        }
+        let mut params = parakeet_full_default_params(PARAKEET_SAMPLING_GREEDY);
+        params.n_threads = std::thread::available_parallelism()
+            .map(|n| n.get() as std::os::raw::c_int)
+            .unwrap_or(8);
+        let rc = parakeet_full_with_state(
+            ctx,
+            state,
+            params,
+            samples.as_ptr(),
+            samples.len() as std::os::raw::c_int,
+        );
+        if rc != 0 {
+            parakeet_free_state(state);
+            parakeet_free(ctx);
+            return Err(format!("parakeet decode failed: {rc}"));
+        }
+        let segments = parakeet_full_n_segments_from_state(state);
+        let mut text = String::new();
+        for i in 0..segments {
+            let ptr = parakeet_full_get_segment_text_from_state(state, i);
+            if !ptr.is_null() {
+                if let Ok(part) = std::ffi::CStr::from_ptr(ptr).to_str() {
+                    text.push_str(part);
+                }
+            }
+        }
+        parakeet_free_state(state);
+        parakeet_free(ctx);
+        Ok(text.trim().to_string())
+    }
 }

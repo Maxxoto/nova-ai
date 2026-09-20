@@ -24,6 +24,7 @@ pub enum ModelKind {
 #[serde(rename_all = "snake_case")]
 pub enum ModelFamily {
     Whisper,
+    Parakeet,
     Kokoro,
 }
 
@@ -44,7 +45,7 @@ pub const CATALOG: &[SttModel] = &[
         id: "whisper-base-q5",
         kind: ModelKind::Stt,
         family: ModelFamily::Whisper,
-        name: "Whisper base (q5_1)",
+        name: "Whisper Base",
         file: "ggml-base-q5_1.bin",
         url: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base-q5_1.bin",
         size_bytes: 59_707_625,
@@ -55,12 +56,23 @@ pub const CATALOG: &[SttModel] = &[
         id: "whisper-small-q5",
         kind: ModelKind::Stt,
         family: ModelFamily::Whisper,
-        name: "Whisper small (q5_1)",
+        name: "Whisper Small",
         file: "ggml-small-q5_1.bin",
         url: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small-q5_1.bin",
         size_bytes: 190_085_487,
         zh: "decent",
         note: "quality option; larger RAM envelope",
+    },
+    SttModel {
+        id: "parakeet-tdt-0.6b",
+        kind: ModelKind::Stt,
+        family: ModelFamily::Parakeet,
+        name: "Parakeet 0.6B",
+        file: "ggml-parakeet-tdt-0.6b-v2-q5_0.bin",
+        url: "https://huggingface.co/JoaoZaokk/parakeet-tdt-0.6b-v2-ggml/resolve/main/ggml-parakeet-tdt-0.6b-v2-q5_0.bin",
+        size_bytes: 427_494_308,
+        zh: "none",
+        note: "fast English STT (whisper.cpp libparakeet); no Chinese",
     },
 ];
 
@@ -72,7 +84,7 @@ pub const TTS_CATALOG: &[SttModel] = &[
         id: "kokoro-onnx-fp32",
         kind: ModelKind::TtsModel,
         family: ModelFamily::Kokoro,
-        name: "Kokoro 82M (fp32)",
+        name: "Kokoro 82M",
         file: "kokoro-tiny.onnx",
         url: "https://github.com/8b-is/kokoro-tiny/raw/main/models/0.onnx",
         size_bytes: 325_532_387,
@@ -393,7 +405,7 @@ mod tests {
         assert!(CATALOG.iter().all(|m| m.kind == ModelKind::Stt));
         assert!(CATALOG
             .iter()
-            .all(|m| matches!(m.family, ModelFamily::Whisper)));
+            .all(|m| matches!(m.family, ModelFamily::Whisper | ModelFamily::Parakeet)));
         assert!(TTS_CATALOG
             .iter()
             .all(|m| matches!(m.kind, ModelKind::TtsModel | ModelKind::TtsVoices)));
