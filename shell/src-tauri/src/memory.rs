@@ -622,6 +622,12 @@ impl MemoryRouter {
         serde_json::to_value(hits).map_err(|e| e.to_string())
     }
 
+    fn digest(&self) -> Result<serde_json::Value, String> {
+        let path = self.store.root.join("digest").join("MEMORY.md");
+        let text = std::fs::read_to_string(&path).unwrap_or_default();
+        Ok(serde_json::json!({ "digest": text }))
+    }
+
     fn lookup(&self, params: &serde_json::Value) -> Result<serde_json::Value, String> {
         let id = params
             .get("id")
@@ -636,13 +642,14 @@ impl MemoryRouter {
 
 impl RequestRouter for MemoryRouter {
     fn handles(&self, method: &str) -> bool {
-        matches!(method, "memory.search" | "memory.lookup")
+        matches!(method, "memory.search" | "memory.lookup" | "memory.digest")
     }
 
     fn route(&self, method: &str, params: &serde_json::Value) -> Result<serde_json::Value, String> {
         match method {
             "memory.search" => self.search(params),
             "memory.lookup" => self.lookup(params),
+            "memory.digest" => self.digest(),
             other => Err(format!("unknown method: {other}")),
         }
     }

@@ -340,3 +340,100 @@ def test_memory_search_flows_upstream_on_real_path() -> None:
         assert final is not None
     finally:
         sidecar.close()
+
+
+def _script_file(tmp_path: Path, items: list[dict]) -> str:
+    p = tmp_path / "script.json"
+    p.write_text(json.dumps(items), encoding="utf-8")
+    return str(p)
+
+
+def test_agent_loop_runs_tool_then_answers(tmp_path: Path) -> None:
+    import tempfile
+    with tempfile.TemporaryDirectory() as td:
+        script = _script_file(Path(td), [
+            {"content": "", "tool_calls": [
+                {"id": "c1", "name": "memory_search", "arguments": "{\"query\": \"krebs\"}"}
+            ]},
+            {"content": "Krebs makes ATP [mem_01H].", "tool_calls": []},
+        ])
+        sidecar = SidecarProcess(
+            {
+                "RUOXI_LLM_MOCK": "",
+                "RUOXI_LLM_SCRIPT": script,
+                "RUOXI_LLM_BASE_URL": "http://127.0.0.1:9",
+                "RUOXI_LLM_API_KEY": "sk-test",
+            }
+        )
+        try:
+            sidecar.request(1, "ping")
+            sidecar.send({
+                "jsonrpc": "2.0", "id": 2, "method": "session.ask",
+                "params": {"transcript": "what do you know about krebs", "capture_ids": []},
+            })
+            tool_steps: list[dict] = []
+            search_queries: list[str] = []
+            final = None
+            for _ in range(300):
+                msg = sidecar.read_msg()
+                if msg.get("method") == "memory.search":
+                    search_queries.append(str(msg["params"].get("query")))
+                    sidecar.send({"jsonrpc": "2.0", "id": msg["id"], "result": [
+                        {"id": "mem_01H", "kind": "semantic", "snippet": "krebs",
+                         "score": 0.9, "source_refs": []}
+                    ]})
+                elif msg.get("method") == "agent.tool_step":
+                    tool_steps.append(msg["params"])
+                elif msg.get("method") == "memory.digest":
+                    sidecar.send({"jsonrpc": "2.0", "id": msg["id"], "result": {"digest": ""}})
+                if msg.get("id") == 2:
+                    final = msg
+                    break
+            assert search_queries.count("krebs") == 1, "tool must proxy its own query"
+            assert len(search_queries) == 2, "one retrieval + one tool proxy"
+            assert tool_steps and tool_steps[0]["tool"] == "memory_search" and tool_steps[0]["of"] == 3
+            assert final is not None
+            assert "mem_01H" in str(final["result"]["answer"])
+        finally:
+            sidecar.close()
+
+
+def test_agent_loop_caps_tool_budget(tmp_path: Path) -> None:
+    import tempfile
+    with tempfile.TemporaryDirectory() as td:
+        tool_round = {"content": "", "tool_calls": [
+            {"id": "c", "name": "memory_search", "arguments": "{\"query\": \"x\"}"}
+        ]}
+        script = _script_file(Path(td), [tool_round, tool_round, tool_round,
+                                          {"content": "wrapped up", "tool_calls": []}])
+        sidecar = SidecarProcess(
+            {
+                "RUOXI_LLM_MOCK": "",
+                "RUOXI_LLM_SCRIPT": script,
+                "RUOXI_LLM_BASE_URL": "http://127.0.0.1:9",
+                "RUOXI_LLM_API_KEY": "sk-test",
+            }
+        )
+        try:
+            sidecar.request(1, "ping")
+            sidecar.send({
+                "jsonrpc": "2.0", "id": 2, "method": "session.ask",
+                "params": {"transcript": "keep searching", "capture_ids": []},
+            })
+            steps = 0
+            final = None
+            for _ in range(400):
+                msg = sidecar.read_msg()
+                if msg.get("method") == "memory.search":
+                    sidecar.send({"jsonrpc": "2.0", "id": msg["id"], "result": []})
+                elif msg.get("method") == "agent.tool_step":
+                    steps += 1
+                elif msg.get("method") == "memory.digest":
+                    sidecar.send({"jsonrpc": "2.0", "id": msg["id"], "result": {"digest": ""}})
+                if msg.get("id") == 2:
+                    final = msg
+                    break
+            assert steps == 3, f"hard budget must stop at 3, saw {steps}"
+            assert final["result"]["answer"] == "wrapped up"
+        finally:
+            sidecar.close()

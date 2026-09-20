@@ -13,6 +13,8 @@ import base64
 import json
 import logging
 import os
+from pathlib import Path
+from collections import deque
 import re
 import sys
 import time
@@ -51,6 +53,8 @@ class SidecarServer:
         self._busy = False
         self._pending: dict[str, asyncio.Future[dict[str, Any]]] = {}
         self._upstream_seq = 0
+        self._turns: deque[dict[str, str]] = deque(maxlen=6)
+        self._script_cursor = 0
 
     async def _send(self, message: RpcResponse | RpcNotification) -> None:
         line = message.model_dump_json(exclude_none=True)
@@ -153,6 +157,206 @@ class SidecarServer:
             await self._notify_token(answer_id, word + " ")
             await asyncio.sleep(_TOKEN_PAUSE_S)
 
+    _TOOL_METHODS = {
+        "memory_search": "memory.search",
+        "memory_lookup": "memory.lookup",
+        "capture_lookup": "capture.lookup",
+        "timeline_query": "timeline.query",
+    }
+
+    _TOOLS = [
+        {
+            "type": "function",
+            "function": {
+                "name": "memory_search",
+                "description": "Search the user's local memory (notes, facts, past Q/A). Cite results as [mem_id].",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string"},
+                        "types": {
+                            "type": "array",
+                            "items": {"type": "string", "enum": ["episodic", "semantic", "procedural"]},
+                        },
+                    },
+                    "required": ["query"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "memory_lookup",
+                "description": "Fetch one memory entry by id.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"id": {"type": "string"}},
+                    "required": ["id"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "capture_lookup",
+                "description": "Fetch a screenshot's metadata and file path by capture id.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"id": {"type": "string"}},
+                    "required": ["id"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "timeline_query",
+                "description": "List recent screen captures, newest first.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "day": {"type": "string", "description": "YYYY-MM-DD"},
+                        "app": {"type": "string"},
+                        "limit": {"type": "integer"},
+                    },
+                },
+            },
+        },
+    ]
+
+    _MAX_TOOL_STEPS = 3
+
+    async def _notify_tool_step(self, answer_id: str, step: int, tool: str) -> None:
+        await self._send(
+            RpcNotification(
+                method="agent.tool_step",
+                params={"answer_id": answer_id, "step": step, "of": self._MAX_TOOL_STEPS, "tool": tool},
+            )
+        )
+
+    async def _execute_tool(self, name: str, arguments: dict[str, Any]) -> str:
+        method = self._TOOL_METHODS.get(name)
+        if method is None:
+            return json.dumps({"error": f"unknown tool {name}"})
+        response = await self._request_upstream(method, arguments)
+        if response and "result" in response:
+            payload = json.dumps(response["result"], ensure_ascii=False, default=str)
+            return payload[:4000]
+        error = (response or {}).get("error", {})
+        return json.dumps({"error": error.get("message", "tool timeout")})
+
+    def _complete_with_tools(
+        self,
+        messages: list[dict[str, object]],
+        use_tools: bool,
+        has_image: bool,
+    ) -> dict[str, object]:
+        script = os.environ.get("RUOXI_LLM_SCRIPT", "").strip()
+        if script:
+            queue: list[dict[str, object]] = json.loads(
+                Path(script).read_text(encoding="utf-8")
+            )
+            item = queue[min(self._script_cursor, len(queue) - 1)]
+            self._script_cursor += 1
+            return item
+
+        import litellm
+
+        litellm.suppress_debug_info = True
+        base_url = os.environ.get("RUOXI_LLM_BASE_URL", "").strip()
+        api_key = os.environ.get("RUOXI_LLM_API_KEY", "").strip()
+        model = os.environ.get("RUOXI_LLM_MODEL", "").strip() or "gpt-4o-mini"
+        vision_model = os.environ.get("RUOXI_LLM_VISION_MODEL", "").strip() or model
+        kwargs: dict[str, object] = {
+            "model": f"openai/{vision_model if has_image else model}",
+            "api_base": base_url,
+            "api_key": api_key,
+            "messages": messages,
+            "timeout": 90,
+        }
+        if use_tools:
+            kwargs["tools"] = self._TOOLS
+        response = litellm.completion(**kwargs)
+        message = response.choices[0].message
+        return {
+            "content": message.content or "",
+            "tool_calls": [
+                {
+                    "id": tc.id,
+                    "name": tc.function.name,
+                    "arguments": tc.function.arguments,
+                }
+                for tc in (message.tool_calls or [])
+            ],
+        }
+
+    async def _agent_loop(
+        self, params: AskParams, messages: list[dict[str, object]], answer_id: str
+    ) -> str | None:
+        has_image = any(
+            isinstance(m.get("content"), list)
+            and any(part.get("type") == "image_url" for part in m["content"])
+            for m in messages
+        )
+        working = list(messages)
+        steps = 0
+        while True:
+            if self._abort.is_set():
+                return None
+            if steps >= self._MAX_TOOL_STEPS:
+                working.append(
+                    {
+                        "role": "system",
+                        "content": "Tool budget exhausted — answer now from what you have.",
+                    }
+                )
+            use_tools = steps < self._MAX_TOOL_STEPS
+            outcome = await asyncio.to_thread(
+                self._complete_with_tools, working, use_tools, has_image
+            )
+            tool_calls = outcome.get("tool_calls") or []
+            if not tool_calls or not use_tools:
+                text = str(outcome.get("content") or "").strip()
+                await self._stream_text(answer_id, text)
+                return None if self._abort.is_set() else text
+            for call in tool_calls:
+                if self._abort.is_set() or steps >= self._MAX_TOOL_STEPS:
+                    break
+                steps += 1
+                name = str(call.get("name"))
+                await self._notify_tool_step(answer_id, steps, name)
+                try:
+                    arguments = json.loads(call.get("arguments") or "{}")
+                except json.JSONDecodeError:
+                    arguments = {}
+                result = await self._execute_tool(name, arguments)
+                working.append(
+                    {
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [
+                            {
+                                "id": call.get("id"),
+                                "type": "function",
+                                "function": {"name": name, "arguments": call.get("arguments") or "{}"},
+                            }
+                        ],
+                    }
+                )
+                working.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": call.get("id"),
+                        "content": result,
+                    }
+                )
+
+    async def _memory_digest(self) -> str:
+        response = await self._request_upstream("memory.digest", {})
+        result = response.get("result") if response else None
+        text = result.get("digest") if isinstance(result, dict) else None
+        return str(text)[:1600] if text else ""
+
     async def _memory_hits(self, query: str) -> list[dict[str, object]]:
         response = await self._request_upstream(
             "memory.search", {"query": query, "k": 5}
@@ -229,8 +433,16 @@ class SidecarServer:
             block = self._memory_block(memory_hits)
             if block:
                 system = system + "\n\n" + block
+        digest = await self._memory_digest()
+        if digest:
+            system = system + "\n\nKnown facts about this user (digest):\n" + digest
+        history: list[dict[str, object]] = []
+        for turn in self._turns:
+            history.append({"role": "user", "content": turn["q"]})
+            history.append({"role": "assistant", "content": turn["a"]})
         return [
             {"role": "system", "content": system},
+            *history,
             {"role": "user", "content": content},
         ]
 
@@ -298,17 +510,15 @@ class SidecarServer:
             return None if self._abort.is_set() else text
         memory_hits = await self._memory_hits(params.transcript)
         messages = await self._build_messages(params, memory_hits)
-        loop = asyncio.get_running_loop()
-        aborted, text = await asyncio.to_thread(
-            self._complete_streaming, messages, answer_id, loop
-        )
+        text = await self._agent_loop(params, messages, answer_id)
         if text:
             text, bogus = self._strip_bogus_citations(text, memory_hits, params.capture_ids)
             if bogus:
                 logging.getLogger(__name__).warning(
                     "stripped %d bogus citation(s) from answer", bogus
                 )
-        return None if aborted else text
+            self._turns.append({"q": params.transcript, "a": text})
+        return text
 
     async def _lookup_capture(self, capture_id: str) -> str:
         response = await self._request_upstream(

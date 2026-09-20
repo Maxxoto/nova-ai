@@ -184,6 +184,13 @@ async fn stream_ask(
                 AskSignal::Token(delta) => {
                     emit(app, "panel:token", serde_json::json!({ "delta": delta }))
                 }
+                AskSignal::ToolStep(step, of, tool) => {
+                    emit(
+                        app,
+                        "panel:tool_step",
+                        serde_json::json!({ "step": step, "of": of, "tool": tool }),
+                    );
+                }
                 AskSignal::Complete(answer) => {
                     emit(app, "panel:complete", serde_json::json!({ "answer": answer }));
                     crate::tts::speak_answer(app, &answer);
@@ -217,6 +224,7 @@ enum AskEvent {
 #[derive(Debug, PartialEq, Eq)]
 enum AskSignal {
     Token(String),
+    ToolStep(u32, u32, String),
     Complete(String),
     Failed(String),
     Ignored,
@@ -241,10 +249,21 @@ fn classify_ask_line(line: &str, ask_id: u64) -> AskSignal {
             .unwrap_or("brain error");
         return AskSignal::Failed(message.to_string());
     }
-    if value.get("method").and_then(Value::as_str) == Some("agent.token") {
+    let method = value.get("method").and_then(Value::as_str);
+    if method == Some("agent.token") {
         if let Some(delta) = value.pointer("/params/delta").and_then(Value::as_str) {
             return AskSignal::Token(delta.to_string());
         }
+    }
+    if method == Some("agent.tool_step") {
+        let step = value.pointer("/params/step").and_then(Value::as_u64).unwrap_or(0) as u32;
+        let of = value.pointer("/params/of").and_then(Value::as_u64).unwrap_or(3) as u32;
+        let tool = value
+            .pointer("/params/tool")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        return AskSignal::ToolStep(step, of, tool);
     }
     AskSignal::Ignored
 }
