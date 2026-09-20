@@ -55,6 +55,9 @@ class SidecarServer:
         self._upstream_seq = 0
         self._turns: deque[dict[str, str]] = deque(maxlen=6)
         self._script_cursor = 0
+        self._latencies: deque[float] = deque(maxlen=200)
+        self._ask_started = 0.0
+        self._timing: dict[str, float] = {}
 
     async def _send(self, message: RpcResponse | RpcNotification) -> None:
         line = message.model_dump_json(exclude_none=True)
@@ -241,10 +244,11 @@ class SidecarServer:
             return json.dumps({"error": f"unknown tool {name}"})
         started = time.monotonic()
         response = await self._request_upstream(method, arguments)
+        elapsed = (time.monotonic() - started) * 1000
+        self._timing["tools"] = self._timing.get("tools", 0.0) + elapsed
         LOG.info(
             "tool %s(%s) | %.0fms",
-            name, json.dumps(arguments, ensure_ascii=False)[:60],
-            (time.monotonic() - started) * 1000,
+            name, json.dumps(arguments, ensure_ascii=False)[:60], elapsed,
         )
         if response and "result" in response:
             payload = json.dumps(response["result"], ensure_ascii=False, default=str)
@@ -324,9 +328,13 @@ class SidecarServer:
                     }
                 )
             use_tools = steps < self._MAX_TOOL_STEPS
+            llm_t0 = time.monotonic()
             outcome = await asyncio.to_thread(
                 self._complete_with_tools, working, use_tools, has_image
             )
+            self._timing["llm"] = self._timing.get("llm", 0.0) + (
+                time.monotonic() - llm_t0
+            ) * 1000
             tool_calls = outcome.get("tool_calls") or []
             if not tool_calls or not use_tools:
                 text = str(outcome.get("content") or "").strip()
@@ -334,6 +342,7 @@ class SidecarServer:
                 if self._abort.is_set():
                     LOG.info("ask %s | aborted before final", answer_id)
                     return None
+                self._timing["steps"] = float(steps)
                 LOG.info(
                     "ask %s | done | %d chars, %d tool step(s), %.0fms total",
                     answer_id, len(text), steps,
@@ -518,14 +527,30 @@ class SidecarServer:
 
     async def _agent_answer(self, params: AskParams, answer_id: str) -> str | None:
         self._ask_started = time.monotonic()
+        self._timing = {"retrieval": 0.0, "tools": 0.0, "llm": 0.0, "steps": 0.0}
         LOG.info(
             "ask %s | transcript=%r captures=%d",
             answer_id, params.transcript[:80], len(params.capture_ids),
         )
         mock = os.environ.get("RUOXI_LLM_MOCK", "").strip()
         if offline_mode():
-            LOG.info("ask %s | offline — refusing LLM call", answer_id)
-            text = "Offline mode is on — answers stay off until you disable it in Settings."
+            LOG.info("ask %s | offline — answering from memory", answer_id)
+            hits = await self._memory_hits(params.transcript)
+            if hits:
+                lines = ["Offline — from your memory:"]
+                for hit in hits:
+                    refs = ", ".join(str(r) for r in (hit.get("source_refs") or []))
+                    cite = f" (captures: {refs})" if refs else ""
+                    lines.append(
+                        f"- [{hit.get('id')}] ({hit.get('kind')}) "
+                        f"{str(hit.get('snippet', ''))[:200]}{cite}"
+                    )
+                text = "\n".join(lines)
+            else:
+                text = (
+                    "Offline — nothing in memory matches; this one needs the cloud. "
+                    "Retry when online (Settings → toggle offline off)."
+                )
             await self._stream_text(answer_id, text)
             return None if self._abort.is_set() else text
         if mock:
@@ -546,8 +571,10 @@ class SidecarServer:
             )
             await self._stream_text(answer_id, text)
             return None if self._abort.is_set() else text
+        retrieval_t0 = time.monotonic()
         memory_hits = await self._memory_hits(params.transcript)
         messages = await self._build_messages(params, memory_hits)
+        self._timing["retrieval"] = (time.monotonic() - retrieval_t0) * 1000
         text = await self._agent_loop(params, messages, answer_id)
         if text:
             text, bogus = self._strip_bogus_citations(text, memory_hits, params.capture_ids)
@@ -556,7 +583,27 @@ class SidecarServer:
                     "stripped %d bogus citation(s) from answer", bogus
                 )
             self._turns.append({"q": params.transcript, "a": text})
+            total = (time.monotonic() - self._ask_started) * 1000
+            self._latencies.append(total)
+            t = self._timing
+            LOG.info(
+                "latency | ask=%s retrieval=%.0fms tools=%.0fms llm=%.0fms steps=%d total=%.0fms",
+                answer_id, t["retrieval"], t["tools"], t["llm"], int(t["steps"]), total,
+            )
+            if len(self._latencies) % 10 == 0:
+                self._log_latency_summary()
         return text
+
+    def _log_latency_summary(self) -> None:
+        def pct(values: list[float], p: float) -> float:
+            ordered = sorted(values)
+            return ordered[min(int(len(ordered) * p), len(ordered) - 1)]
+
+        values = list(self._latencies)
+        LOG.info(
+            "latency | summary n=%d p50=%.0fms p95=%.0fms max=%.0fms",
+            len(values), pct(values, 0.5), pct(values, 0.95), max(values),
+        )
 
     async def _lookup_capture(self, capture_id: str) -> str:
         response = await self._request_upstream(

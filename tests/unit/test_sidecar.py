@@ -192,7 +192,7 @@ def test_ask_offline_gate_refuses_without_llm_call() -> None:
         assert final is not None
         result = final["result"]
         assert isinstance(result, dict)
-        assert "Offline mode" in str(result["answer"])
+        assert "needs the cloud" in str(result["answer"])
     finally:
         sidecar.close()
 
@@ -437,3 +437,55 @@ def test_agent_loop_caps_tool_budget(tmp_path: Path) -> None:
             assert final["result"]["answer"] == "wrapped up"
         finally:
             sidecar.close()
+
+
+def test_offline_answer_lists_memory_hits() -> None:
+    sidecar = SidecarProcess({"RUOXI_OFFLINE": "1"})
+    try:
+        sidecar.request(1, "ping")
+        sidecar.send({
+            "jsonrpc": "2.0", "id": 2, "method": "session.ask",
+            "params": {"transcript": "krebs notes", "capture_ids": []},
+        })
+        final = None
+        for _ in range(200):
+            msg = sidecar.read_msg()
+            if msg.get("method") == "memory.search":
+                sidecar.send({"jsonrpc": "2.0", "id": msg["id"], "result": [
+                    {"id": "mem_01H", "kind": "semantic", "snippet": "krebs makes ATP",
+                     "score": 0.9, "source_refs": ["cap_9"]}
+                ]})
+            if msg.get("id") == 2:
+                final = msg
+                break
+        assert final is not None
+        answer = str(final["result"]["answer"])
+        assert "from your memory" in answer
+        assert "mem_01H" in answer
+        assert "cap_9" in answer
+    finally:
+        sidecar.close()
+
+
+def test_offline_without_hits_says_needs_cloud() -> None:
+    sidecar = SidecarProcess({"RUOXI_OFFLINE": "1"})
+    try:
+        sidecar.request(1, "ping")
+        sidecar.send({
+            "jsonrpc": "2.0", "id": 2, "method": "session.ask",
+            "params": {"transcript": "quantum flurbification", "capture_ids": []},
+        })
+        final = None
+        for _ in range(200):
+            msg = sidecar.read_msg()
+            if msg.get("method") == "memory.search":
+                sidecar.send({"jsonrpc": "2.0", "id": msg["id"], "result": []})
+            if msg.get("id") == 2:
+                final = msg
+                break
+        assert final is not None
+        answer = str(final["result"]["answer"])
+        assert "needs the cloud" in answer
+        assert "Retry when online" in answer
+    finally:
+        sidecar.close()
