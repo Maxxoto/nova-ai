@@ -299,8 +299,10 @@ class SidecarServer:
             kwargs["tools"] = self._TOOLS
         response = litellm.completion(**kwargs)
         message = response.choices[0].message
+        reasoning = getattr(message, "reasoning_content", None)
         return {
             "content": message.content or "",
+            "reasoning_content": str(reasoning) if reasoning else "",
             "tool_calls": [
                 {
                     "id": tc.id,
@@ -410,19 +412,20 @@ class SidecarServer:
                 except json.JSONDecodeError:
                     arguments = {}
                 result = await self._execute_tool(name, arguments)
-                working.append(
-                    {
-                        "role": "assistant",
-                        "content": None,
-                        "tool_calls": [
-                            {
-                                "id": call.get("id"),
-                                "type": "function",
-                                "function": {"name": name, "arguments": call.get("arguments") or "{}"},
-                            }
-                        ],
-                    }
-                )
+                echoed: dict[str, object] = {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": call.get("id"),
+                            "type": "function",
+                            "function": {"name": name, "arguments": call.get("arguments") or "{}"},
+                        }
+                    ],
+                }
+                if outcome.get("reasoning_content"):
+                    echoed["reasoning_content"] = outcome["reasoning_content"]
+                working.append(echoed)
                 working.append(
                     {
                         "role": "tool",
@@ -471,6 +474,15 @@ class SidecarServer:
             "If you use a memory above, cite it as [mem_id] in the answer; "
             "cite captures as [cap_id]. Never cite ids that are not listed here."
         )
+        return "\n".join(lines)
+
+    def _episodic_block(self) -> str:
+        if not self._turns:
+            return ""
+        lines = ["", "Recent conversation (context only):"]
+        for turn in self._turns:
+            lines.append(f"User: {turn['q']}")
+            lines.append(f"Ruoxi: {turn['a'][:400]}")
         return "\n".join(lines)
 
     @staticmethod
@@ -525,13 +537,9 @@ class SidecarServer:
         digest = await self._memory_digest()
         if digest:
             system = system + "\n\nKnown facts about this user (digest):\n" + digest
-        history: list[dict[str, object]] = []
-        for turn in self._turns:
-            history.append({"role": "user", "content": turn["q"]})
-            history.append({"role": "assistant", "content": turn["a"]})
+        system = system + self._episodic_block()
         return [
             {"role": "system", "content": system},
-            *history,
             {"role": "user", "content": content},
         ]
 

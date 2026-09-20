@@ -530,3 +530,18 @@ def test_capture_ask_degrades_when_tools_and_image_rejected(tmp_path: Path) -> N
             assert "Answered without tools" in str(final["result"]["answer"])
         finally:
             sidecar.close()
+
+
+def test_episodic_block_flattens_without_assistant_roles() -> None:
+    from app.interfaces.sidecar.server import SidecarServer
+
+    server = SidecarServer.__new__(SidecarServer)
+    server._turns = [
+        {"q": "first question", "a": "first answer"},
+        {"q": "second question", "a": "second answer"},
+    ]
+    block = server._episodic_block()
+    assert "first question" in block and "Ruoxi: first answer" in block
+    assert "context only" in block
+    server._turns = []
+    assert server._episodic_block() == ""
