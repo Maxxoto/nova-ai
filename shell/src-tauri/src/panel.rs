@@ -47,6 +47,8 @@ pub fn apply_macos_panel_style(app: &AppHandle) {
 pub fn show(app: &AppHandle) {
     if let Some(win) = app.get_webview_window(PANEL_LABEL) {
         let _ = win.show();
+        if let Err(e) = win.set_always_on_top(true) { eprintln!("ruoxi: panel always-on-top: {e}"); }
+        if let Err(e) = win.set_visible_on_all_workspaces(true) { eprintln!("ruoxi: panel visible-on-all-workspaces: {e}"); }
         PANEL_VISIBLE.store(true, Ordering::Relaxed);
         eprintln!("ruoxi: panel shown (non-activating)");
     }

@@ -12,7 +12,7 @@ const CHIP_GAP = 6;
 /** Viewport inset used when clamping the chip against the edges. */
 const EDGE_INSET = 0;
 
-const HINT = "region · drag to capture · esc to cancel";
+const HINT = "Drag to box what you want explained";
 
 const HANDLE_POSITIONS = ["left-0 top-0", "left-full top-0", "left-0 top-full", "left-full top-full"] as const;
 
@@ -127,7 +127,7 @@ export default function CaptureOverlay({ selection }: { selection?: OverlaySelec
       {rect && (
         <>
           <div
-            className="pointer-events-none absolute z-10 rounded-sharp border-[1.5px] border-primary"
+            className="pointer-events-none absolute z-10 rounded-sharp border-2 border-primary bg-primary/[0.08]"
             style={{
               left: rect.x,
               top: rect.y,
@@ -140,14 +140,14 @@ export default function CaptureOverlay({ selection }: { selection?: OverlaySelec
               <span
                 key={position}
                 aria-hidden
-                className={`absolute h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 border border-primary bg-card ${position}`}
+                className={`absolute h-[7px] w-[7px] -translate-x-1/2 -translate-y-1/2 border-[1.5px] border-primary bg-card ${position}`}
               />
             ))}
           </div>
 
           <div
             ref={chipRef}
-            className="pointer-events-none absolute z-20 whitespace-nowrap rounded-sm bg-primary px-1.5 py-1 font-mono text-[11px] font-medium leading-none text-primary-foreground"
+            className="pointer-events-none absolute z-20 whitespace-nowrap rounded-[6px] bg-primary px-2 py-[3px] font-mono text-[11px] font-medium leading-none text-primary-foreground"
             style={{ left: chipLeft, top: chipTop }}
           >
             {Math.round(rect.w)} × {Math.round(rect.h)} px
@@ -155,8 +155,13 @@ export default function CaptureOverlay({ selection }: { selection?: OverlaySelec
         </>
       )}
 
-      <p className="pointer-events-none absolute left-1/2 top-3 z-20 -translate-x-1/2 whitespace-nowrap rounded-sm border border-border bg-card/[0.92] px-2 py-1 font-mono text-[11px] font-medium leading-none text-muted-foreground">
-        {HINT}
+      {/* top-11 keeps the hint clear of the menu bar and the macOS notch. */}
+      <p className="pointer-events-none absolute left-1/2 top-11 z-20 inline-flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-pill border border-border bg-card/[0.92] px-3 py-2 font-ui text-[11px] leading-none text-muted-foreground shadow-e3">
+        <span className="rounded-pill border border-primary/40 bg-primary-soft px-2 py-0.5 font-mono text-[11px] uppercase tracking-[0.04em] text-primary">
+          region
+        </span>
+        <span>{HINT}</span>
+        <kbd className="font-mono text-[11px] text-foreground">Esc</kbd>
       </p>
     </div>
   );

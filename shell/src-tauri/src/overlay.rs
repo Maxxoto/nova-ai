@@ -106,6 +106,13 @@ pub fn start(app: &tauri::AppHandle) -> Result<(), String> {
 
     if let Some(win) = app.get_webview_window(OVERLAY_LABEL) {
         let _ = win.show();
+        if let Err(e) = win.set_always_on_top(true) {
+            eprintln!("ruoxi: overlay always-on-top: {e}");
+        }
+        if let Err(e) = win.set_visible_on_all_workspaces(true) {
+            eprintln!("ruoxi: overlay visible-on-all-workspaces: {e}");
+        }
+        eprintln!("ruoxi: overlay re-shown (existing window)");
         let _ = win.set_focus();
         return Ok(());
     }
@@ -154,6 +161,13 @@ pub fn start(app: &tauri::AppHandle) -> Result<(), String> {
     match built {
         Ok(win) => {
             let _ = win.show();
+            if let Err(e) = win.set_always_on_top(true) {
+                eprintln!("ruoxi: overlay always-on-top: {e}");
+            }
+            if let Err(e) = win.set_visible_on_all_workspaces(true) {
+                eprintln!("ruoxi: overlay visible-on-all-workspaces: {e}");
+            }
+            eprintln!("ruoxi: overlay built");
             let _ = win.set_focus();
             Ok(())
         }
