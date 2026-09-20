@@ -297,7 +297,7 @@ pub fn show_onboarding_window(app: &tauri::AppHandle) {
         WebviewUrl::App("index.html?view=onboarding".into()),
     )
     .title("Ruòxī — Setup")
-    .inner_size(720.0, 780.0)
+    .inner_size(720.0, 700.0)
     .resizable(true)
     .decorations(true)
     .always_on_top(false)

@@ -479,10 +479,12 @@ export default function App() {
   if (onboardingView) {
     return (
       <div
-        className={`min-h-screen bg-background p-6${reducedMotion ? " reduced-motion rm-halve" : ""}`}
+        className={`flex h-screen bg-background p-6${reducedMotion ? " reduced-motion rm-halve" : ""}`}
       >
-        <div className="grid min-h-[560px] place-items-center rounded-lg border border-border-strong bg-muted px-6 py-8">
-          <OnboardingRitual initialStep={onboardingStep} reducedMotion={reducedMotion} />
+        <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-border-strong bg-muted">
+          <div className="grid min-h-full w-full place-items-center justify-center px-6 py-8">
+            <OnboardingRitual initialStep={onboardingStep} reducedMotion={reducedMotion} />
+          </div>
         </div>
       </div>
     );
