@@ -63,19 +63,25 @@ pub fn apply_macos_panel_style(app: &AppHandle) {
     }
 }
 
-/// Raises the panel above fullscreen apps. Must run AFTER Tauri's
-/// always-on-top, which resets the level to floating on every call.
-pub(crate) fn raise_above_fullscreen(win: &tauri::WebviewWindow) {
-    let Ok(raw) = win.ns_window() else {
-        return;
-    };
-    let ns_win = raw as *mut objc2::runtime::AnyObject;
-    unsafe {
-        let (): () = objc2::msg_send![&*ns_win, setHidesOnDeactivate: false];
-        let (): () = objc2::msg_send![&*ns_win, setLevel: NS_POPUP_MENU_WINDOW_LEVEL];
-        let level: isize = objc2::msg_send![&*ns_win, level];
-        eprintln!("ruoxi: panel window level {level} (above fullscreen)");
-    }
+/// Raises a window above fullscreen apps. Must run AFTER Tauri's
+/// always-on-top, which resets the level to floating on every call — and on
+/// the main thread: setLevel reaches WindowManagement, which asserts when
+/// touched from a background thread (crashed the shell, report 2026-09-21).
+pub(crate) fn raise_above_fullscreen(app: &AppHandle, win: &tauri::WebviewWindow, label: &str) {
+    let win = win.clone();
+    let label = label.to_string();
+    let _ = app.run_on_main_thread(move || {
+        let Ok(raw) = win.ns_window() else {
+            return;
+        };
+        let ns_win = raw as *mut objc2::runtime::AnyObject;
+        unsafe {
+            let (): () = objc2::msg_send![&*ns_win, setHidesOnDeactivate: false];
+            let (): () = objc2::msg_send![&*ns_win, setLevel: NS_POPUP_MENU_WINDOW_LEVEL];
+            let level: isize = objc2::msg_send![&*ns_win, level];
+            eprintln!("ruoxi: {label} window level {level} (above fullscreen)");
+        }
+    });
 }
 
 pub fn show(app: &AppHandle) {
@@ -83,7 +89,7 @@ pub fn show(app: &AppHandle) {
         let _ = win.show();
         if let Err(e) = win.set_always_on_top(true) { eprintln!("ruoxi: panel always-on-top: {e}"); }
         if let Err(e) = win.set_visible_on_all_workspaces(true) { eprintln!("ruoxi: panel visible-on-all-workspaces: {e}"); }
-        raise_above_fullscreen(&win);
+        raise_above_fullscreen(app, &win, "panel");
         PANEL_VISIBLE.store(true, Ordering::Relaxed);
         eprintln!("ruoxi: panel shown (non-activating)");
     }
