@@ -9,6 +9,7 @@
 pub mod brain;
 pub mod capture;
 pub mod capture_store;
+pub mod memory;
 pub mod displays;
 pub mod hotkeys;
 pub mod llm;
