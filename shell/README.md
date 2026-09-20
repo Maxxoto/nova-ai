@@ -6,10 +6,18 @@ the design contract lives in [docs/DESIGN.md](../../docs/DESIGN.md).
 
 ## Run (dev)
 
-One command from the repo root — installs deps, builds the UI, runs the tray shell:
+One command from the repo root installs deps, builds the UI, and runs the tray shell (static build, no hot reload):
 
 ```bash
 make shell
+```
+
+For dev mode, `make shell-dev` starts the Vite dev server on
+http://localhost:5173 (HMR) alongside `tauri dev`: UI edits hot-reload, Rust
+edits rebuild and relaunch the app.
+
+```bash
+make shell-dev
 ```
 
 The shell spawns the Python brain sidecar (`python3 -m app.interfaces.sidecar`
@@ -20,6 +28,9 @@ repo venv, or export `PYTHONPATH`:
 ```bash
 PYTHONPATH=src cargo run   # from shell/src-tauri
 ```
+
+The dev/build hooks in `tauri.conf.json` use an explicit cwd, so `tauri dev` /
+`tauri build` work from any directory.
 
 First run: grant **Screen Recording** (without it macOS hands the app a wallpaper-only
 image — no other apps' windows) and **Accessibility** (hold-to-talk). The setup ritual
