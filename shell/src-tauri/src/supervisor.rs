@@ -368,6 +368,10 @@ impl SidecarProcess {
             .stderr(Stdio::inherit())
             .kill_on_drop(true)
             .spawn()?;
+        eprintln!(
+            "ruoxi: brain sidecar spawned ({} {:?}, pid {:?})",
+            settings.sidecar_command, settings.sidecar_args, child.id()
+        );
         let (stdin, stdout) = match (child.stdin.take(), child.stdout.take()) {
             (Some(stdin), Some(stdout)) => (stdin, stdout),
             _ => {

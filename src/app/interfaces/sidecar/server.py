@@ -237,8 +237,15 @@ class SidecarServer:
     async def _execute_tool(self, name: str, arguments: dict[str, Any]) -> str:
         method = self._TOOL_METHODS.get(name)
         if method is None:
+            LOG.warning("tool %s | unknown", name)
             return json.dumps({"error": f"unknown tool {name}"})
+        started = time.monotonic()
         response = await self._request_upstream(method, arguments)
+        LOG.info(
+            "tool %s(%s) | %.0fms",
+            name, json.dumps(arguments, ensure_ascii=False)[:60],
+            (time.monotonic() - started) * 1000,
+        )
         if response and "result" in response:
             payload = json.dumps(response["result"], ensure_ascii=False, default=str)
             return payload[:4000]
@@ -253,6 +260,7 @@ class SidecarServer:
     ) -> dict[str, object]:
         script = os.environ.get("RUOXI_LLM_SCRIPT", "").strip()
         if script:
+            LOG.info("llm.call | scripted turn")
             queue: list[dict[str, object]] = json.loads(
                 Path(script).read_text(encoding="utf-8")
             )
@@ -267,8 +275,13 @@ class SidecarServer:
         api_key = os.environ.get("RUOXI_LLM_API_KEY", "").strip()
         model = os.environ.get("RUOXI_LLM_MODEL", "").strip() or "gpt-4o-mini"
         vision_model = os.environ.get("RUOXI_LLM_VISION_MODEL", "").strip() or model
+        chosen = f"openai/{vision_model if has_image else model}"
+        LOG.info(
+            "llm.call | model=%s image=%s tools=%s msgs=%d",
+            chosen, has_image, use_tools, len(messages),
+        )
         kwargs: dict[str, object] = {
-            "model": f"openai/{vision_model if has_image else model}",
+            "model": chosen,
             "api_base": base_url,
             "api_key": api_key,
             "messages": messages,
@@ -318,7 +331,15 @@ class SidecarServer:
             if not tool_calls or not use_tools:
                 text = str(outcome.get("content") or "").strip()
                 await self._stream_text(answer_id, text)
-                return None if self._abort.is_set() else text
+                if self._abort.is_set():
+                    LOG.info("ask %s | aborted before final", answer_id)
+                    return None
+                LOG.info(
+                    "ask %s | done | %d chars, %d tool step(s), %.0fms total",
+                    answer_id, len(text), steps,
+                    (time.monotonic() - self._ask_started) * 1000,
+                )
+                return text
             for call in tool_calls:
                 if self._abort.is_set() or steps >= self._MAX_TOOL_STEPS:
                     break
@@ -355,14 +376,23 @@ class SidecarServer:
         response = await self._request_upstream("memory.digest", {})
         result = response.get("result") if response else None
         text = result.get("digest") if isinstance(result, dict) else None
-        return str(text)[:1600] if text else ""
+        digest = str(text)[:1600] if text else ""
+        LOG.info("memory.digest | %d chars", len(digest))
+        return digest
 
     async def _memory_hits(self, query: str) -> list[dict[str, object]]:
+        started = time.monotonic()
         response = await self._request_upstream(
             "memory.search", {"query": query, "k": 5}
         )
         result = response.get("result") if response else None
-        return result if isinstance(result, list) else []
+        hits = result if isinstance(result, list) else []
+        LOG.info(
+            "memory.search %r | %d hit(s) %.0fms %s",
+            query[:40], len(hits), (time.monotonic() - started) * 1000,
+            ",".join(str(h.get("id", "?")) for h in hits[:3]),
+        )
+        return hits
 
     @staticmethod
     def _memory_block(hits: list[dict[str, object]]) -> str:
@@ -487,12 +517,19 @@ class SidecarServer:
         return False, "".join(parts)
 
     async def _agent_answer(self, params: AskParams, answer_id: str) -> str | None:
+        self._ask_started = time.monotonic()
+        LOG.info(
+            "ask %s | transcript=%r captures=%d",
+            answer_id, params.transcript[:80], len(params.capture_ids),
+        )
         mock = os.environ.get("RUOXI_LLM_MOCK", "").strip()
         if offline_mode():
+            LOG.info("ask %s | offline — refusing LLM call", answer_id)
             text = "Offline mode is on — answers stay off until you disable it in Settings."
             await self._stream_text(answer_id, text)
             return None if self._abort.is_set() else text
         if mock:
+            LOG.info("ask %s | mock mode", answer_id)
             text = (
                 f"[mock] Heard: {params.transcript!r} about "
                 f"{len(params.capture_ids)} capture(s)."
@@ -502,6 +539,7 @@ class SidecarServer:
         base_url = os.environ.get("RUOXI_LLM_BASE_URL", "").strip()
         api_key = os.environ.get("RUOXI_LLM_API_KEY", "").strip()
         if not base_url or not api_key:
+            LOG.info("ask %s | unconfigured — no endpoint/key", answer_id)
             text = (
                 "The brain isn't configured yet — add your endpoint and API key "
                 "in Settings → Brain (LLM)."
@@ -663,8 +701,17 @@ def _err(code: ErrorCode, message: str) -> RpcError:
     return RpcError(code=int(code), message=message)
 
 
+LOG = logging.getLogger("ruoxi.py")
+
+
 async def serve(reader: TextIO | None = None, writer: TextIO | None = None) -> None:
     """Entry point: serve stdio until EOF (see ``python -m app.interfaces.sidecar``)."""
+    logging.basicConfig(
+        level=logging.INFO,
+        stream=sys.stderr,
+        format="py   | %(message)s",
+    )
+    LOG.info("agentic loop sidecar starting (pid %s)", os.getpid())
     server = SidecarServer(
         reader if reader is not None else sys.stdin,
         writer if writer is not None else sys.stdout,
