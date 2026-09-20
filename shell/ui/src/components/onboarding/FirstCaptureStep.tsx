@@ -140,7 +140,7 @@ export default function FirstCaptureStep({
       </h2>
       <p className={`${BODY} mt-2 max-w-[52ch]`}>Box the paragraph, then ask.</p>
 
-      <div className="mt-5 grid grid-cols-1 items-start gap-4 sm:grid-cols-[1fr_2fr]">
+      <div className="mt-5 grid grid-cols-1 items-stretch gap-4 sm:grid-cols-[1fr_2fr]">
         <div className="p-[22px]">
           <div className="max-w-[600px] overflow-hidden rounded-md border border-border bg-card shadow-e1">
             <div className="flex items-center gap-2.5 border-b border-border bg-muted px-3 py-2">
@@ -202,9 +202,9 @@ export default function FirstCaptureStep({
           <p className={`${CAPTION} mt-2.5`}>Preview only — this demo captured nothing on your screen.</p>
         </div>
 
-        <div className="grid min-h-[190px] place-items-center">
+        <div className="grid h-full min-h-[190px] place-items-center">
           {phase === "idle" ? (
-            <div className="w-full rounded-lg border border-dashed border-border-strong px-5 py-10 text-center">
+            <div className="flex h-full w-full flex-col items-center justify-center self-stretch rounded-lg border border-dashed border-border-strong px-5 text-center">
               <span className={CAPTION}>Nothing captured yet.</span>
             </div>
           ) : (

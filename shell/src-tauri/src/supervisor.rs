@@ -198,6 +198,7 @@ async fn stream_ask(
                     return true;
                 }
                 AskSignal::Failed(message) => {
+                    eprintln!("ruoxi: ask failed: {message}");
                     emit(app, "panel:error", serde_json::json!({ "message": message }));
                     return true;
                 }

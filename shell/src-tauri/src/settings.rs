@@ -297,7 +297,7 @@ pub fn show_onboarding_window(app: &tauri::AppHandle) {
         WebviewUrl::App("index.html?view=onboarding".into()),
     )
     .title("Ruòxī — Setup")
-    .inner_size(720.0, 780.0)
+    .inner_size(640.0, 620.0)
     .resizable(true)
     .decorations(true)
     .always_on_top(false)
@@ -313,6 +313,70 @@ pub fn show_onboarding_window(app: &tauri::AppHandle) {
 #[tauri::command]
 pub fn show_onboarding(app: tauri::AppHandle) {
     show_onboarding_window(&app);
+}
+
+/// Hug the onboarding window to the wizard's measured height (logical px),
+/// keeping width at 640 so the wizard surface fills the window edge-to-edge
+/// (no page margins). The height is clamped to `[420, monitor_height − 56]`
+/// (28pt of breathing room top and bottom) and the window is re-positioned so
+/// it stays fully on screen: vertically centred when it fits, top-pinned at
+/// 28pt when the tall first-capture step has to scroll, and horizontally
+/// centred on its monitor. An unknown monitor falls back to a 982pt-tall
+/// primary.
+#[tauri::command]
+pub fn resize_onboarding(app: tauri::AppHandle, height: f64, content_height: Option<f64>) {
+    use tauri::{LogicalPosition, LogicalSize, Manager};
+
+    let Some(win) = app.get_webview_window(ONBOARDING_LABEL) else {
+        eprintln!("ruoxi: resize_onboarding: onboarding window not found");
+        return;
+    };
+
+    let scale_factor = win.scale_factor().unwrap_or(1.0);
+
+    let monitor = win
+        .current_monitor()
+        .ok()
+        .flatten()
+        .or_else(|| win.primary_monitor().ok().flatten());
+    let (monitor_x, monitor_w, monitor_h) = match monitor {
+        Some(m) => {
+            let m_scale = m.scale_factor();
+            let size = m.size().to_logical::<f64>(m_scale);
+            let pos = m.position().to_logical::<f64>(m_scale);
+            (pos.x, size.width, size.height)
+        }
+        None => (0.0, 736.0, 982.0),
+    };
+
+    let max_height = (monitor_h - 56.0).max(420.0);
+    let content = height.clamp(420.0, max_height);
+
+    // On macOS `set_size` and `inner_size` report the window *frame*, not the
+    // webview content area, so the titlebar inset must be added back or the
+    // wizard sits ~28px too low. `content_height` is the live webview viewport
+    // (window.innerHeight) sent by the frontend.
+    let frame_h = win
+        .outer_size()
+        .map(|s| s.to_logical::<f64>(scale_factor).height)
+        .unwrap_or(0.0);
+    let viewport_h = content_height
+        .filter(|v| v.is_finite() && *v > 0.0)
+        .unwrap_or(frame_h);
+    let chrome = (frame_h - viewport_h).max(0.0);
+
+    let target = content + chrome;
+    if let Err(e) = win.set_size(LogicalSize::new(640.0, target)) {
+        eprintln!("ruoxi: resize_onboarding set_size failed: {e}");
+    }
+
+    // Uses `content`, not `target`, because at the `max_height` clamp the 28pt
+    // top pin plus the ~28pt chrome lands the bottom edge exactly on-screen.
+    let x = monitor_x + (monitor_w - 640.0) / 2.0;
+    let y = ((monitor_h - content) / 2.0).max(28.0);
+    if let Err(e) = win.set_position(LogicalPosition::new(x, y)) {
+        eprintln!("ruoxi: resize_onboarding set_position failed: {e}");
+    }
 }
 
 #[cfg(test)]

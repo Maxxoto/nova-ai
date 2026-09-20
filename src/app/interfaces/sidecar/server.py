@@ -264,12 +264,16 @@ class SidecarServer:
     ) -> dict[str, object]:
         script = os.environ.get("RUOXI_LLM_SCRIPT", "").strip()
         if script:
-            LOG.info("llm.call | scripted turn")
+            LOG.info(
+                "llm.call | scripted turn tools=%s image=%s", use_tools, has_image
+            )
             queue: list[dict[str, object]] = json.loads(
                 Path(script).read_text(encoding="utf-8")
             )
             item = queue[min(self._script_cursor, len(queue) - 1)]
             self._script_cursor += 1
+            if item.get("raise"):
+                raise RuntimeError(str(item["raise"]))
             return item
 
         import litellm
@@ -295,8 +299,10 @@ class SidecarServer:
             kwargs["tools"] = self._TOOLS
         response = litellm.completion(**kwargs)
         message = response.choices[0].message
+        reasoning = getattr(message, "reasoning_content", None)
         return {
             "content": message.content or "",
+            "reasoning_content": str(reasoning) if reasoning else "",
             "tool_calls": [
                 {
                     "id": tc.id,
@@ -306,6 +312,54 @@ class SidecarServer:
                 for tc in (message.tool_calls or [])
             ],
         }
+
+    @staticmethod
+    def _strip_images(messages: list[dict[str, object]]) -> list[dict[str, object]]:
+        stripped = []
+        for message in messages:
+            content = message.get("content")
+            if not isinstance(content, list):
+                stripped.append(message)
+                continue
+            parts = []
+            for part in content:
+                if isinstance(part, dict) and part.get("type") == "image_url":
+                    parts.append({"type": "text", "text": "[image omitted]"})
+                else:
+                    parts.append(part)
+            stripped.append({**message, "content": parts})
+        return stripped
+
+    async def _llm_call_degraded(
+        self, working: list[dict[str, object]], use_tools: bool, has_image: bool
+    ) -> dict[str, object]:
+        attempts: list[tuple[bool, bool]] = []
+        if use_tools and has_image:
+            attempts = [(True, True), (False, True), (False, False)]
+        elif use_tools:
+            attempts = [(True, False), (False, False)]
+        elif has_image:
+            attempts = [(False, True), (False, False)]
+        else:
+            attempts = [(False, False)]
+        last_exc: Exception | None = None
+        for tools, image in attempts:
+            messages = working if image else self._strip_images(working)
+            try:
+                outcome = await asyncio.to_thread(
+                    self._complete_with_tools, messages, tools, image
+                )
+                if (tools, image) != attempts[0]:
+                    LOG.warning(
+                        "llm.call degraded to tools=%s image=%s after provider rejection",
+                        tools, image,
+                    )
+                return outcome
+            except Exception as exc:
+                last_exc = exc
+                LOG.warning("llm.call tools=%s image=%s failed: %s", tools, image, exc)
+        assert last_exc is not None
+        raise last_exc
 
     async def _agent_loop(
         self, params: AskParams, messages: list[dict[str, object]], answer_id: str
@@ -329,9 +383,7 @@ class SidecarServer:
                 )
             use_tools = steps < self._MAX_TOOL_STEPS
             llm_t0 = time.monotonic()
-            outcome = await asyncio.to_thread(
-                self._complete_with_tools, working, use_tools, has_image
-            )
+            outcome = await self._llm_call_degraded(working, use_tools, has_image)
             self._timing["llm"] = self._timing.get("llm", 0.0) + (
                 time.monotonic() - llm_t0
             ) * 1000
@@ -360,19 +412,20 @@ class SidecarServer:
                 except json.JSONDecodeError:
                     arguments = {}
                 result = await self._execute_tool(name, arguments)
-                working.append(
-                    {
-                        "role": "assistant",
-                        "content": None,
-                        "tool_calls": [
-                            {
-                                "id": call.get("id"),
-                                "type": "function",
-                                "function": {"name": name, "arguments": call.get("arguments") or "{}"},
-                            }
-                        ],
-                    }
-                )
+                echoed: dict[str, object] = {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": call.get("id"),
+                            "type": "function",
+                            "function": {"name": name, "arguments": call.get("arguments") or "{}"},
+                        }
+                    ],
+                }
+                if outcome.get("reasoning_content"):
+                    echoed["reasoning_content"] = outcome["reasoning_content"]
+                working.append(echoed)
                 working.append(
                     {
                         "role": "tool",
@@ -421,6 +474,15 @@ class SidecarServer:
             "If you use a memory above, cite it as [mem_id] in the answer; "
             "cite captures as [cap_id]. Never cite ids that are not listed here."
         )
+        return "\n".join(lines)
+
+    def _episodic_block(self) -> str:
+        if not self._turns:
+            return ""
+        lines = ["", "Recent conversation (context only):"]
+        for turn in self._turns:
+            lines.append(f"User: {turn['q']}")
+            lines.append(f"Ruoxi: {turn['a'][:400]}")
         return "\n".join(lines)
 
     @staticmethod
@@ -475,13 +537,9 @@ class SidecarServer:
         digest = await self._memory_digest()
         if digest:
             system = system + "\n\nKnown facts about this user (digest):\n" + digest
-        history: list[dict[str, object]] = []
-        for turn in self._turns:
-            history.append({"role": "user", "content": turn["q"]})
-            history.append({"role": "assistant", "content": turn["a"]})
+        system = system + self._episodic_block()
         return [
             {"role": "system", "content": system},
-            *history,
             {"role": "user", "content": content},
         ]
 
@@ -702,6 +760,7 @@ class SidecarServer:
                 )
             )
         except Exception as exc:
+            LOG.exception("ask %s | failed", answer_id)
             await self._send(
                 RpcResponse(
                     id=request_id,

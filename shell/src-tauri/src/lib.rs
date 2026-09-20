@@ -68,6 +68,7 @@ pub fn run() {
             settings::show_settings,
             settings::show_onboarding,
             settings::hide_onboarding,
+            settings::resize_onboarding,
             hotkeys::validate_hotkey,
             panel::show_panel,
             panel::hide_panel,

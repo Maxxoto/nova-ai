@@ -489,3 +489,59 @@ def test_offline_without_hits_says_needs_cloud() -> None:
         assert "Retry when online" in answer
     finally:
         sidecar.close()
+
+
+def test_capture_ask_degrades_when_tools_and_image_rejected(tmp_path: Path) -> None:
+    import tempfile
+    with tempfile.TemporaryDirectory() as td:
+        script = _script_file(Path(td), [
+            {"raise": "vision endpoint rejects tools"},
+            {"content": "Answered without tools, image kept.", "tool_calls": []},
+        ])
+        sidecar = SidecarProcess(
+            {
+                "RUOXI_LLM_MOCK": "",
+                "RUOXI_LLM_SCRIPT": script,
+                "RUOXI_LLM_BASE_URL": "http://127.0.0.1:9",
+                "RUOXI_LLM_API_KEY": "sk-test",
+            }
+        )
+        try:
+            sidecar.request(1, "ping")
+            sidecar.send({
+                "jsonrpc": "2.0", "id": 2, "method": "session.ask",
+                "params": {"transcript": "what apps are these", "capture_ids": ["cap_x"]},
+            })
+            final = None
+            for _ in range(300):
+                msg = sidecar.read_msg()
+                if msg.get("method") == "memory.search":
+                    sidecar.send({"jsonrpc": "2.0", "id": msg["id"], "result": []})
+                elif msg.get("method") == "memory.digest":
+                    sidecar.send({"jsonrpc": "2.0", "id": msg["id"], "result": {"digest": ""}})
+                elif msg.get("method") == "capture.lookup":
+                    sidecar.send({"jsonrpc": "2.0", "id": msg["id"], "result": {
+                        "capture_id": "cap_x", "app": "Finder", "abs_path": "/nonexistent.png"
+                    }})
+                if msg.get("id") == 2:
+                    final = msg
+                    break
+            assert final is not None
+            assert "Answered without tools" in str(final["result"]["answer"])
+        finally:
+            sidecar.close()
+
+
+def test_episodic_block_flattens_without_assistant_roles() -> None:
+    from app.interfaces.sidecar.server import SidecarServer
+
+    server = SidecarServer.__new__(SidecarServer)
+    server._turns = [
+        {"q": "first question", "a": "first answer"},
+        {"q": "second question", "a": "second answer"},
+    ]
+    block = server._episodic_block()
+    assert "first question" in block and "Ruoxi: first answer" in block
+    assert "context only" in block
+    server._turns = []
+    assert server._episodic_block() == ""

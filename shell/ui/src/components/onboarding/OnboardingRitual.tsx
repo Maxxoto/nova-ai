@@ -158,7 +158,7 @@ export default function OnboardingRitual({ initialStep, reducedMotion }: Onboard
   };
 
   return (
-    <div className="w-[640px] max-w-full overflow-hidden rounded-xl border border-border bg-card shadow-e3">
+    <div className="w-full overflow-hidden bg-card">
       <StepRail current={step} />
 
       <div
