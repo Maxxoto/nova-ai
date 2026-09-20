@@ -174,17 +174,12 @@ pub fn speak_text(app: &tauri::AppHandle, text: &str) {
                     voice
                 };
                 let speed = rate as f32;
-                let samples = tokio::task::spawn_blocking(move || {
-                    engine.synthesize_with_options(&phrase, Some(&voice), speed, 1.0, None)
+                let spoken = tokio::task::spawn_blocking(move || {
+                    speak_kokoro_chunked(engine, &phrase, &voice, speed, generation)
                 })
-                .await;
-                let Ok(Ok(samples)) = samples else {
-                    return;
-                };
-                if SPEAK_GEN.load(std::sync::atomic::Ordering::SeqCst) != generation {
-                    return;
-                }
-                if let Err(e) = play_samples(samples) {
+                .await
+                .unwrap_or_else(|e| Err(format!("tts task: {e}")));
+                if let Err(e) = spoken {
                     eprintln!("ruoxi: read-aloud playback failed: {e}");
                 }
             }
@@ -250,7 +245,8 @@ async fn kokoro_engine(app: &tauri::AppHandle) -> Result<&'static kokoro_micro::
     if !model_path.is_file() || !voices_path.is_file() {
         return Err("Kokoro not downloaded — Settings → Voice output".to_string());
     }
-    KOKORO
+    let started = std::time::Instant::now();
+    let engine = KOKORO
         .get_or_try_init(|| async {
             kokoro_micro::TtsEngine::with_paths(
                 model_path.to_str().unwrap_or_default(),
@@ -258,7 +254,15 @@ async fn kokoro_engine(app: &tauri::AppHandle) -> Result<&'static kokoro_micro::
             )
             .await
         })
-        .await
+        .await;
+    if started.elapsed().as_millis() > 0 {
+        eprintln!(
+            "ruoxi: tts engine {} in {} ms",
+            if engine.is_ok() { "ready" } else { "failed" },
+            started.elapsed().as_millis()
+        );
+    }
+    engine
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -343,31 +347,90 @@ pub async fn tts_synthesize(
         text.trim().to_string()
     };
     let speed = crate::settings::load(&app).tts.rate as f32;
-    let samples = tokio::task::spawn_blocking(move || {
-        engine.synthesize_with_options(&phrase, Some(&voice), speed, 1.0, None)
-    })
-    .await
-    .map_err(|e| format!("synthesis task failed: {e}"))?
-    .map_err(|e| format!("synthesis failed: {e}"))?;
-    std::thread::spawn(move || {
-        if let Err(e) = play_samples(samples) {
+    let generation = SPEAK_GEN.load(std::sync::atomic::Ordering::SeqCst);
+    tokio::task::spawn_blocking(move || {
+        if let Err(e) = speak_kokoro_chunked(engine, &phrase, &voice, speed, generation) {
             eprintln!("ruoxi: playback failed: {e}");
         }
     });
     Ok(())
 }
 
-fn play_samples(samples: Vec<f32>) -> Result<(), String> {
+/// Splits text into speakable sentences, keeping the delimiter. CJK and
+/// Latin terminators both count; runs of whitespace collapse.
+pub fn split_sentences(text: &str) -> Vec<String> {
+    let mut sentences = Vec::new();
+    let mut current = String::new();
+    for ch in text.chars() {
+        current.push(ch);
+        if matches!(ch, '.' | '!' | '?' | ';' | '。' | '！' | '？' | '；' | '\n') {
+            if !current.trim().is_empty() {
+                sentences.push(current.trim().to_string());
+            }
+            current.clear();
+        }
+    }
+    if !current.trim().is_empty() {
+        sentences.push(current.trim().to_string());
+    }
+    sentences
+}
+
+/// Synthesizes sentence-by-sentence and streams into one sink: first audio
+/// starts after the first chunk instead of the whole answer. `generation`
+/// bails mid-stream when the user cuts speech (AC-06).
+fn speak_kokoro_chunked(
+    engine: &'static kokoro_micro::TtsEngine,
+    text: &str,
+    voice: &str,
+    speed: f32,
+    generation: u64,
+) -> Result<(), String> {
     use rodio::{buffer::SamplesBuffer, DeviceSinkBuilder, Player};
     let sink = DeviceSinkBuilder::open_default_sink().map_err(|e| format!("audio device: {e}"))?;
     let player = Player::connect_new(&sink.mixer());
-    let channels = std::num::NonZeroU16::new(1).expect("nonzero channels");
-    let rate = std::num::NonZeroU32::new(24_000).expect("nonzero rate");
-    player.append(SamplesBuffer::new(channels, rate, samples));
-    player.detach();
     if let Ok(mut slot) = SPEAK.lock() {
         *slot = Some(Speaking::Kokoro(sink));
     }
+    let channels = std::num::NonZeroU16::new(1).expect("nonzero channels");
+    let rate = std::num::NonZeroU32::new(24_000).expect("nonzero rate");
+
+    let sentences = split_sentences(text);
+    let started = std::time::Instant::now();
+    let mut first_audio_logged = false;
+    for sentence in &sentences {
+        if SPEAK_GEN.load(std::sync::atomic::Ordering::SeqCst) != generation {
+            return Ok(());
+        }
+        let chunk_t0 = std::time::Instant::now();
+        let synthesized = engine.synthesize_with_options(
+            sentence,
+            Some(voice),
+            speed,
+            1.0,
+            None,
+        );
+        let samples = match synthesized {
+            Ok(samples) if !samples.is_empty() => samples,
+            _ => continue,
+        };
+        if !first_audio_logged {
+            first_audio_logged = true;
+            eprintln!(
+                "ruoxi: tts first audio after {} ms ({} sentences queued)",
+                started.elapsed().as_millis(),
+                sentences.len()
+            );
+        }
+        eprintln!(
+            "ruoxi: tts synth: {} chars in {} ms ({:.1}s audio)",
+            sentence.chars().count(),
+            chunk_t0.elapsed().as_millis(),
+            samples.len() as f64 / 24_000.0
+        );
+        player.append(SamplesBuffer::new(channels, rate, samples));
+    }
+    player.detach();
     Ok(())
 }
 
@@ -384,6 +447,27 @@ mod tests {
         assert_eq!(voices[0].lang, "en_US");
         assert_eq!(voices[1].name, "Bad News");
         assert_eq!(voices[2].lang, "zh_CN");
+    }
+
+    #[test]
+    fn sentences_split_on_latin_and_cjk_terminators() {
+        let parts = split_sentences("Hello there. How are you? Great!\nSecond line; done");
+        assert_eq!(
+            parts,
+            vec![
+                "Hello there.",
+                "How are you?",
+                "Great!",
+                "Second line;",
+                "done"
+            ]
+        );
+    }
+
+    #[test]
+    fn cjk_sentences_split_and_empties_drop() {
+        let parts = split_sentences("你好。我是若曦！  \n很好；");
+        assert_eq!(parts, vec!["你好。", "我是若曦！", "很好；"]);
     }
 
     #[test]
