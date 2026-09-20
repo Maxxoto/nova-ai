@@ -309,7 +309,7 @@ pub fn discard_ask() {
 /// Starts the capture-scoped ask for the panel's mic button. Refuses with a
 /// human-readable error when the microphone is denied or the STT model the
 /// transcriber resolves is missing, instead of failing silently later.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn voice_ask_start(app: AppHandle) -> Result<(), String> {
     let permissions = crate::permissions::permissions_status()?;
     if matches!(permissions.microphone.as_str(), "denied" | "restricted") {

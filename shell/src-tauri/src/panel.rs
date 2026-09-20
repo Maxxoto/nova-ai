@@ -100,11 +100,11 @@ pub fn spawn_esc_dismiss(app: AppHandle) -> Result<(), String> {
             CGEventTapLocation::Session,
             CGEventTapPlacement::HeadInsertEventTap,
             CGEventTapOptions::ListenOnly,
-            vec![
-                CGEventType::KeyDown,
-                CGEventType::TapDisabledByTimeout,
-                CGEventType::TapDisabledByUserInput,
-            ],
+            // KeyDown only: a mask bit for the TapDisabled* variants shifts
+            // 1u64 by 0xFFFFFFFE/0xFFFFFFFF, which panics on overflow in
+            // debug builds. Those events are delivered to the callback
+            // regardless of the mask, so the re-arm below still fires.
+            vec![CGEventType::KeyDown],
             move |_proxy, ty, event| {
                 use core_graphics::event::CGEventFlags as F;
                 if matches!(
