@@ -21,6 +21,12 @@ import time
 import uuid
 from typing import Any, TextIO
 
+from app.interfaces.sidecar.llm_clients import (
+    ResilientLLMClient,
+    ScriptedLLMClient,
+    build_byok_clients,
+)
+from app.application.services.tool_loop import run_tool_loop
 from app.interfaces.sidecar.envelopes import (
     PROTO_VER,
     AskParams,
@@ -160,279 +166,95 @@ class SidecarServer:
             await self._notify_token(answer_id, word + " ")
             await asyncio.sleep(_TOKEN_PAUSE_S)
 
-    _TOOL_METHODS = {
-        "memory_search": "memory.search",
-        "memory_lookup": "memory.lookup",
-        "capture_lookup": "capture.lookup",
-        "timeline_query": "timeline.query",
-    }
-
-    _TOOLS = [
-        {
-            "type": "function",
-            "function": {
-                "name": "memory_search",
-                "description": "Search the user's local memory (notes, facts, past Q/A). Cite results as [mem_id].",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "query": {"type": "string"},
-                        "types": {
-                            "type": "array",
-                            "items": {"type": "string", "enum": ["episodic", "semantic", "procedural"]},
-                        },
-                    },
-                    "required": ["query"],
-                },
-            },
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "memory_lookup",
-                "description": "Fetch one memory entry by id.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {"id": {"type": "string"}},
-                    "required": ["id"],
-                },
-            },
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "capture_lookup",
-                "description": "Fetch a screenshot's metadata and file path by capture id.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {"id": {"type": "string"}},
-                    "required": ["id"],
-                },
-            },
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "timeline_query",
-                "description": "List recent screen captures, newest first.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "day": {"type": "string", "description": "YYYY-MM-DD"},
-                        "app": {"type": "string"},
-                        "limit": {"type": "integer"},
-                    },
-                },
-            },
-        },
-    ]
-
     _MAX_TOOL_STEPS = 3
 
     async def _notify_tool_step(self, answer_id: str, step: int, tool: str) -> None:
         await self._send(
             RpcNotification(
                 method="agent.tool_step",
-                params={"answer_id": answer_id, "step": step, "of": self._MAX_TOOL_STEPS, "tool": tool},
+                params={
+                    "answer_id": answer_id,
+                    "step": step,
+                    "of": self._MAX_TOOL_STEPS,
+                    "tool": tool,
+                },
             )
         )
 
-    async def _execute_tool(self, name: str, arguments: dict[str, Any]) -> str:
-        method = self._TOOL_METHODS.get(name)
-        if method is None:
-            LOG.warning("tool %s | unknown", name)
-            return json.dumps({"error": f"unknown tool {name}"})
-        started = time.monotonic()
-        response = await self._request_upstream(method, arguments)
-        elapsed = (time.monotonic() - started) * 1000
-        self._timing["tools"] = self._timing.get("tools", 0.0) + elapsed
-        LOG.info(
-            "tool %s(%s) | %.0fms",
-            name, json.dumps(arguments, ensure_ascii=False)[:60], elapsed,
-        )
+    async def _upstream_result(self, method: str, params: dict[str, Any]) -> Any:
+        """Router call whose result is returned; failures raise for the tool layer."""
+        response = await self._request_upstream(method, params)
         if response and "result" in response:
-            payload = json.dumps(response["result"], ensure_ascii=False, default=str)
-            return payload[:4000]
-        error = (response or {}).get("error", {})
-        return json.dumps({"error": error.get("message", "tool timeout")})
+            return response["result"]
+        error = (response or {}).get("error") or {}
+        raise RuntimeError(error.get("message", f"{method} timed out"))
 
-    def _complete_with_tools(
-        self,
-        messages: list[dict[str, object]],
-        use_tools: bool,
-        has_image: bool,
-    ) -> dict[str, object]:
+    @staticmethod
+    def _workspace() -> Path:
+        raw = os.environ.get("RUOXI_WORKSPACE") or os.environ.get("NOVA_WORKSPACE")
+        workspace = Path(raw).expanduser() if raw else Path.home() / ".nova"
+        workspace.mkdir(parents=True, exist_ok=True)
+        return workspace
+
+    def _build_registry(self, tracker: dict[str, float]) -> Any:
+        """Shell tools + the repo's file/web/shell tools, sandboxed to a workspace.
+
+        Web tools are absent offline — RFC-0009's kill-switch applies to tools,
+        not only to the LLM.
+        """
+        from app.infrastructure.tools.desktop import desktop_tools
+        from app.infrastructure.tools.filesystem import (
+            EditFileTool,
+            ListDirTool,
+            ReadFileTool,
+            WriteFileTool,
+        )
+        from app.infrastructure.tools.registry import ToolRegistry
+        from app.infrastructure.tools.shell import ExecTool
+
+        registry = _TimingRegistry(tracker)
+        for tool in desktop_tools(self._upstream_result):
+            registry.register(tool)
+
+        workspace = self._workspace()
+        registry.register(ReadFileTool(allowed_dir=workspace))
+        registry.register(WriteFileTool(allowed_dir=workspace))
+        registry.register(EditFileTool(allowed_dir=workspace))
+        registry.register(ListDirTool(allowed_dir=workspace))
+        registry.register(ExecTool(allowed_dir=workspace, restrict_to_workspace=True))
+
+        if offline_mode():
+            LOG.info("tools | offline — web tools not registered")
+        else:
+            from app.infrastructure.tools.web import WebFetchTool, WebSearchTool
+
+            registry.register(WebSearchTool(api_key=os.environ.get("BRAVE_API_KEY")))
+            registry.register(WebFetchTool())
+        return registry
+
+    def _llm_client(self) -> Any:
         script = os.environ.get("RUOXI_LLM_SCRIPT", "").strip()
         if script:
-            LOG.info(
-                "llm.call | scripted turn tools=%s image=%s", use_tools, has_image
-            )
-            queue: list[dict[str, object]] = json.loads(
-                Path(script).read_text(encoding="utf-8")
-            )
-            item = queue[min(self._script_cursor, len(queue) - 1)]
-            self._script_cursor += 1
-            if item.get("raise"):
-                raise RuntimeError(str(item["raise"]))
-            return item
-
-        import litellm
-
-        litellm.suppress_debug_info = True
+            LOG.info("llm | scripted client from %s", script)
+            return ResilientLLMClient(ScriptedLLMClient(Path(script)))
         base_url = os.environ.get("RUOXI_LLM_BASE_URL", "").strip()
         api_key = os.environ.get("RUOXI_LLM_API_KEY", "").strip()
         model = os.environ.get("RUOXI_LLM_MODEL", "").strip() or "gpt-4o-mini"
         vision_model = os.environ.get("RUOXI_LLM_VISION_MODEL", "").strip() or model
-        chosen = f"openai/{vision_model if has_image else model}"
-        LOG.info(
-            "llm.call | model=%s image=%s tools=%s msgs=%d",
-            chosen, has_image, use_tools, len(messages),
+        LOG.info("llm | model=%s vision=%s base=%s", model, vision_model, base_url or "default")
+        return ResilientLLMClient(
+            build_byok_clients(model, vision_model, api_key, base_url)
         )
-        kwargs: dict[str, object] = {
-            "model": chosen,
-            "api_base": base_url,
-            "api_key": api_key,
-            "messages": messages,
-            "timeout": 90,
-        }
-        if use_tools:
-            kwargs["tools"] = self._TOOLS
-        response = litellm.completion(**kwargs)
-        message = response.choices[0].message
-        reasoning = getattr(message, "reasoning_content", None)
-        return {
-            "content": message.content or "",
-            "reasoning_content": str(reasoning) if reasoning else "",
-            "tool_calls": [
-                {
-                    "id": tc.id,
-                    "name": tc.function.name,
-                    "arguments": tc.function.arguments,
-                }
-                for tc in (message.tool_calls or [])
-            ],
-        }
 
-    @staticmethod
-    def _strip_images(messages: list[dict[str, object]]) -> list[dict[str, object]]:
-        stripped = []
-        for message in messages:
-            content = message.get("content")
-            if not isinstance(content, list):
-                stripped.append(message)
-                continue
-            parts = []
-            for part in content:
-                if isinstance(part, dict) and part.get("type") == "image_url":
-                    parts.append({"type": "text", "text": "[image omitted]"})
-                else:
-                    parts.append(part)
-            stripped.append({**message, "content": parts})
-        return stripped
+    def _progress_callback(self, answer_id: str) -> Any:
+        state = {"step": 0}
 
-    async def _llm_call_degraded(
-        self, working: list[dict[str, object]], use_tools: bool, has_image: bool
-    ) -> dict[str, object]:
-        attempts: list[tuple[bool, bool]] = []
-        if use_tools and has_image:
-            attempts = [(True, True), (False, True), (False, False)]
-        elif use_tools:
-            attempts = [(True, False), (False, False)]
-        elif has_image:
-            attempts = [(False, True), (False, False)]
-        else:
-            attempts = [(False, False)]
-        last_exc: Exception | None = None
-        for tools, image in attempts:
-            messages = working if image else self._strip_images(working)
-            try:
-                outcome = await asyncio.to_thread(
-                    self._complete_with_tools, messages, tools, image
-                )
-                if (tools, image) != attempts[0]:
-                    LOG.warning(
-                        "llm.call degraded to tools=%s image=%s after provider rejection",
-                        tools, image,
-                    )
-                return outcome
-            except Exception as exc:
-                last_exc = exc
-                LOG.warning("llm.call tools=%s image=%s failed: %s", tools, image, exc)
-        assert last_exc is not None
-        raise last_exc
+        async def progress(tool_name: str) -> None:
+            state["step"] += 1
+            await self._notify_tool_step(answer_id, state["step"], tool_name)
 
-    async def _agent_loop(
-        self, params: AskParams, messages: list[dict[str, object]], answer_id: str
-    ) -> str | None:
-        has_image = any(
-            isinstance(m.get("content"), list)
-            and any(part.get("type") == "image_url" for part in m["content"])
-            for m in messages
-        )
-        working = list(messages)
-        steps = 0
-        while True:
-            if self._abort.is_set():
-                return None
-            if steps >= self._MAX_TOOL_STEPS:
-                working.append(
-                    {
-                        "role": "system",
-                        "content": "Tool budget exhausted — answer now from what you have.",
-                    }
-                )
-            use_tools = steps < self._MAX_TOOL_STEPS
-            llm_t0 = time.monotonic()
-            outcome = await self._llm_call_degraded(working, use_tools, has_image)
-            self._timing["llm"] = self._timing.get("llm", 0.0) + (
-                time.monotonic() - llm_t0
-            ) * 1000
-            tool_calls = outcome.get("tool_calls") or []
-            if not tool_calls or not use_tools:
-                text = str(outcome.get("content") or "").strip()
-                await self._stream_text(answer_id, text)
-                if self._abort.is_set():
-                    LOG.info("ask %s | aborted before final", answer_id)
-                    return None
-                self._timing["steps"] = float(steps)
-                LOG.info(
-                    "ask %s | done | %d chars, %d tool step(s), %.0fms total",
-                    answer_id, len(text), steps,
-                    (time.monotonic() - self._ask_started) * 1000,
-                )
-                return text
-            for call in tool_calls:
-                if self._abort.is_set() or steps >= self._MAX_TOOL_STEPS:
-                    break
-                steps += 1
-                name = str(call.get("name"))
-                await self._notify_tool_step(answer_id, steps, name)
-                try:
-                    arguments = json.loads(call.get("arguments") or "{}")
-                except json.JSONDecodeError:
-                    arguments = {}
-                result = await self._execute_tool(name, arguments)
-                echoed: dict[str, object] = {
-                    "role": "assistant",
-                    "content": None,
-                    "tool_calls": [
-                        {
-                            "id": call.get("id"),
-                            "type": "function",
-                            "function": {"name": name, "arguments": call.get("arguments") or "{}"},
-                        }
-                    ],
-                }
-                if outcome.get("reasoning_content"):
-                    echoed["reasoning_content"] = outcome["reasoning_content"]
-                working.append(echoed)
-                working.append(
-                    {
-                        "role": "tool",
-                        "tool_call_id": call.get("id"),
-                        "content": result,
-                    }
-                )
+        return progress
+
 
     async def _memory_digest(self) -> str:
         response = await self._request_upstream("memory.digest", {})
@@ -543,46 +365,6 @@ class SidecarServer:
             {"role": "user", "content": content},
         ]
 
-    def _complete_streaming(
-        self, messages: list[dict[str, object]], answer_id: str, loop: asyncio.AbstractEventLoop
-    ) -> tuple[bool, str]:
-        import litellm
-
-        # litellm prints error banners to stdout, which is our JSON-RPC wire —
-        # one stray line desyncs the protocol (seen with connection errors).
-        litellm.suppress_debug_info = True
-        base_url = os.environ.get("RUOXI_LLM_BASE_URL", "").strip()
-        api_key = os.environ.get("RUOXI_LLM_API_KEY", "").strip()
-        model = os.environ.get("RUOXI_LLM_MODEL", "").strip() or "gpt-4o-mini"
-        vision_model = os.environ.get("RUOXI_LLM_VISION_MODEL", "").strip() or model
-        has_image = any(
-            isinstance(message.get("content"), list)
-            and any(part.get("type") == "image_url" for part in message["content"])
-            for message in messages
-        )
-        stream = litellm.completion(
-            model=f"openai/{vision_model if has_image else model}",
-            api_base=base_url,
-            api_key=api_key,
-            messages=messages,
-            stream=True,
-            timeout=90,
-        )
-        parts: list[str] = []
-        for chunk in stream:
-            if self._abort.is_set():
-                return True, "".join(parts)
-            try:
-                delta = chunk.choices[0].delta.content or ""
-            except (AttributeError, IndexError):
-                delta = ""
-            if delta:
-                parts.append(delta)
-                asyncio.run_coroutine_threadsafe(
-                    self._notify_token(answer_id, delta), loop
-                )
-        return False, "".join(parts)
-
     async def _agent_answer(self, params: AskParams, answer_id: str) -> str | None:
         self._ask_started = time.monotonic()
         self._timing = {"retrieval": 0.0, "tools": 0.0, "llm": 0.0, "steps": 0.0}
@@ -621,7 +403,8 @@ class SidecarServer:
             return None if self._abort.is_set() else text
         base_url = os.environ.get("RUOXI_LLM_BASE_URL", "").strip()
         api_key = os.environ.get("RUOXI_LLM_API_KEY", "").strip()
-        if not base_url or not api_key:
+        scripted = bool(os.environ.get("RUOXI_LLM_SCRIPT", "").strip())
+        if not scripted and (not base_url or not api_key):
             LOG.info("ask %s | unconfigured — no endpoint/key", answer_id)
             text = (
                 "The brain isn't configured yet — add your endpoint and API key "
@@ -633,8 +416,25 @@ class SidecarServer:
         memory_hits = await self._memory_hits(params.transcript)
         messages = await self._build_messages(params, memory_hits)
         self._timing["retrieval"] = (time.monotonic() - retrieval_t0) * 1000
-        text = await self._agent_loop(params, messages, answer_id)
+        if self._abort.is_set():
+            return None
+
+        registry = self._build_registry(self._timing)
+        loop_started = time.monotonic()
+        text, tools_used = await run_tool_loop(
+            llm_client=self._llm_client(),
+            tool_registry=registry,
+            messages=list(messages),
+            max_iterations=self._MAX_TOOL_STEPS,
+            on_progress=self._progress_callback(answer_id),
+            wrap_up_on_exhaustion=True,
+        )
+        self._timing["llm"] = max(
+            0.0, (time.monotonic() - loop_started) * 1000 - self._timing.get("tools", 0.0)
+        )
+        self._timing["steps"] = float(len(tools_used))
         if text:
+            await self._stream_text(answer_id, text)
             text, bogus = self._strip_bogus_citations(text, memory_hits, params.capture_ids)
             if bogus:
                 logging.getLogger(__name__).warning(
@@ -650,7 +450,7 @@ class SidecarServer:
             )
             if len(self._latencies) % 10 == 0:
                 self._log_latency_summary()
-        return text
+        return None if self._abort.is_set() else text
 
     def _log_latency_summary(self) -> None:
         def pct(values: list[float], p: float) -> float:
@@ -808,6 +608,31 @@ def _err(code: ErrorCode, message: str) -> RpcError:
 
 
 LOG = logging.getLogger("ruoxi.py")
+
+
+class _TimingRegistry:
+    """ToolRegistry that accumulates execution ms for the latency line."""
+
+    def __init__(self, tracker: dict[str, float]):
+        from app.infrastructure.tools.registry import ToolRegistry
+
+        self._inner = ToolRegistry()
+        self._tracker = tracker
+
+    def register(self, tool: Any) -> None:
+        self._inner.register(tool)
+
+    def get_definitions(self) -> list[dict[str, Any]]:
+        return self._inner.get_definitions()
+
+    async def execute(self, name: str, arguments: dict[str, Any]) -> str:
+        started = time.monotonic()
+        try:
+            return await self._inner.execute(name, arguments)
+        finally:
+            self._tracker["tools"] = self._tracker.get("tools", 0.0) + (
+                time.monotonic() - started
+            ) * 1000
 
 
 async def serve(reader: TextIO | None = None, writer: TextIO | None = None) -> None:

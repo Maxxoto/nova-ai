@@ -97,6 +97,7 @@ class LiteLLMAdapter(LLMClientPort):
         api_key: Optional[str] = None,
         temperature: float = 0.7,
         max_tokens: int = 4096,
+        api_base: Optional[str] = None,
     ):
         """Initialize LiteLLM adapter.
 
@@ -105,11 +106,14 @@ class LiteLLMAdapter(LLMClientPort):
             api_key: API key (defaults to LITE_LLM_API_KEY env var)
             temperature: Sampling temperature
             max_tokens: Maximum tokens to generate
+            api_base: Custom OpenAI-compatible endpoint (BYOK gateways);
+                omitted from the request when unset
         """
         self.model = model or settings.lite_llm_model
         self.api_key = api_key or settings.lite_llm_api_key
         self.temperature = temperature
         self.max_tokens = max_tokens
+        self.api_base = api_base or None
 
         logger.info(f"LiteLLM adapter initialized with model: {self.model}")
 
@@ -201,6 +205,8 @@ class LiteLLMAdapter(LLMClientPort):
                 "max_tokens": self.max_tokens,
                 "stream": False,
             }
+            if self.api_base:
+                kwargs["api_base"] = self.api_base
 
             # Add tools if provided - filter Groq-incompatible fields
             if tools:

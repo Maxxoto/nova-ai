@@ -545,3 +545,93 @@ def test_episodic_block_flattens_without_assistant_roles() -> None:
     assert "context only" in block
     server._turns = []
     assert server._episodic_block() == ""
+
+
+def test_repo_filesystem_tool_runs_through_agent_loop(tmp_path: Path) -> None:
+    """The sidecar must drive the repo's own ToolRegistry, not a private loop."""
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as td:
+        workspace = Path(td) / "workspace"
+        workspace.mkdir()
+        note = workspace / "note.txt"
+        note.write_text("mitochondria is the powerhouse", encoding="utf-8")
+
+        script = _script_file(
+            Path(td),
+            [
+                {
+                    "content": "",
+                    "tool_calls": [
+                        {
+                            "id": "c1",
+                            "name": "read_file",
+                            "arguments": json.dumps({"path": str(note)}),
+                        }
+                    ],
+                },
+                {"content": "The note says mitochondria power the cell.", "tool_calls": []},
+            ],
+        )
+        sidecar = SidecarProcess(
+            {
+                "RUOXI_LLM_MOCK": "",
+                "RUOXI_LLM_SCRIPT": script,
+                "RUOXI_LLM_BASE_URL": "http://127.0.0.1:9",
+                "RUOXI_LLM_API_KEY": "sk-test",
+                "RUOXI_WORKSPACE": str(workspace),
+            }
+        )
+        try:
+            sidecar.request(1, "ping")
+            sidecar.send(
+                {
+                    "jsonrpc": "2.0",
+                    "id": 2,
+                    "method": "session.ask",
+                    "params": {"transcript": "what does my note say", "capture_ids": []},
+                }
+            )
+            steps: list[dict] = []
+            final = None
+            for _ in range(300):
+                msg = sidecar.read_msg()
+                if msg.get("method") == "memory.search":
+                    sidecar.send({"jsonrpc": "2.0", "id": msg["id"], "result": []})
+                elif msg.get("method") == "memory.digest":
+                    sidecar.send(
+                        {"jsonrpc": "2.0", "id": msg["id"], "result": {"digest": ""}}
+                    )
+                elif msg.get("method") == "agent.tool_step":
+                    steps.append(msg["params"])
+                if msg.get("id") == 2:
+                    final = msg
+                    break
+            assert steps and steps[0]["tool"] == "read_file", steps
+            assert final is not None
+            assert "mitochondria" in str(final["result"]["answer"])
+        finally:
+            sidecar.close()
+
+
+def test_registry_gates_web_tools_when_offline(tmp_path: Path, monkeypatch) -> None:
+    from app.interfaces.sidecar.server import SidecarServer
+
+    server = SidecarServer.__new__(SidecarServer)
+    monkeypatch.setenv("RUOXI_WORKSPACE", str(tmp_path))
+    monkeypatch.delenv("RUOXI_OFFLINE", raising=False)
+    online = server._build_registry({})
+    online_names = {
+        d["function"]["name"] for d in online.get_definitions() if "function" in d
+    }
+    assert {"web_search", "web_fetch", "read_file", "exec"} <= online_names
+    assert {"memory_search", "capture_lookup", "timeline_query"} <= online_names
+
+    monkeypatch.setenv("RUOXI_OFFLINE", "1")
+    offline = server._build_registry({})
+    offline_names = {
+        d["function"]["name"] for d in offline.get_definitions() if "function" in d
+    }
+    assert "web_search" not in offline_names
+    assert "web_fetch" not in offline_names
+    assert "read_file" in offline_names

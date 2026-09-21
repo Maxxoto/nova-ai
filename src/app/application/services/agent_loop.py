@@ -21,6 +21,8 @@ from app.infrastructure.session import SessionManager
 from app.infrastructure.memory import MemoryStore
 
 
+from app.application.services.tool_loop import run_tool_loop
+
 logger = logging.getLogger(__name__)
 
 
@@ -144,106 +146,14 @@ class AgentLoop:
         messages: List[Dict[str, Any]],
         on_progress: Optional[Callable[[str], Awaitable[None]]] = None,
     ) -> tuple[Optional[str], List[str]]:
-        iteration = 0
-        tools_used: List[str] = []
-        final_content = None
-
-        while iteration < self.max_iterations:
-            iteration += 1
-
-            tool_definitions = self.tool_registry.get_definitions()
-
-            response = await self.llm_client.chat_completion(
-                messages=messages,
-                tools=tool_definitions if tool_definitions else None,
-                streaming=False,
-            )
-
-            tool_calls = response.get("tool_calls")
-            if tool_calls:
-                logger.info(
-                    f"LLM requested {len(tool_calls)} tool calls (iteration {iteration})"
-                )
-
-                tool_call_dicts = []
-                for tc in tool_calls:
-                    if hasattr(tc, "function"):
-                        tool_call_dicts.append(
-                            {
-                                "id": getattr(tc, "id", f"call_{len(tools_used)}"),
-                                "type": "function",
-                                "function": {
-                                    "name": tc.function.name,
-                                    "arguments": json.dumps(tc.function.arguments),
-                                },
-                            }
-                        )
-                        tools_used.append(tc.function.name)
-                    elif isinstance(tc, dict):
-                        tool_call_dicts.append(tc)
-
-                messages.append(
-                    {
-                        "role": "assistant",
-                        "content": response.get("response", ""),
-                        "tool_calls": tool_call_dicts,
-                    }
-                )
-
-                for tc in tool_calls:
-                    tool_name = None
-                    tool_args = {}
-                    tool_id = f"call_{len(tools_used)}"
-
-                    if hasattr(tc, "function"):
-                        tool_name = tc.function.name
-                        tool_args = (
-                            tc.function.arguments
-                            if isinstance(tc.function.arguments, dict)
-                            else json.loads(tc.function.arguments)
-                        )
-                        tool_id = getattr(tc, "id", tool_id)
-                    elif isinstance(tc, dict):
-                        func_info = tc.get("function", {})
-                        tool_name = func_info.get("name", "")
-                        tool_args = func_info.get("arguments", {})
-                        tool_id = tc.get("id", tool_id)
-
-                    if not tool_name:
-                        logger.warning(f"Skipping tool call with no name: {tc}")
-                        continue
-
-                    logger.info(f"Executing tool: {tool_name}({tool_args})")
-
-                    try:
-                        result = await self.tool_registry.execute(tool_name, tool_args)
-                        tool_result = str(result)
-                    except Exception as e:
-                        tool_result = f"Error executing {tool_name}: {str(e)}"
-                        logger.error(tool_result)
-
-                    messages.append(
-                        {
-                            "role": "tool",
-                            "tool_call_id": tool_id,
-                            "name": tool_name,
-                            "content": tool_result,
-                        }
-                    )
-            else:
-                final_content = response.get("response", "")
-                logger.info(f"Agent loop completed in {iteration} iterations")
-                break
-
-        if iteration >= self.max_iterations:
-            logger.warning(
-                f"Agent loop exceeded max iterations ({self.max_iterations})"
-            )
-            final_content = (
-                "I apologize, but I needed too many iterations to complete this task."
-            )
-
-        return final_content, tools_used
+        """Delegates to the shared transport-agnostic loop (tool_loop.py)."""
+        return await run_tool_loop(
+            llm_client=self.llm_client,
+            tool_registry=self.tool_registry,
+            messages=messages,
+            max_iterations=self.max_iterations,
+            on_progress=on_progress,
+        )
 
     async def _consolidate_memory(self, session) -> None:
         try:

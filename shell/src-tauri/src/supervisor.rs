@@ -52,8 +52,19 @@ async fn supervise_once(
     let settings = settings::load(app);
     let interval = Duration::from_secs(settings.ping_interval_secs.max(1));
 
+    // Agent workspace: where the brain's file/shell tools are sandboxed. Lives
+    // inside our app data dir so the sandbox is self-contained and deletable.
+    let workspace = {
+        use tauri::Manager;
+        app.path()
+            .app_data_dir()
+            .ok()
+            .map(|dir| dir.join("workspace"))
+            .filter(|dir| std::fs::create_dir_all(dir).is_ok())
+    };
+
     link.set_online(false);
-    let mut sidecar = match SidecarProcess::spawn(&settings) {
+    let mut sidecar = match SidecarProcess::spawn(&settings, workspace) {
         Ok(sidecar) => match capture_router(app) {
             Some(router) => sidecar.with_router(router),
             None => sidecar,
@@ -360,18 +371,25 @@ pub struct SidecarProcess {
 }
 
 impl SidecarProcess {
-    pub fn spawn(settings: &settings::Settings) -> io::Result<Self> {
-        let mut child = Command::new(&settings.sidecar_command)
+    pub fn spawn(
+        settings: &settings::Settings,
+        workspace: Option<std::path::PathBuf>,
+    ) -> io::Result<Self> {
+        let mut command = Command::new(&settings.sidecar_command);
+        command
             .args(&settings.sidecar_args)
             .envs(crate::llm::env_for_sidecar(settings))
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::inherit())
-            .kill_on_drop(true)
-            .spawn()?;
+            .kill_on_drop(true);
+        if let Some(dir) = &workspace {
+            command.env("RUOXI_WORKSPACE", dir);
+        }
+        let mut child = command.spawn()?;
         eprintln!(
-            "ruoxi: brain sidecar spawned ({} {:?}, pid {:?})",
-            settings.sidecar_command, settings.sidecar_args, child.id()
+            "ruoxi: brain sidecar spawned ({} {:?}, pid {:?}, workspace {:?})",
+            settings.sidecar_command, settings.sidecar_args, child.id(), workspace
         );
         let (stdin, stdout) = match (child.stdin.take(), child.stdout.take()) {
             (Some(stdin), Some(stdout)) => (stdin, stdout),
