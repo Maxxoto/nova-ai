@@ -46,7 +46,7 @@ The composition, its fonts and the source captures live in [`docs/demo/`](docs/d
 | **Ask by voice** | Hold <kbd>⌥⇧V</kbd> — or hold the pill in the panel — and speak. The question is transcribed locally (Whisper or Parakeet, on this Mac). |
 | **The panel** | Opens **Ready** with your capture as context, then **Listening → Transcribing → Thinking → Writing → Complete**. The answer cites the capture it came from. |
 | **Never in the way** | The panel floats above every app, follows you across Spaces, and never takes keyboard focus from what you are doing. |
-| **Out of the way, fast** | <kbd>Esc</kbd> cancels an in-flight ask (it stops listening/transcribing without dismissing), or dismisses the panel. |
+| **Out of the way, fast** | <kbd>Esc</kbd> cancels an in-flight ask or stops the read-aloud — it never dismisses. <kbd>⌥⇧D</kbd> dismisses the panel. |
 | **Read aloud** | On-device Kokoro, or the macOS system voice — with a speaking state in the panel. <kbd>Esc</kbd> stops the audio. |
 | **Keep it** | Every capture lands in a local, date-sharded store with sha256 dedupe; the Timeline window browses it, and answers can be grounded in what you kept. |
 | **Your call** | Offline mode keeps everything on this Mac — cloud answers are simply unavailable while it is on. Auto-capture is off for every app by default. |
@@ -307,7 +307,7 @@ For the CLI, copy `.env.example` to `.env` and set `LITE_LLM_API_KEY` (plus `BRA
 
 - Tray app with capture (region · window · whole screen), the region overlay, and a capture store with sha256 dedupe
 - The voice-ask panel flow end to end — `Ready → Listening → Transcribing → Thinking → Writing → Complete` — with the capture as context and a citation on the answer
-- The panel floats above other apps without stealing focus; `Esc` cancels an ask or dismisses the panel
+- The panel floats above other apps (fullscreen included) without stealing focus; `Esc` cancels an ask or stops the read-aloud, and `⌥⇧D` dismisses the panel
 - On-device speech-to-text (Whisper / Parakeet) and text-to-speech (Kokoro, or the system voice), with managed downloads
 - Cloud language model over any OpenAI-compatible endpoint, key in the Keychain, blocked by Offline mode
 - The six-step setup ritual, Settings, and the Timeline

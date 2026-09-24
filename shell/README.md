@@ -69,7 +69,8 @@ sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file \
   Capture store v0 (date-sharded files + SQLite index, sha256 dedupe). Tray
   mirrors paused/offline states; macOS ships the template icon variants.
 - **W4 — UI surfaces** (`shell/ui`, `index.html?view=…`): `panel` (live
-  capture → thinking → streaming → complete/error; Esc hides + aborts, AC-06),
+  capture → thinking → streaming → complete/error; Esc aborts/stops the
+  read-aloud, ⌥⇧D hides, AC-06),
   `onboarding` (five-step why-line ritual + guided first capture, AC-12),
   `settings` (offline banner + seven sections incl. permissions and re-run
   ritual), `timeline` (real store: stats, day groups, thumbnails,
