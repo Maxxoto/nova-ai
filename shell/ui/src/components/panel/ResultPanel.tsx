@@ -16,6 +16,7 @@ export type ResultPanelProps = {
   reducedMotion?: boolean;
   onDismiss?: () => void;
   onEscape?: () => boolean;
+  onCollapse?: () => void;
   onSaveMemory?: () => void;
   onRetry?: () => void;
   onPttStart?: () => void;
@@ -33,13 +34,13 @@ export default function ResultPanel({
   reducedMotion,
   onDismiss,
   onEscape,
+  onCollapse,
   onSaveMemory,
   onRetry,
   onPttStart,
   onPttStop,
   onPttCancel,
 }: ResultPanelProps) {
-  const [closing, setClosing] = useState(false);
   const [reading, setReading] = useState(false);
   const readingRef = useRef(false);
   const readTimerRef = useRef<number | null>(null);
@@ -82,9 +83,8 @@ export default function ResultPanel({
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       if (onEscape?.()) return;
+      // Esc stops the read-aloud only; the dismiss hotkey hides the panel.
       stopReading();
-      setClosing(true);
-      window.setTimeout(() => onDismiss(), 120);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -112,11 +112,11 @@ export default function ResultPanel({
       aria-label="Ruòxī result panel"
       data-state={state}
       style={{ transitionDuration: "120ms" }}
-      className={`panel-surface w-[400px] max-w-full overflow-hidden rounded-[14px] border border-border shadow-e3 transition-opacity ${
-        closing ? "opacity-0" : "opacity-100"
-      }${reducedMotion ? " reduced-motion rm-halve" : ""}`}
+      className={`panel-surface w-[400px] max-w-full overflow-hidden rounded-[14px] border border-border shadow-e3 transition-opacity opacity-100${
+        reducedMotion ? " reduced-motion rm-halve" : ""
+      }`}
     >
-      <PanelHeader state={state} net={net} />
+      <PanelHeader state={state} net={net} onCollapse={onCollapse} />
       <div className="panel-scroll max-h-[60vh] overflow-y-auto px-4 py-3.5">
         <AnswerStream
           state={state}

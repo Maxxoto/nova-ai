@@ -17,6 +17,15 @@ pub enum CaptureIntent {
 
 pub const ALL_ACCELERATORS: [&str; 3] = ["Alt+Shift+R", "Alt+Shift+W", "Alt+Shift+F"];
 
+/// Dismisses the result panel. Esc is deliberately not this: Esc stops the
+/// read-aloud instead, so it can never leave the panel unshown.
+pub const DISMISS_ACCELERATOR: &str = "Alt+Shift+D";
+
+/// Whether an incoming global-shortcut string is the dismiss accelerator.
+pub fn is_dismiss_accelerator(shortcut: &str) -> bool {
+    shortcut.to_lowercase().replace(' ', "") == "alt+shift+d"
+}
+
 pub fn accelerator(intent: CaptureIntent) -> &'static str {
     match intent {
         CaptureIntent::Region => ALL_ACCELERATORS[0],

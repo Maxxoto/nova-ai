@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """DESIGN.md verification — S1 structure, S2 state coverage, S3 token validity."""
 import re, sys
+from pathlib import Path
 
-PATH = "/home/maxxoto/Project/nova-ai/docs/DESIGN.md"
+PATH = Path(__file__).resolve().parents[1] / "docs" / "DESIGN.md"
 text = open(PATH, encoding="utf-8").read()
 failures, warnings = [], []
 

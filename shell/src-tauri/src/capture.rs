@@ -51,6 +51,11 @@ pub struct Captured {
     pub app: Option<String>,
     pub title: Option<String>,
     pub display_id: Option<u32>,
+    /// Capture origin in CG global top-left logical points — what the panel's
+    /// "near" placement anchors against. Set by each capture path; `(0, 0)`
+    /// means unknown and the panel falls back to centred.
+    pub origin_x: f64,
+    pub origin_y: f64,
 }
 
 pub struct WindowMeta {
@@ -176,6 +181,9 @@ mod mac {
             app,
             title,
             display_id,
+            // Callers overwrite the origin with the path's real screen rect.
+            origin_x: 0.0,
+            origin_y: 0.0,
         })
     }
 
@@ -197,7 +205,13 @@ mod mac {
         let scale = monitor.scale_factor().unwrap_or(1.0);
         let display_id = monitor.id().ok();
         let image = monitor.capture_image()?;
-        encode_monitor_image(image, Scope::Fullscreen, None, None, display_id, scale)
+        let mut captured =
+            encode_monitor_image(image, Scope::Fullscreen, None, None, display_id, scale)?;
+        // The screen path's rect is the display itself: CGDisplayBounds
+        // origin, already logical top-left points.
+        captured.origin_x = monitor.x().unwrap_or(0) as f64;
+        captured.origin_y = monitor.y().unwrap_or(0) as f64;
+        Ok(captured)
     }
 
     pub fn capture_window(own_pid: u32) -> Result<Captured, CaptureError> {
@@ -222,14 +236,19 @@ mod mac {
             .and_then(|m| m.scale_factor())
             .unwrap_or(1.0);
         let display_id = window.current_monitor().ok().and_then(|m| m.id().ok());
-        encode_monitor_image(
+        let mut captured = encode_monitor_image(
             image,
             Scope::Window,
             Some(metas[idx].app.clone()),
             Some(metas[idx].title.clone()),
             display_id,
             scale,
-        )
+        )?;
+        // The window path's rect is the frontmost window: its kCGWindowBounds
+        // origin, already logical top-left points.
+        captured.origin_x = window.x().unwrap_or(0) as f64;
+        captured.origin_y = window.y().unwrap_or(0) as f64;
+        Ok(captured)
     }
 
     pub fn capture_region_interactive() -> Result<Captured, CaptureError> {
@@ -263,6 +282,12 @@ mod mac {
             app: None,
             title: None,
             display_id: monitor.and_then(|m| m.id().ok()),
+            // The system picker never reports the rect it grabbed; the cursor
+            // at return time (the drag's release point) is the nearest anchor
+            // to the selection, so the panel still lands beside what was
+            // boxed rather than falling back to centred.
+            origin_x: x as f64,
+            origin_y: y as f64,
         })
     }
 }

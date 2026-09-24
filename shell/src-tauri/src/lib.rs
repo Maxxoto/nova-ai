@@ -72,6 +72,7 @@ pub fn run() {
             hotkeys::validate_hotkey,
             panel::show_panel,
             panel::hide_panel,
+            panel::set_panel_mode,
             ask::voice_ask_start,
             ask::voice_ask_stop,
             ask::voice_ask_cancel,
@@ -155,6 +156,10 @@ pub fn run() {
                                 );
                                 let app = handle.clone();
                                 if pressed {
+                                    // Starting a new voice ask cuts any
+                                    // read-aloud still speaking (user rule:
+                                    // PTT, like Esc, stops the voice).
+                                    crate::tts::stop_speaking();
                                     if panel::is_visible() {
                                         if let Err(e) = ask::begin_ask(&app) {
                                             eprintln!("ruoxi: ask recording: {e}");
@@ -237,6 +242,29 @@ pub fn run() {
 
             #[cfg(target_os = "macos")]
             {
+                // Built here rather than in tauri.conf.json: macOS only honors
+                // canJoinAllSpaces (the panel floating over another app's
+                // fullscreen Space) for windows created under the accessory
+                // activation policy set above, and a configured window would
+                // already exist under the regular policy by now.
+                if let Err(e) = tauri::WebviewWindowBuilder::new(
+                    app,
+                    panel::PANEL_LABEL,
+                    tauri::WebviewUrl::App("index.html?view=panel".into()),
+                )
+                .title("Ruoxi")
+                .inner_size(panel::PANEL_W, panel::PANEL_H)
+                .resizable(false)
+                .decorations(false)
+                .transparent(true)
+                .focused(false)
+                .visible(false)
+                .shadow(false)
+                .accept_first_mouse(true)
+                .build()
+                {
+                    eprintln!("ruoxi: panel window build failed: {e}");
+                }
                 panel::apply_macos_panel_style(app.handle());
                 if let Err(e) = panel::spawn_esc_dismiss(app.handle().clone()) {
                     eprintln!("ruoxi: esc dismiss unavailable: {e}");
@@ -260,14 +288,24 @@ fn capture_shortcut_plugin(
 ) -> tauri::plugin::TauriPlugin<tauri::Wry> {
     use tauri_plugin_global_shortcut::ShortcutState;
     tauri_plugin_global_shortcut::Builder::new()
-        .with_shortcuts(hotkeys::ALL_ACCELERATORS)
+        .with_shortcuts(
+            hotkeys::ALL_ACCELERATORS
+                .into_iter()
+                .chain(std::iter::once(hotkeys::DISMISS_ACCELERATOR)),
+        )
         .expect("register capture shortcuts")
-        .with_handler(move |_app, shortcut, event| {
-            if event.state == ShortcutState::Pressed {
-                if let Some(intent) = hotkeys::intent_from_accelerator(&shortcut.to_string()) {
-                    eprintln!("ruoxi: hotkey {shortcut} -> {intent:?}");
-                    let _ = intents.send(intent);
-                }
+        .with_handler(move |app, shortcut, event| {
+            if event.state != ShortcutState::Pressed {
+                return;
+            }
+            if hotkeys::is_dismiss_accelerator(&shortcut.to_string()) {
+                eprintln!("ruoxi: hotkey {shortcut} -> dismiss panel");
+                panel::hide(app);
+                return;
+            }
+            if let Some(intent) = hotkeys::intent_from_accelerator(&shortcut.to_string()) {
+                eprintln!("ruoxi: hotkey {shortcut} -> {intent:?}");
+                let _ = intents.send(intent);
             }
         })
         .build()
@@ -308,21 +346,29 @@ fn capture_worker(
             },
         };
         let message = match result {
-            Ok(cap) => match store.insert(&capture::to_new_capture(cap)) {
-                Ok((record, created)) => {
-                    panel::show(&handle);
-                    emit_capture(&handle, &record);
-                    format!(
-                        "Ruoxi — saved {} ({})",
-                        record.capture_id,
-                        if created { "new" } else { "duplicate" }
-                    )
+            Ok(cap) => {
+                // The capture's screen origin travels beside the record (the
+                // store schema has no x/y): CG top-left points for placement.
+                let origin = (cap.origin_x, cap.origin_y);
+                match store.insert(&capture::to_new_capture(cap)) {
+                    Ok((record, created)) => {
+                        // Scope the panel to this capture before the raise reads it
+                        // (the raise is async; show-before-set raced the placement).
+                        ask::set_current_capture(&record, origin);
+                        panel::show(&handle);
+                        emit_capture(&handle, &record, origin);
+                        format!(
+                            "Ruoxi — saved {} ({})",
+                            record.capture_id,
+                            if created { "new" } else { "duplicate" }
+                        )
+                    }
+                    Err(e) => {
+                        eprintln!("ruoxi: capture store error: {e}");
+                        format!("Ruoxi — capture store error: {e}")
+                    }
                 }
-                Err(e) => {
-                    eprintln!("ruoxi: capture store error: {e}");
-                    format!("Ruoxi — capture store error: {e}")
-                }
-            },
+            }
             Err(capture::CaptureError::Cancelled) => "Ruoxi — capture cancelled".to_string(),
             Err(e) => {
                 eprintln!("ruoxi: capture failed: {e}");
@@ -340,9 +386,13 @@ fn capture_worker(
 }
 
 #[cfg(target_os = "macos")]
-pub(crate) fn emit_capture(handle: &tauri::AppHandle, record: &capture_store::CaptureRecord) {
+pub(crate) fn emit_capture(
+    handle: &tauri::AppHandle,
+    record: &capture_store::CaptureRecord,
+    origin: (f64, f64),
+) {
     use tauri::Emitter;
-    ask::set_current_capture(record);
+    ask::set_current_capture(record, origin);
     if let Err(e) = handle.emit("panel:capture", ask::capture_event(record)) {
         eprintln!("ruoxi: panel:capture emit failed: {e}");
     }

@@ -52,6 +52,9 @@ export default {
         breathe: "breathe 3s ease-in-out infinite",
         "pulse-ring": "pulse-ring 1.2s ease-out infinite",
         orbit: "orbit 1.6s linear infinite",
+        /* Mini mark's working ring — same `orbit` keyframe at the design's
+           .mini-spin timing (0.9s), distinct from the 1.6s orb/tray orbit. */
+        "orbit-fast": "orbit 0.9s linear infinite",
         shimmer: "shimmer 1.4s linear infinite",
         "token-caret": "token-caret 1s step-end infinite",
       },

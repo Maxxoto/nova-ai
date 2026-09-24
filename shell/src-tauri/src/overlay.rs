@@ -105,13 +105,9 @@ pub fn start(app: &tauri::AppHandle) -> Result<(), String> {
     use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 
     if let Some(win) = app.get_webview_window(OVERLAY_LABEL) {
-        let _ = win.show();
-        if let Err(e) = win.set_always_on_top(true) {
-            eprintln!("ruoxi: overlay always-on-top: {e}");
-        }
-        if let Err(e) = win.set_visible_on_all_workspaces(true) {
-            eprintln!("ruoxi: overlay visible-on-all-workspaces: {e}");
-        }
+        // Ordering, level and collection behavior belong to raise_above_fullscreen:
+        // Tauri's show()/set_always_on_top/set_visible_on_all_workspaces would
+        // order the window in or re-tag the Space before our behavior is set.
         crate::panel::raise_above_fullscreen(app, &win, "overlay");
         eprintln!("ruoxi: overlay re-shown (existing window)");
         let _ = win.set_focus();
@@ -161,13 +157,7 @@ pub fn start(app: &tauri::AppHandle) -> Result<(), String> {
 
     match built {
         Ok(win) => {
-            let _ = win.show();
-            if let Err(e) = win.set_always_on_top(true) {
-                eprintln!("ruoxi: overlay always-on-top: {e}");
-            }
-            if let Err(e) = win.set_visible_on_all_workspaces(true) {
-                eprintln!("ruoxi: overlay visible-on-all-workspaces: {e}");
-            }
+            // Ordering, level and collection behavior belong to raise_above_fullscreen.
             crate::panel::raise_above_fullscreen(app, &win, "overlay");
             eprintln!("ruoxi: overlay built");
             let _ = win.set_focus();
@@ -265,6 +255,14 @@ fn commit(app: &tauri::AppHandle, x: f64, y: f64, w: f64, h: f64) -> Result<(), 
     let png =
         crate::capture::encode_png(cropped.as_raw(), cw, ch).map_err(|e| e.to_string())?;
 
+    // The selection is CSS px in the overlay viewport, and the overlay window
+    // sits at the monitor's CG origin sized to the monitor — so viewport
+    // coords shift directly into CG global logical points.
+    let origin = (
+        monitor.x().map(|v| v as f64).unwrap_or(0.0) + x,
+        monitor.y().map(|v| v as f64).unwrap_or(0.0) + y,
+    );
+
     let captured = crate::capture::Captured {
         scope: crate::capture_store::Scope::Region,
         png,
@@ -274,6 +272,8 @@ fn commit(app: &tauri::AppHandle, x: f64, y: f64, w: f64, h: f64) -> Result<(), 
         app: None,
         title: None,
         display_id: Some(target.monitor_id),
+        origin_x: origin.0,
+        origin_y: origin.1,
     };
 
     let data_dir = app
@@ -285,8 +285,11 @@ fn commit(app: &tauri::AppHandle, x: f64, y: f64, w: f64, h: f64) -> Result<(), 
         .insert(&crate::capture::to_new_capture(captured))
         .map_err(|e| e.to_string())?;
 
+    // Scope the panel to this capture before the raise reads it, mirroring the
+    // capture worker: show-before-set raced the display placement.
+    crate::ask::set_current_capture(&record, origin);
     crate::panel::show(app);
-    crate::emit_capture(app, &record);
+    crate::emit_capture(app, &record, origin);
     Ok(())
 }
 

@@ -8,6 +8,7 @@ import { parseRitualStep } from "./components/onboarding/types";
 import type { RitualStep } from "./components/onboarding/types";
 import CaptureOverlay from "./components/overlay/CaptureOverlay";
 import type { OverlaySelection } from "./components/overlay/CaptureOverlay";
+import MiniMark from "./components/panel/MiniMark";
 import ResultPanel from "./components/panel/ResultPanel";
 import { isNetState, isPanelState, NET_STATES, PANEL_STATES } from "./components/panel/types";
 import type { CaptureInfo, CaptureScope, NetState, PanelState } from "./components/panel/types";
@@ -99,6 +100,13 @@ function parseOverlaySelection(raw: string | null): OverlaySelection | undefined
   if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) return undefined;
   const [x, y, w, h] = parts;
   return { x, y, w, h };
+}
+
+/** Panel presentation: the full surface, or the collapsed 44px disc. */
+type PanelMode = "panel" | "mini";
+
+function readPanelMode(raw: string | null): PanelMode {
+  return raw === "mini" ? "mini" : "panel";
 }
 
 const DEMO_ANSWER =
@@ -209,7 +217,9 @@ function ReducedMotionToggle({
 }
 
 export default function App() {
+  const params = new URLSearchParams(window.location.search);
   const [reducedMotion, setReducedMotion] = useState(false);
+  const [mode, setMode] = useState<PanelMode>(() => readPanelMode(params.get("mode")));
   const [panelState, setPanelState] = useState<PanelState>("thinking");
   const [panelNet, setPanelNet] = useState<NetState>("local_only");
   const [panelVisible, setPanelVisible] = useState(true);
@@ -222,7 +232,6 @@ export default function App() {
   const lastSpokenQuestionRef = useRef("");
   const pttHeldRef = useRef(false);
 
-  const params = new URLSearchParams(window.location.search);
   const panelView = params.get("view") === "panel";
   const isTauri = !!window.__TAURI_INTERNALS__?.invoke;
   const onboardingView = params.get("view") === "onboarding";
@@ -399,6 +408,11 @@ export default function App() {
           setLiveNet(s?.offline ? "offline" : "local_only"),
         ),
       );
+      track(
+        await listenTauri<{ mode?: string }>("panel:mode", (p) => {
+          setMode(readPanelMode(p?.mode ?? null));
+        }),
+      );
     };
     void start();
     return () => {
@@ -419,6 +433,13 @@ export default function App() {
   const pttCancel = () => {
     pttHeldRef.current = false;
     invokeTauriAsync("voice_ask_cancel");
+  };
+
+  /* Adopt the mode locally first (so the disc swaps instantly), then ask the
+     shell to resize the window. The command may not exist yet — swallow. */
+  const setPanelMode = (next: PanelMode) => {
+    setMode(next);
+    invokeTauriAsync("set_panel_mode", { mode: next })?.catch(() => undefined);
   };
 
   const wizardRef = useRef<HTMLDivElement | null>(null);
@@ -455,6 +476,15 @@ export default function App() {
   }
 
   if (panelView) {
+    if (mode === "mini") {
+      return (
+        <MiniMark
+          state={isTauri ? liveState : panelViewState}
+          onOpen={() => setPanelMode("panel")}
+          reducedMotion={reducedMotion}
+        />
+      );
+    }
     return (
       <div
         className={`flex min-h-screen items-start justify-center p-3 text-[14px] leading-[1.45]${reducedMotion ? " reduced-motion rm-halve" : ""}`}
@@ -467,6 +497,7 @@ export default function App() {
           capture={isTauri ? liveCapture : panelViewCapture}
           hotkeyLabel={hotkeyLabel}
           reducedMotion={reducedMotion}
+          onCollapse={() => setPanelMode("mini")}
           onPttStart={isTauri ? pttStart : undefined}
           onPttStop={isTauri ? pttStop : undefined}
           onPttCancel={isTauri ? pttCancel : undefined}

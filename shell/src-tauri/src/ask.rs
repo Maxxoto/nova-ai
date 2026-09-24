@@ -19,12 +19,43 @@ use crate::capture_store::CaptureRecord;
 /// The capture the panel is showing; the ask is scoped to it. `scope` uses
 /// the wire labels (`region` | `window` | `screen`), not the store's
 /// `fullscreen` spelling.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CurrentCapture {
     pub id: String,
     pub scope: String,
+    /// Physical pixel size (the store's `w_px`/`h_px`).
     pub width: u32,
     pub height: u32,
+    /// Capture origin in **CG global top-left** logical points — the space
+    /// `CGDisplayBounds` and window bounds report. The flip to AppKit's
+    /// bottom-up coords happens at the placement boundary in `panel.rs`
+    /// (`flip_cg_to_appkit`); the two spaces are never mixed in between.
+    pub origin_x: f64,
+    pub origin_y: f64,
+    /// Pixels per point at capture time; the on-screen (logical) extent is
+    /// `width / scale` — see [`CurrentCapture::cg_rect`].
+    pub scale: f64,
+    pub display_id: String,
+}
+
+impl CurrentCapture {
+    /// The capture rect in CG global top-left logical points: stored origin
+    /// plus the physical size divided by the capture scale. A degenerate
+    /// scale (0/NaN from a corrupted sidecar) reads as 1× instead of
+    /// producing infinities.
+    pub fn cg_rect(&self) -> (f64, f64, f64, f64) {
+        let scale = if self.scale.is_finite() && self.scale > 0.0 {
+            self.scale
+        } else {
+            1.0
+        };
+        (
+            self.origin_x,
+            self.origin_y,
+            self.width as f64 / scale,
+            self.height as f64 / scale,
+        )
+    }
 }
 
 /// The capture the next ask attaches, set next to the `panel:capture` emit
@@ -142,13 +173,20 @@ fn capture_slot() -> std::sync::MutexGuard<'static, Option<CurrentCapture>> {
     CURRENT_CAPTURE.lock().unwrap_or_else(|e| e.into_inner())
 }
 
-/// Remembers `record` as the capture the panel is asking about.
-pub fn set_current_capture(record: &CaptureRecord) {
+/// Remembers `record` as the capture the panel is asking about. `origin` is
+/// the capture's top-left in CG global top-left logical points (see
+/// [`CurrentCapture`]); paths that cannot produce one pass `(0.0, 0.0)` and
+/// the panel's centred fallback covers it.
+pub fn set_current_capture(record: &CaptureRecord, origin: (f64, f64)) {
     *capture_slot() = Some(CurrentCapture {
         id: record.capture_id.clone(),
         scope: scope_label(&record.scope).to_string(),
         width: px_dim(record.w_px),
         height: px_dim(record.h_px),
+        origin_x: origin.0,
+        origin_y: origin.1,
+        scale: record.scale,
+        display_id: record.display_id.clone(),
     });
 }
 
@@ -426,11 +464,12 @@ mod tests {
         clear_current_capture();
         assert_eq!(ask_params("hi")["capture_ids"], json!([]));
 
-        set_current_capture(&record("window", 10, 20));
+        set_current_capture(&record("window", 10, 20), (4.0, 8.0));
         assert_eq!(ask_params("hi")["capture_ids"], json!(["cap_test"]));
         let capture = current_capture().expect("capture is set");
         assert_eq!(capture.scope, "window");
         assert_eq!((capture.width, capture.height), (10, 20));
+        assert_eq!((capture.origin_x, capture.origin_y), (4.0, 8.0));
 
         clear_current_capture();
         assert!(current_capture().is_none());
@@ -445,8 +484,29 @@ mod tests {
             let _slot = CURRENT_CAPTURE.lock().unwrap();
             panic!("poison the lock on purpose");
         });
-        set_current_capture(&record("region", 1, 1));
+        set_current_capture(&record("region", 1, 1), (0.0, 0.0));
         assert_eq!(ask_params("hi")["capture_ids"], json!(["cap_test"]));
+        clear_current_capture();
+    }
+
+    #[test]
+    fn cg_rect_divides_physical_pixels_by_scale() {
+        let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        clear_current_capture();
+
+        let mut retina = record("region", 640, 400);
+        retina.scale = 2.0;
+        set_current_capture(&retina, (10.0, 20.0));
+        let capture = current_capture().expect("capture is set");
+        assert_eq!(capture.cg_rect(), (10.0, 20.0, 320.0, 200.0));
+
+        // A corrupted 0 scale reads as 1× instead of producing infinities.
+        let mut broken = record("region", 640, 400);
+        broken.scale = 0.0;
+        set_current_capture(&broken, (0.0, 0.0));
+        let capture = current_capture().expect("capture is set");
+        assert_eq!(capture.cg_rect(), (0.0, 0.0, 640.0, 400.0));
+
         clear_current_capture();
     }
 

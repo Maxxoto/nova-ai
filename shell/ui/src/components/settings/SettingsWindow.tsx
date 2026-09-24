@@ -4,6 +4,8 @@ import { getPermissionsStatus } from "../../permissions";
 import type { PermissionKind, PermissionsStatus } from "../../permissions";
 import { invokeTauriAsync, listenTauri } from "../../tauri";
 import { KBD } from "../onboarding/styles";
+import AnchorPicker, { PANEL_ANCHORS } from "./AnchorPicker";
+import type { PanelAnchor } from "./AnchorPicker";
 import { ModelsSection } from "./ModelSetup";
 import {
   AppRow,
@@ -32,6 +34,9 @@ type AnswerLength = (typeof ANSWER_LENGTHS)[number];
 const SCOPES = ["window", "fullscreen"] as const;
 type CaptureScope = (typeof SCOPES)[number];
 
+const PANEL_PLACEMENTS = ["near", "fixed"] as const;
+type PanelPlacement = (typeof PANEL_PLACEMENTS)[number];
+
 /** The four modifiers the backend hotkey parser accepts (`global-hotkey`). */
 type HotkeyModifier = "Cmd" | "Ctrl" | "Alt" | "Shift";
 
@@ -47,6 +52,8 @@ type Settings = {
   answer_length: AnswerLength;
   theme: Theme;
   default_scope: CaptureScope;
+  panel_placement: PanelPlacement;
+  panel_anchor: PanelAnchor;
   fullscreen_display_id: number | null;
   ptt_hotkey: string;
   sidecar_command: string;
@@ -62,6 +69,8 @@ const DEFAULT_SETTINGS: Settings = {
   answer_length: "short",
   theme: "system",
   default_scope: "window",
+  panel_placement: "near",
+  panel_anchor: "tr",
   fullscreen_display_id: null,
   ptt_hotkey: "F8",
   sidecar_command: "python3",
@@ -224,6 +233,8 @@ function normalizeSettings(raw: unknown): Settings {
     answer_length: pick(ANSWER_LENGTHS, record.answer_length, DEFAULT_SETTINGS.answer_length),
     theme: pick(THEMES, record.theme, DEFAULT_SETTINGS.theme),
     default_scope: pick(SCOPES, record.default_scope, DEFAULT_SETTINGS.default_scope),
+    panel_placement: pick(PANEL_PLACEMENTS, record.panel_placement, DEFAULT_SETTINGS.panel_placement),
+    panel_anchor: pick(PANEL_ANCHORS, record.panel_anchor, DEFAULT_SETTINGS.panel_anchor),
     fullscreen_display_id:
       typeof record.fullscreen_display_id === "number" ? record.fullscreen_display_id : null,
     ptt_hotkey:
@@ -1050,6 +1061,28 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
           ) : null}
         </div>
         <div className="flex flex-col">
+          <Row
+            label="Result panel"
+            help="Where the floating panel appears. Near the capture keeps it beside what you pointed at."
+            side={
+              <Segmented
+                ariaLabel="Panel placement"
+                value={settings.panel_placement}
+                onChange={(next) => setField({ panel_placement: next })}
+                options={[
+                  { value: "near", label: "Near the capture" },
+                  { value: "fixed", label: "Fixed position" },
+                ]}
+              />
+            }
+          />
+          {settings.panel_placement === "fixed" ? (
+            <Row
+              label="Fixed corner"
+              help="Where it sits when it is not following a capture."
+              side={<AnchorPicker value={settings.panel_anchor} onChange={(next) => setField({ panel_anchor: next })} />}
+            />
+          ) : null}
           <Row
             label="Default capture scope"
             help="What a voice ask captures when you do not box anything."

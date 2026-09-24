@@ -36,6 +36,17 @@ fn default_default_scope() -> String {
     "window".to_string()
 }
 
+/// Panel placement (settings.html "Panel placement"): "near" the capture or
+/// at a "fixed" anchor.
+fn default_panel_placement() -> String {
+    "near".to_string()
+}
+
+/// Fixed-position anchor cell of the 3×3 grid (design `is-<anchor>` classes).
+fn default_panel_anchor() -> String {
+    "tr".to_string()
+}
+
 /// Voice-ask chord per the design convention (⌥⇧V); stored settings keep
 /// their own binding, this only seeds fresh (or unrecoverable) profiles.
 fn default_ptt_hotkey() -> String {
@@ -123,6 +134,10 @@ pub struct Settings {
     pub theme: String,
     #[serde(default = "default_default_scope")]
     pub default_scope: String,
+    #[serde(default = "default_panel_placement")]
+    pub panel_placement: String,
+    #[serde(default = "default_panel_anchor")]
+    pub panel_anchor: String,
     /// Preferred whole-screen display (xcap monitor id); `None` keeps the
     /// original behavior — the display under the cursor.
     #[serde(default)]
@@ -156,6 +171,12 @@ impl Settings {
         if !matches!(self.default_scope.as_str(), "window" | "fullscreen") {
             self.default_scope = default_default_scope();
         }
+        if !matches!(self.panel_placement.as_str(), "near" | "fixed") {
+            self.panel_placement = default_panel_placement();
+        }
+        if !is_panel_anchor(&self.panel_anchor) {
+            self.panel_anchor = default_panel_anchor();
+        }
         if !self.tts.rate.is_finite() || !(0.5..=2.0).contains(&self.tts.rate) {
             self.tts.rate = default_tts_rate();
         }
@@ -163,6 +184,13 @@ impl Settings {
             self.ptt_hotkey = default_ptt_hotkey();
         }
     }
+}
+
+fn is_panel_anchor(anchor: &str) -> bool {
+    matches!(
+        anchor,
+        "tl" | "tc" | "tr" | "ml" | "mc" | "mr" | "bl" | "bc" | "br"
+    )
 }
 
 impl Default for Settings {
@@ -175,6 +203,8 @@ impl Default for Settings {
             answer_length: default_answer_length(),
             theme: default_theme(),
             default_scope: default_default_scope(),
+            panel_placement: default_panel_placement(),
+            panel_anchor: default_panel_anchor(),
             fullscreen_display_id: None,
             ptt_hotkey: default_ptt_hotkey(),
             sidecar_command: default_sidecar_command(),
@@ -399,6 +429,8 @@ mod tests {
         assert_eq!(settings.answer_length, "short");
         assert_eq!(settings.theme, "system");
         assert_eq!(settings.default_scope, "window");
+        assert_eq!(settings.panel_placement, "near");
+        assert_eq!(settings.panel_anchor, "tr");
         assert_eq!(settings.fullscreen_display_id, None);
         assert_eq!(settings.ptt_hotkey, "Alt+Shift+V");
         assert_eq!(settings.tts.rate, 1.0);
@@ -414,6 +446,8 @@ mod tests {
             answer_length: "normal".to_string(),
             theme: "night".to_string(),
             default_scope: "fullscreen".to_string(),
+            panel_placement: "fixed".to_string(),
+            panel_anchor: "bl".to_string(),
             fullscreen_display_id: Some(7),
             ptt_hotkey: "Cmd+Shift+Space".to_string(),
             sidecar_command: "uv".to_string(),
@@ -445,6 +479,8 @@ mod tests {
         assert_eq!(back.answer_length, "normal");
         assert_eq!(back.theme, "night");
         assert_eq!(back.default_scope, "fullscreen");
+        assert_eq!(back.panel_placement, "fixed");
+        assert_eq!(back.panel_anchor, "bl");
         assert_eq!(back.fullscreen_display_id, Some(7));
         assert_eq!(back.ptt_hotkey, "Cmd+Shift+Space");
         assert_eq!(back.stt.model, "whisper-base-q5");
@@ -463,6 +499,8 @@ mod tests {
             answer_length: "verbose".to_string(),
             theme: "noir".to_string(),
             default_scope: "display".to_string(),
+            panel_placement: "beside".to_string(),
+            panel_anchor: "top-right".to_string(),
             tts: TtsSettings {
                 rate: 9.0,
                 ..Settings::default().tts
@@ -473,12 +511,16 @@ mod tests {
         assert_eq!(invalid.answer_length, "short");
         assert_eq!(invalid.theme, "system");
         assert_eq!(invalid.default_scope, "window");
+        assert_eq!(invalid.panel_placement, "near");
+        assert_eq!(invalid.panel_anchor, "tr");
         assert_eq!(invalid.tts.rate, 1.0);
 
         let mut valid = Settings {
             answer_length: "normal".to_string(),
             theme: "dawn".to_string(),
             default_scope: "fullscreen".to_string(),
+            panel_placement: "fixed".to_string(),
+            panel_anchor: "mc".to_string(),
             tts: TtsSettings {
                 rate: 1.4,
                 ..Settings::default().tts
@@ -489,6 +531,8 @@ mod tests {
         assert_eq!(valid.answer_length, "normal");
         assert_eq!(valid.theme, "dawn");
         assert_eq!(valid.default_scope, "fullscreen");
+        assert_eq!(valid.panel_placement, "fixed");
+        assert_eq!(valid.panel_anchor, "mc");
         assert_eq!(valid.tts.rate, 1.4);
     }
 

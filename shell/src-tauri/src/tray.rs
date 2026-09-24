@@ -124,6 +124,8 @@ pub fn install(
         current.offline,
         None::<&str>,
     )?;
+    let show_panel =
+        MenuItem::with_id(app, "show_panel", "Show Result Panel", true, None::<&str>)?;
     let capture_region =
         MenuItem::with_id(app, "capture_region", "Capture Region", true, None::<&str>)?;
     let capture_window =
@@ -144,6 +146,7 @@ pub fn install(
     let menu = Menu::with_items(
         app,
         &[
+            &show_panel,
             &capture_region,
             &capture_window,
             &capture_fullscreen,
@@ -171,6 +174,7 @@ pub fn install(
     builder
         .on_menu_event(move |app, event| match event.id().as_ref() {
             "quit" => app.exit(0),
+            "show_panel" => crate::panel::show(app),
             "capture_region" => send_intent(&intents, hotkeys::CaptureIntent::Region),
             "capture_window" => send_intent(&intents, hotkeys::CaptureIntent::Window),
             "capture_fullscreen" => send_intent(&intents, hotkeys::CaptureIntent::Fullscreen),
