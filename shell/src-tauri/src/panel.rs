@@ -594,15 +594,32 @@ fn drag_origin_slot() -> MutexGuard<'static, Option<(f64, f64)>> {
 }
 
 /// The UI calls this on mousedown on the disc: from here until the debounced
-/// persist (or a `cancel_drag`), `Moved` events are the user's drag.
+/// persist (or a `cancel_drag`), `Moved` events are the user's drag. The
+/// native drag itself starts here too — `start_dragging` performs
+/// `performWindowDragWithEvent:` with the current (mousedown) event, so it
+/// works regardless of which inner element of the disc the press landed on
+/// (`data-tauri-drag-region` needs an exact `e.target` match, which the
+/// disc's inner spans/svg never satisfy).
 #[tauri::command]
-pub fn begin_panel_drag(_app: AppHandle) {
+pub fn begin_panel_drag(app: AppHandle) {
     // Drop anything a previous burst left pending — including a sleeper
     // thread's ticket — so a fresh drag cannot inherit a stale origin.
     *drag_origin_slot() = None;
     DRAG_TICKET.fetch_add(1, Ordering::SeqCst);
     PANEL_DRAGGING.store(true, Ordering::Relaxed);
     eprintln!("ruoxi: panel drag begin");
+    let Some(win) = app.get_webview_window(PANEL_LABEL) else {
+        eprintln!("ruoxi: panel drag begin without a panel window");
+        return;
+    };
+    let runner = app.clone();
+    if let Err(e) = runner.run_on_main_thread(move || {
+        if let Err(e) = win.start_dragging() {
+            eprintln!("ruoxi: panel drag start failed: {e}");
+        }
+    }) {
+        eprintln!("ruoxi: panel drag start dispatch failed: {e}");
+    }
 }
 
 /// Ends any live drag: the pending origin is dropped and the debounce thread
