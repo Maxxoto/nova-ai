@@ -554,8 +554,27 @@ pub fn set_panel_mode(app: AppHandle, mode: String) -> Result<(), String> {
     let win_main = win.clone();
     let logged_mode = mode.clone();
     let _ = app.run_on_main_thread(move || {
-        if let Err(e) = win_main.set_size(tauri::LogicalSize::new(w, h)) {
-            eprintln!("ruoxi: panel mode {logged_mode} resize failed: {e}");
+        let Ok(raw) = win_main.ns_window() else {
+            return;
+        };
+        let ns_win = raw as *mut objc2::runtime::AnyObject;
+        // Tauri's set_size funnels through the event loop, so a frame read
+        // in this same main-thread turn still sees the OLD size and the
+        // re-place below would anchor the mini at the panel's old origin.
+        // setContentSize: commits synchronously, so the single re-place
+        // computes with the new size. On an ObjC exception, bail instead of
+        // placing with the stale frame.
+        let result = unsafe {
+            let ns_ref = &*ns_win;
+            objc2::exception::catch(std::panic::AssertUnwindSafe(|| {
+                let (): () = objc2::msg_send![
+                    ns_ref,
+                    setContentSize: objc2_foundation::NSSize::new(w, h)
+                ];
+            }))
+        };
+        if let Err(e) = result {
+            eprintln!("ruoxi: panel mode {logged_mode} resize caught ObjC exception: {e:?}");
             return;
         }
         // Re-place with the new size and re-assert level/Space/alpha/order
