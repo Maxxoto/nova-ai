@@ -77,6 +77,59 @@ seam lets the Tauri shell ship now and Rust OS-control modules slot in later wit
 
 ---
 
+> **⚠️ Amendment — 2026-09-21 (as-built boundary):** the §4 diagram predates the
+> implementation. Three of its placements are inverted in the shipped code, and
+> the Core/Adapter interface turned out to be **bidirectional**. Recorded here so
+> the umbrella document matches reality — the intent of §4 (a clean, swappable
+> platform seam) is unchanged.
+>
+> **Where components actually live**
+>
+> | Component | §4 diagram | As built | Why the inversion stands |
+> |---|---|---|---|
+> | Memory store | Core | **Adapter** — Rust `memory.rs`: sharded Markdown + FTS index + digest (RFC-0006 §4.2) | The store owns the capture data dir and is written on the ask path; keeping it in Rust avoids a cross-process write hop and keeps the index rebuildable from files |
+> | STT | Core | **Adapter** — Rust `voice.rs`: whisper-rs + parakeet FFI (RFC-0004) | Native inference in-process; S2 measured 147.6 MB idle with the model lifecycle under our control |
+> | TTS | Core | **Adapter** — Rust `tts.rs`: kokoro-micro (RFC-0005) | Sentence-streamed playback in ~0.6 s time-to-first-audio; an IPC hop per chunk would spend the budget on transport |
+>
+> Moving any of the three back into Python re-opens the RAM (§12-adjacent) and
+> latency budgets, so the plan is to amend the boundary, not relocate the code.
+>
+> **CORE — portable reasoning, no platform APIs (frozen Python).** Agent loop +
+> tool registry (`application/services/tool_loop.py`), LLM client/routing/degradation
+> (`adapters/llm_providers`, RFC-0007 §4.4), context assembly and the citation
+> guard, and at M3 consolidation + daily brief (RFC-0006 §4.6). Packaged as a
+> single frozen executable (`ruoxi-brain`, PyInstaller) shipped **inside** the
+> `.app` — the DMG carries adapter + core.
+>
+> **ADAPTER — Tauri 2 / Rust (macOS + Windows).** Everything needing OS access or
+> native performance: lifecycle (tray, single instance, activation policy,
+> settings, Keychain), input (global hotkeys, PTT raw key-down/key-up, Esc tap,
+> permission rituals), capture (screen, region overlay, store + index), window
+> shells (panel, overlay, onboarding, settings, timeline), native inference
+> (whisper-rs/parakeet, kokoro-micro), audio I/O (cpal, rodio), model catalog +
+> downloader, sidecar supervision, and the privacy kill-switch / cloud indicator.
+>
+> **The interface is bidirectional** (the §4 diagram draws one arrow):
+>
+> | Direction | Envelopes |
+> |---|---|
+> | Adapter → Core | `ping`, `health`, `session.ask`, `session.abort`, `config.test` |
+> | Core → Adapter (reverse-RPC) | `capture.lookup`, `timeline.query`, `memory.search`, `memory.lookup`, `memory.digest` |
+> | Core → Adapter (notifications) | `agent.token`, `agent.tool_step` |
+> | Adapter → UI | `panel:token`, `panel:complete`, `panel:error`, `panel:tool_step`, `panel:listening`, `panel:transcript`, `panel:ask_cancelled` |
+>
+> The core is a **child process of the adapter** that calls back over the same
+> stdio channel; the shell's `RequestRouter` chain is the concrete realisation of
+> what §4 labels the "Platform Adapter interface". The adapter injects the core's
+> runtime contract at spawn: LLM endpoint/key/model, the offline flag, and a
+> sandboxed `RUOXI_WORKSPACE` for file/shell tools.
+>
+> **Freeze status:** not yet built. Today's DMG ships the adapter only, so the
+> brain needs a Python with the repo deps (`sidecar_command` in settings). The
+> freeze + `externalBin` packaging + signing is the remaining W6/M3 hardening.
+
+---
+
 ## 5. Component RFC Index
 
 > **Decomposition — 2026-09-18:** instead of finishing this document as a single
