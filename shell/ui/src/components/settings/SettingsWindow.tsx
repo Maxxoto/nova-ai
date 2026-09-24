@@ -515,8 +515,7 @@ function permissionGranted(kind: PermissionKind, status: PermissionsStatus | nul
 
 function displayCaption(display: Display): string {
   const role = display.primary ? "Primary" : "Secondary";
-  const anchor = display.primary ? " · panel anchor" : "";
-  return `${role} · ${display.width} × ${display.height} · scale ${display.scale}×${anchor}`;
+  return `${role} · ${display.width} × ${display.height}`;
 }
 
 type HotkeyCommitResult = { ok: true } | { ok: false; message: string; tone: "error" | "muted" };

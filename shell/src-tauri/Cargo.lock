@@ -3708,6 +3708,7 @@ dependencies = [
  "kokoro-micro",
  "libc",
  "objc2",
+ "objc2-app-kit",
  "objc2-av-foundation",
  "objc2-foundation",
  "png 0.18.1",
