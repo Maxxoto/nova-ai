@@ -252,11 +252,23 @@ pub fn get_settings(app: tauri::AppHandle) -> Result<Settings, String> {
     Ok(load(&app))
 }
 
+/// Whether a settings change moves where a visible panel sits (and so
+/// warrants a reposition). Pure so the decision is unit-testable.
+fn placement_changed(old: &Settings, new: &Settings) -> bool {
+    old.panel_placement != new.panel_placement || old.panel_anchor != new.panel_anchor
+}
+
 #[tauri::command]
 pub fn set_settings(app: tauri::AppHandle, settings: Settings) -> Result<(), String> {
+    // Read the previous values BEFORE the save overwrites them — the
+    // placement comparison below needs the pre-change state.
+    let previous = load(&app);
     save(&app, &settings)?;
     use tauri::Emitter;
     let _ = app.emit("settings:changed", &settings);
+    if placement_changed(&previous, &settings) {
+        crate::panel::reposition(&app);
+    }
     Ok(())
 }
 
@@ -534,6 +546,31 @@ mod tests {
         assert_eq!(valid.panel_placement, "fixed");
         assert_eq!(valid.panel_anchor, "mc");
         assert_eq!(valid.tts.rate, 1.4);
+    }
+
+    #[test]
+    fn placement_changed_keys_only_off_placement_fields() {
+        let base = Settings::default();
+        assert!(!placement_changed(&base, &base));
+
+        let mut placement = base.clone();
+        placement.panel_placement = "fixed".to_string();
+        assert!(placement_changed(&base, &placement));
+
+        let mut anchor = base.clone();
+        anchor.panel_anchor = "bl".to_string();
+        assert!(placement_changed(&base, &anchor));
+
+        let mut both = base.clone();
+        both.panel_placement = "fixed".to_string();
+        both.panel_anchor = "bl".to_string();
+        assert!(placement_changed(&base, &both));
+
+        let mut unrelated = base.clone();
+        unrelated.theme = "night".to_string();
+        unrelated.ptt_hotkey = "Cmd+Shift+Space".to_string();
+        unrelated.tts.rate = 1.5;
+        assert!(!placement_changed(&base, &unrelated));
     }
 
     #[test]

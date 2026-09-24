@@ -431,6 +431,24 @@ pub fn hide(app: &AppHandle) {
     }
 }
 
+/// Re-places a VISIBLE panel after its placement settings change (Settings →
+/// Panel placement). No resize: `show_panel_style` sizes nothing, it reads
+/// the live frame — so a mini stays 44×44 and a panel stays 424×480 — and
+/// re-asserts level/behaviour/alpha/order/nudge through the one shared show
+/// path. A hidden panel is left alone; the next `show` picks the new setting
+/// up on its own.
+pub fn reposition(app: &AppHandle) {
+    if !is_visible() {
+        return;
+    }
+    let Some(win) = app.get_webview_window(PANEL_LABEL) else {
+        return;
+    };
+    if let Err(e) = app.run_on_main_thread(move || show_panel_style(&win, "panel")) {
+        eprintln!("ruoxi: panel reposition dispatch failed: {e}");
+    }
+}
+
 /// Listen-only Esc tap: hides the panel when visible, never consumes the
 /// key — the underlying app sees its own Esc semantics (S1 tap pattern).
 pub fn spawn_esc_dismiss(app: AppHandle) -> Result<(), String> {
