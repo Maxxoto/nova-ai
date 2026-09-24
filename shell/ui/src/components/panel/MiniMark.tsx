@@ -1,4 +1,5 @@
 import { FOCUS_RING } from "../settings/primitives";
+import { invokeTauriAsync } from "../../tauri";
 import type { PanelState } from "./types";
 
 type MiniVisual = "ready" | "listening" | "working";
@@ -44,10 +45,19 @@ export default function MiniMark({
   const complete = state === "complete";
   const title = `Ruoxi · ${word}${complete ? " — open to read" : ""}`;
 
+  /* Drag vs click: `data-tauri-drag-region` starts a native window drag on the
+     disc while `onClick` still expands the panel. Whether the native drag
+     swallows the click on the same element is verified live by the reviewer; if
+     the click is lost, move the drag region to a wrapper element and keep the
+     click on the inner mark. */
   return (
     <button
       type="button"
       data-state={visual}
+      data-tauri-drag-region
+      onMouseDown={() => {
+        invokeTauriAsync("begin_panel_drag")?.catch(() => undefined);
+      }}
       onClick={onOpen}
       aria-label={`Ruoxi — ${word}. Open the panel.`}
       title={title}

@@ -47,6 +47,14 @@ fn default_panel_anchor() -> String {
     "tr".to_string()
 }
 
+/// The surface a capture opens as: the mini mark by default — a capture
+/// stays out of the way until asked for the full panel. (The design
+/// prototype opens as the panel; defaulting to mini is a deliberate product
+/// choice.)
+fn default_panel_open_as() -> String {
+    "mini".to_string()
+}
+
 /// Voice-ask chord per the design convention (⌥⇧V); stored settings keep
 /// their own binding, this only seeds fresh (or unrecoverable) profiles.
 fn default_ptt_hotkey() -> String {
@@ -138,6 +146,15 @@ pub struct Settings {
     pub panel_placement: String,
     #[serde(default = "default_panel_anchor")]
     pub panel_anchor: String,
+    #[serde(default = "default_panel_open_as")]
+    pub panel_open_as: String,
+    /// Dragged panel origin in AppKit bottom-left logical points — exactly
+    /// the space `panel::place_panel` places in. Written by the native drag
+    /// watcher together with `panel_placement = "custom"`.
+    #[serde(default)]
+    pub panel_custom_x: Option<f64>,
+    #[serde(default)]
+    pub panel_custom_y: Option<f64>,
     /// Preferred whole-screen display (xcap monitor id); `None` keeps the
     /// original behavior — the display under the cursor.
     #[serde(default)]
@@ -171,11 +188,14 @@ impl Settings {
         if !matches!(self.default_scope.as_str(), "window" | "fullscreen") {
             self.default_scope = default_default_scope();
         }
-        if !matches!(self.panel_placement.as_str(), "near" | "fixed") {
+        if !matches!(self.panel_placement.as_str(), "near" | "fixed" | "custom") {
             self.panel_placement = default_panel_placement();
         }
         if !is_panel_anchor(&self.panel_anchor) {
             self.panel_anchor = default_panel_anchor();
+        }
+        if !matches!(self.panel_open_as.as_str(), "mini" | "panel") {
+            self.panel_open_as = default_panel_open_as();
         }
         if !self.tts.rate.is_finite() || !(0.5..=2.0).contains(&self.tts.rate) {
             self.tts.rate = default_tts_rate();
@@ -205,6 +225,9 @@ impl Default for Settings {
             default_scope: default_default_scope(),
             panel_placement: default_panel_placement(),
             panel_anchor: default_panel_anchor(),
+            panel_open_as: default_panel_open_as(),
+            panel_custom_x: None,
+            panel_custom_y: None,
             fullscreen_display_id: None,
             ptt_hotkey: default_ptt_hotkey(),
             sidecar_command: default_sidecar_command(),
@@ -443,6 +466,9 @@ mod tests {
         assert_eq!(settings.default_scope, "window");
         assert_eq!(settings.panel_placement, "near");
         assert_eq!(settings.panel_anchor, "tr");
+        assert_eq!(settings.panel_open_as, "mini");
+        assert_eq!(settings.panel_custom_x, None);
+        assert_eq!(settings.panel_custom_y, None);
         assert_eq!(settings.fullscreen_display_id, None);
         assert_eq!(settings.ptt_hotkey, "Alt+Shift+V");
         assert_eq!(settings.tts.rate, 1.0);
@@ -458,8 +484,11 @@ mod tests {
             answer_length: "normal".to_string(),
             theme: "night".to_string(),
             default_scope: "fullscreen".to_string(),
-            panel_placement: "fixed".to_string(),
+            panel_placement: "custom".to_string(),
             panel_anchor: "bl".to_string(),
+            panel_open_as: "panel".to_string(),
+            panel_custom_x: Some(120.5),
+            panel_custom_y: Some(88.0),
             fullscreen_display_id: Some(7),
             ptt_hotkey: "Cmd+Shift+Space".to_string(),
             sidecar_command: "uv".to_string(),
@@ -491,8 +520,11 @@ mod tests {
         assert_eq!(back.answer_length, "normal");
         assert_eq!(back.theme, "night");
         assert_eq!(back.default_scope, "fullscreen");
-        assert_eq!(back.panel_placement, "fixed");
+        assert_eq!(back.panel_placement, "custom");
         assert_eq!(back.panel_anchor, "bl");
+        assert_eq!(back.panel_open_as, "panel");
+        assert_eq!(back.panel_custom_x, Some(120.5));
+        assert_eq!(back.panel_custom_y, Some(88.0));
         assert_eq!(back.fullscreen_display_id, Some(7));
         assert_eq!(back.ptt_hotkey, "Cmd+Shift+Space");
         assert_eq!(back.stt.model, "whisper-base-q5");
@@ -513,6 +545,7 @@ mod tests {
             default_scope: "display".to_string(),
             panel_placement: "beside".to_string(),
             panel_anchor: "top-right".to_string(),
+            panel_open_as: "huge".to_string(),
             tts: TtsSettings {
                 rate: 9.0,
                 ..Settings::default().tts
@@ -525,6 +558,7 @@ mod tests {
         assert_eq!(invalid.default_scope, "window");
         assert_eq!(invalid.panel_placement, "near");
         assert_eq!(invalid.panel_anchor, "tr");
+        assert_eq!(invalid.panel_open_as, "mini");
         assert_eq!(invalid.tts.rate, 1.0);
 
         let mut valid = Settings {
@@ -546,6 +580,21 @@ mod tests {
         assert_eq!(valid.panel_placement, "fixed");
         assert_eq!(valid.panel_anchor, "mc");
         assert_eq!(valid.tts.rate, 1.4);
+
+        // A dragged position is a first-class placement: normalize must keep
+        // it (and its coordinates) verbatim.
+        let mut dragged = Settings {
+            panel_placement: "custom".to_string(),
+            panel_open_as: "panel".to_string(),
+            panel_custom_x: Some(120.5),
+            panel_custom_y: Some(88.0),
+            ..Settings::default()
+        };
+        dragged.normalize();
+        assert_eq!(dragged.panel_placement, "custom");
+        assert_eq!(dragged.panel_open_as, "panel");
+        assert_eq!(dragged.panel_custom_x, Some(120.5));
+        assert_eq!(dragged.panel_custom_y, Some(88.0));
     }
 
     #[test]

@@ -108,7 +108,7 @@ pub fn start(app: &tauri::AppHandle) -> Result<(), String> {
         // Ordering, level and collection behavior belong to raise_above_fullscreen:
         // Tauri's show()/set_always_on_top/set_visible_on_all_workspaces would
         // order the window in or re-tag the Space before our behavior is set.
-        crate::panel::raise_above_fullscreen(app, &win, "overlay");
+        crate::panel::raise_above_fullscreen(app, &win, "overlay", None);
         eprintln!("ruoxi: overlay re-shown (existing window)");
         let _ = win.set_focus();
         return Ok(());
@@ -158,7 +158,7 @@ pub fn start(app: &tauri::AppHandle) -> Result<(), String> {
     match built {
         Ok(win) => {
             // Ordering, level and collection behavior belong to raise_above_fullscreen.
-            crate::panel::raise_above_fullscreen(app, &win, "overlay");
+            crate::panel::raise_above_fullscreen(app, &win, "overlay", None);
             eprintln!("ruoxi: overlay built");
             let _ = win.set_focus();
             Ok(())

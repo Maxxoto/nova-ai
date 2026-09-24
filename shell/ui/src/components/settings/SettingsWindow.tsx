@@ -34,8 +34,11 @@ type AnswerLength = (typeof ANSWER_LENGTHS)[number];
 const SCOPES = ["window", "fullscreen"] as const;
 type CaptureScope = (typeof SCOPES)[number];
 
-const PANEL_PLACEMENTS = ["near", "fixed"] as const;
+const PANEL_PLACEMENTS = ["near", "fixed", "custom"] as const;
 type PanelPlacement = (typeof PANEL_PLACEMENTS)[number];
+
+const PANEL_OPEN_AS = ["panel", "mini"] as const;
+type PanelOpenAs = (typeof PANEL_OPEN_AS)[number];
 
 /** The four modifiers the backend hotkey parser accepts (`global-hotkey`). */
 type HotkeyModifier = "Cmd" | "Ctrl" | "Alt" | "Shift";
@@ -54,6 +57,7 @@ type Settings = {
   default_scope: CaptureScope;
   panel_placement: PanelPlacement;
   panel_anchor: PanelAnchor;
+  panel_open_as: PanelOpenAs;
   fullscreen_display_id: number | null;
   ptt_hotkey: string;
   sidecar_command: string;
@@ -71,6 +75,7 @@ const DEFAULT_SETTINGS: Settings = {
   default_scope: "window",
   panel_placement: "near",
   panel_anchor: "tr",
+  panel_open_as: "mini",
   fullscreen_display_id: null,
   ptt_hotkey: "F8",
   sidecar_command: "python3",
@@ -235,6 +240,7 @@ function normalizeSettings(raw: unknown): Settings {
     default_scope: pick(SCOPES, record.default_scope, DEFAULT_SETTINGS.default_scope),
     panel_placement: pick(PANEL_PLACEMENTS, record.panel_placement, DEFAULT_SETTINGS.panel_placement),
     panel_anchor: pick(PANEL_ANCHORS, record.panel_anchor, DEFAULT_SETTINGS.panel_anchor),
+    panel_open_as: pick(PANEL_OPEN_AS, record.panel_open_as, DEFAULT_SETTINGS.panel_open_as),
     fullscreen_display_id:
       typeof record.fullscreen_display_id === "number" ? record.fullscreen_display_id : null,
     ptt_hotkey:
@@ -1072,6 +1078,7 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
                 options={[
                   { value: "near", label: "Near the capture" },
                   { value: "fixed", label: "Fixed position" },
+                  { value: "custom", label: "Where I put it" },
                 ]}
               />
             }
@@ -1082,7 +1089,26 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
               help="Where it sits when it is not following a capture."
               side={<AnchorPicker value={settings.panel_anchor} onChange={(next) => setField({ panel_anchor: next })} />}
             />
+          ) : settings.panel_placement === "custom" ? (
+            <p className="pt-1 font-ui text-[12px] leading-[1.5] text-muted-foreground">
+              Drag the mini mark anywhere on screen.
+            </p>
           ) : null}
+          <Row
+            label="Open captures as"
+            help="Captures open as the small mark; click it to read the answer."
+            side={
+              <Segmented
+                ariaLabel="Open captures as"
+                value={settings.panel_open_as}
+                onChange={(next) => setField({ panel_open_as: next })}
+                options={[
+                  { value: "mini", label: "Mini" },
+                  { value: "panel", label: "Panel" },
+                ]}
+              />
+            }
+          />
           <Row
             label="Default capture scope"
             help="What a voice ask captures when you do not box anything."

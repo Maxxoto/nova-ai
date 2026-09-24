@@ -1,4 +1,5 @@
 import { FOCUS_RING } from "../settings/primitives";
+import { invokeTauriAsync } from "../../tauri";
 import CloudIndicator from "./CloudIndicator";
 import Orb from "./Orb";
 import type { NetState, PanelState } from "./types";
@@ -28,6 +29,9 @@ export default function PanelHeader({
   return (
     <header
     data-tauri-drag-region
+    onMouseDown={(e) => {
+      if (e.target === e.currentTarget) invokeTauriAsync("begin_panel_drag")?.catch(() => undefined);
+    }}
     className="flex cursor-default items-center gap-2.5 border-b border-border px-3.5 py-2.5"
   >
       <Orb state={state} size={22} />

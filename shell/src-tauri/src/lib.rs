@@ -73,6 +73,7 @@ pub fn run() {
             panel::show_panel,
             panel::hide_panel,
             panel::set_panel_mode,
+            panel::begin_panel_drag,
             ask::voice_ask_start,
             ask::voice_ask_stop,
             ask::voice_ask_cancel,
@@ -266,6 +267,7 @@ pub fn run() {
                     eprintln!("ruoxi: panel window build failed: {e}");
                 }
                 panel::apply_macos_panel_style(app.handle());
+                panel::install_drag_watcher(app.handle());
                 if let Err(e) = panel::spawn_esc_dismiss(app.handle().clone()) {
                     eprintln!("ruoxi: esc dismiss unavailable: {e}");
                 }
