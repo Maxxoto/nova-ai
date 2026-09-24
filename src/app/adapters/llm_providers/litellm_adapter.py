@@ -235,11 +235,16 @@ class LiteLLMAdapter(LLMClientPort):
 
             message = response.choices[0].message
 
+            # Thinking models (e.g. DeepSeek) reject a request whose assistant
+            # turn omits the reasoning it produced, so carry it through.
+            reasoning = getattr(message, "reasoning_content", None)
+
             # Check for tool calls
             if hasattr(message, "tool_calls") and message.tool_calls:
                 return {
                     "response": None,
                     "tool_calls": message.tool_calls,
+                    "reasoning_content": reasoning,
                     "thread_id": thread_id or "default",
                     "memory_used": False,
                 }
@@ -248,6 +253,7 @@ class LiteLLMAdapter(LLMClientPort):
 
             return {
                 "response": content,
+                "reasoning_content": reasoning,
                 "thread_id": thread_id or "default",
                 "memory_used": False,
             }

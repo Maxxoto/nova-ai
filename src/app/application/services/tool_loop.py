@@ -95,13 +95,15 @@ async def run_tool_loop(
             elif isinstance(tc, dict):
                 tool_call_dicts.append(tc)
 
-        messages.append(
-            {
-                "role": "assistant",
-                "content": response.get("response", ""),
-                "tool_calls": tool_call_dicts,
-            }
-        )
+        assistant_turn: Dict[str, Any] = {
+            "role": "assistant",
+            "content": response.get("response", ""),
+            "tool_calls": tool_call_dicts,
+        }
+        # Thinking models require their own reasoning echoed back verbatim.
+        if response.get("reasoning_content"):
+            assistant_turn["reasoning_content"] = response["reasoning_content"]
+        messages.append(assistant_turn)
 
         for tc in tool_calls:
             tool_name = None

@@ -88,7 +88,11 @@ class ScriptedLLMClient:
             }
             for i, call in enumerate(entry.get("tool_calls") or [])
         ]
-        return {"response": entry.get("content", ""), "tool_calls": calls}
+        return {
+            "response": entry.get("content", ""),
+            "tool_calls": calls,
+            "reasoning_content": entry.get("reasoning_content"),
+        }
 
 
 class RoutingLLMClient:
