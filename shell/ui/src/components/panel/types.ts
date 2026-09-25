@@ -25,6 +25,27 @@ export const PANEL_STATES: PanelState[] = [
   "degraded",
 ];
 
+/** The OD's four canonical states; the finer `PanelState` phase collapses onto one. */
+export type CanonicalState = "idle" | "listening" | "thinking" | "answered";
+
+/** `PHASE_STATE` from the OD (capture-and-ask.frag:440), extended to every phase. */
+export const CANONICAL_STATE: Record<PanelState, CanonicalState> = {
+  idle: "idle",
+  ask: "idle",
+  listening: "listening",
+  transcribing: "thinking",
+  thinking: "thinking",
+  speaking: "answered",
+  streaming: "thinking",
+  complete: "answered",
+  error: "idle",
+  degraded: "idle",
+};
+
+export function canonicalStateOf(state: PanelState): CanonicalState {
+  return CANONICAL_STATE[state];
+}
+
 export type CaptureScope = "region" | "window" | "screen";
 
 export type CaptureInfo = {

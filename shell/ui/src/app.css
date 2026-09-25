@@ -673,3 +673,254 @@ html.overlay-view,
 html.overlay-view body {
   background: transparent;
 }
+
+/* ------------------------------------------------------------------ */
+/* Mini mark (T4) — the panel's collapsed form, verbatim from Open     */
+/* Design components.css:63-154 + the fixed per-state block 539-548.   */
+/* OD token → app token: --accent→--primary, --accent-fg→              */
+/* --primary-foreground, --accent-hover→--primary-active, --surface→   */
+/* --card, --signal-idea→--accent, --signal-idea-ink→                  */
+/* --accent-foreground, --r-pill→9999px, --e1/--e2/--e3→the DESIGN.md  */
+/* shadow scale. The disc's own transition already uses --t-fast +     */
+/* --ease-standard, so no `ease-in-out` remains on this surface.        */
+/* ------------------------------------------------------------------ */
+.mini {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  /* The app renders the mark as the window root, so the OD `.mini-slot.is-in`
+     entrance binds to `.mini` itself; the exit (mini-out 120ms standard) is
+     the window-hide path owned by the shell. */
+  animation: mini-in var(--t-standard) var(--ease-snappy);
+}
+.mini-mark {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  display: grid;
+  place-items: center;
+  box-shadow: 0 8px 32px rgba(15, 23, 38, 0.18), 0 2px 8px rgba(15, 23, 38, 0.08);
+  transition: background var(--t-fast) var(--ease-standard), transform var(--t-fast) var(--ease-standard);
+}
+.mini-glyph {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+}
+.mini-glyph svg,
+.mini-glyph img {
+  width: 16px;
+  height: 16px;
+}
+.mini-glyph img {
+  border-radius: 50%;
+}
+.mini-glyph > * {
+  display: none;
+}
+.mini[data-icon="circle"] .mini-glyph > [data-glyph="circle"],
+.mini[data-icon="dot"] .mini-glyph > [data-glyph="dot"],
+.mini[data-icon="custom"] .mini-glyph > [data-glyph="custom"] {
+  display: block;
+}
+.mini:hover .mini-mark {
+  background: hsl(var(--primary-active));
+  transform: scale(1.06);
+}
+.mini:active .mini-mark {
+  transform: scale(0.94);
+  transition-duration: var(--t-instant);
+}
+.mini[data-state="listening"] .mini-mark {
+  animation: breathe 1.2s var(--ease-standard) infinite;
+}
+.mini[data-state="listening"] .mini-mark::before,
+.mini[data-state="listening"] .mini-mark::after {
+  content: "";
+  position: absolute;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 2px solid hsl(var(--primary));
+  animation: pulse-ring 1.2s var(--ease-out) infinite;
+}
+.mini[data-state="listening"] .mini-mark::before {
+  animation-delay: -600ms;
+}
+.mini-spin {
+  position: absolute;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  border-top-color: hsl(var(--primary));
+  border-right-color: color-mix(in oklch, hsl(var(--primary)) 38%, transparent);
+  animation: orbit 0.9s linear infinite, fade-in var(--t-standard) var(--ease-out);
+}
+.mini-dots,
+.mini-bars {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 5px;
+  border-radius: 9999px;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border-strong));
+  box-shadow: 0 1px 2px rgba(15, 23, 38, 0.06);
+  animation: fade-in var(--t-standard) var(--ease-out);
+}
+.mini-dots i {
+  display: block;
+  border-radius: 50%;
+  background: hsl(var(--primary));
+  transform-origin: center;
+  animation: dot-pulse 1.35s var(--ease-standard) infinite;
+}
+.mini-dots i:nth-child(1) {
+  width: 2px;
+  height: 2px;
+}
+.mini-dots i:nth-child(2) {
+  width: 3px;
+  height: 3px;
+  animation-delay: 180ms;
+}
+.mini-dots i:nth-child(3) {
+  width: 4px;
+  height: 4px;
+  animation-delay: 360ms;
+}
+.mini-bars i {
+  display: block;
+  width: 2px;
+  height: 9px;
+  border-radius: 1px;
+  background: hsl(var(--primary));
+  transform-origin: center;
+  animation: wave 0.9s var(--ease-standard) infinite;
+}
+.mini-bars i:nth-child(1) {
+  transform: scaleY(0.5);
+  animation-delay: 0ms;
+}
+.mini-bars i:nth-child(2) {
+  animation-delay: 120ms;
+}
+.mini-bars i:nth-child(3) {
+  transform: scaleY(0.7);
+  animation-delay: 240ms;
+}
+.mini-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: hsl(var(--card));
+  color: hsl(var(--accent));
+  box-shadow: 0 4px 12px rgba(15, 23, 38, 0.1);
+  display: grid;
+  place-items: center;
+  animation: badge-pop 280ms var(--ease-snappy);
+}
+.mini-badge svg {
+  width: 12px;
+  height: 12px;
+  display: block;
+}
+.mini-badge svg path:first-child {
+  stroke: color-mix(in oklch, hsl(var(--accent)) 45%, hsl(var(--accent-foreground)));
+  stroke-width: 1.1;
+  paint-order: stroke fill;
+}
+.mini-badge svg path:last-child {
+  stroke: color-mix(in oklch, hsl(var(--accent)) 45%, hsl(var(--accent-foreground)));
+}
+/* the answered bloom — `ring-widen` was declared but unwired until now */
+.mini-badge::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid hsl(var(--accent));
+  animation: ring-widen 2.8s var(--ease-out) 620ms infinite;
+}
+
+/* the mark · idle — a hop, twice, then it rests (components.css:545) */
+.mini[data-state="idle"] .mini-mark {
+  transform-origin: center bottom;
+  animation: mini-hop 2.8s var(--ease-snappy) infinite;
+}
+
+/* the mark · answered — the bulb flickers on, then keeps a slow glow
+   (components.css:548) */
+.mini[data-state="answered"] .mini-badge svg {
+  animation: bulb-flicker 520ms var(--ease-out), bulb-glow 2.8s var(--ease-standard) 620ms infinite;
+}
+
+/* Reduced motion — the bubbles and the bloom hold still, the icons stay
+   (components.css:143-154), on both the OS query and the manual root class. */
+@media (prefers-reduced-motion: reduce) {
+  .mini,
+  .mini *,
+  .mini *::before,
+  .mini *::after {
+    animation: none !important;
+  }
+  .mini[data-state="listening"] .mini-mark::before {
+    display: none;
+  }
+  .mini[data-state="listening"] .mini-mark::after {
+    display: block;
+    opacity: 0.5;
+    transform: scale(1.18);
+  }
+  .mini-dots i,
+  .mini-bars i {
+    opacity: 1;
+    transform: none;
+  }
+  .mini[data-state="answered"] .mini-badge svg {
+    opacity: 1;
+  }
+  .mini-badge::after {
+    display: none;
+  }
+}
+.mini.reduced-motion,
+.mini.reduced-motion *,
+.mini.reduced-motion *::before,
+.mini.reduced-motion *::after {
+  animation: none !important;
+}
+.mini.reduced-motion[data-state="listening"] .mini-mark::before {
+  display: none;
+}
+.mini.reduced-motion[data-state="listening"] .mini-mark::after {
+  display: block;
+  opacity: 0.5;
+  transform: scale(1.18);
+}
+.mini.reduced-motion .mini-dots i,
+.mini.reduced-motion .mini-bars i {
+  opacity: 1;
+  transform: none;
+}
+.mini.reduced-motion[data-state="answered"] .mini-badge svg {
+  opacity: 1;
+}
+.mini.reduced-motion .mini-badge::after {
+  display: none;
+}
