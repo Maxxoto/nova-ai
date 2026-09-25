@@ -330,14 +330,14 @@ html.panel-view body {
   box-shadow: 0 0 0 1px hsl(var(--warning));
 }
 .orb-breathe {
-  animation: breathe 3s ease-in-out infinite;
+  animation: breathe 3s var(--ease-standard) infinite;
 }
 .orb-ring {
   position: absolute;
   inset: -1px;
   border-radius: 9999px;
   border: 2px solid hsl(var(--live));
-  animation: pulse-ring 1.2s ease-out infinite;
+  animation: pulse-ring 1.2s var(--ease-out) infinite;
 }
 .orb-ring--error {
   inset: -2px;
@@ -345,16 +345,7 @@ html.panel-view body {
   animation: none;
 }
 .orb-speaking {
-  animation: orb-speak 0.9s ease-in-out infinite;
-}
-@keyframes orb-speak {
-  0%,
-  100% {
-    transform: scaleY(0.45);
-  }
-  50% {
-    transform: scaleY(1);
-  }
+  animation: wave 0.9s var(--ease-standard) infinite;
 }
 .orb-orbit {
   position: absolute;
@@ -531,23 +522,38 @@ html.panel-view body {
   }
 }
 
-/* Tool steps — 3 fixed segments (AC-11). */
-.panel-steps {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.panel-steps i {
-  height: 4px;
-  flex: 1;
+/* Tool step dots (ToolStepIndicator) — the panel's live step gesture. While
+   the panel works (canonical data-state "thinking" also covers transcribing
+   and streaming) the dots run the OD loop `step-run 1.2s var(--ease-standard)`,
+   staggered 150ms apart. Active vs done is distinguished WITHOUT motion — the
+   active dot adds a ring and aria-current="step" — so reduced motion stays
+   legible. */
+.step-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
   border-radius: 9999px;
-  background: hsl(var(--muted));
+  background: hsl(var(--border-strong));
 }
-.panel-steps i[data-step="done"] {
+.step-dot--done {
   background: hsl(var(--primary));
 }
-.panel-steps i[data-step="active"] {
-  background: hsl(var(--primary) / 0.45);
+.step-dot--active {
+  background: hsl(var(--primary));
+  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.35);
+}
+.step-dot--upcoming {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px hsl(var(--border-strong));
+}
+.panel-surface[data-state="thinking"] .step-dot {
+  animation: step-run 1.2s var(--ease-standard) infinite;
+}
+.panel-surface[data-state="thinking"] .step-dot:nth-child(2) {
+  animation-delay: 150ms;
+}
+.panel-surface[data-state="thinking"] .step-dot:nth-child(3) {
+  animation-delay: 300ms;
 }
 
 /* Banners + inline actions */
