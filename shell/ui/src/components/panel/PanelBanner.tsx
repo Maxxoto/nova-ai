@@ -51,7 +51,7 @@ export default function PanelBanner(props: PanelBannerProps) {
       : "The capture stays in your local store";
     const detail = offline ? `${base} · offline mode is on, so nothing was sent.` : `${base}.`;
     return (
-      <div className="flex flex-col">
+      <div className="panel-error-banner flex flex-col">
         <div
           role="status"
           className="flex items-center gap-3 rounded-[10px] border border-destructive bg-primary-soft px-3.5 py-2.5"

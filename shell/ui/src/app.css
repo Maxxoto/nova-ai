@@ -924,3 +924,82 @@ html.overlay-view body {
 .mini.reduced-motion .mini-badge::after {
   display: none;
 }
+
+/* ------------------------------------------------------------------ */
+/* Result panel — entrance, answered stagger, error, Esc fade (T5).    */
+/* Verbatim numbers from Open Design components.css:235 (rise-in),      */
+/* 539-563 (the fixed per-state block) and the law in                  */
+/* design-system.frag:205-218 (entrances --ease-out; no loop without a  */
+/* real condition; Esc = 120ms). The panel emits canonical `data-state` */
+/* (idle | listening | thinking | answered) plus the finer `data-phase`. */
+/* ------------------------------------------------------------------ */
+
+/* the panel enters once, on mount — rise-in 200ms --ease-out */
+.panel-surface {
+  transition: opacity var(--t-fast) var(--ease-standard);
+}
+.panel-surface.is-entering {
+  animation: rise-in var(--t-standard) var(--ease-out);
+}
+
+/* answered — context, answer and citations rise into place, 80ms apart
+   (OD components.css:561-563) */
+.panel-surface[data-state="answered"] .panel-body > * {
+  animation: block-rise 260ms var(--ease-out) both;
+}
+.panel-surface[data-state="answered"] .panel-body > *:nth-child(2) {
+  animation-delay: 80ms;
+}
+.panel-surface[data-state="answered"] .panel-body > *:nth-child(3) {
+  animation-delay: 160ms;
+}
+
+/* thinking — the shimmering skeleton lines are the wait signal. The OD
+   suppressed them (components.css:554) but DESIGN.md's "thinking =
+   skeleton blocks shimmer in the answer area" is the app's readability
+   contract; the step dots stay T6's gesture. Shimmer is scoped to the
+   thinking surface so no other state carries it. */
+.panel-surface[data-state="thinking"] .panel-skeleton::after {
+  animation: panel-shimmer 1.4s linear infinite;
+}
+
+/* error — the OD defines no panel error gesture, so this is the restrained
+   reading of the law: a one-shot entrance on the banner (--ease-out) and
+   the orb held static, never a loop. */
+.panel-surface[data-phase="error"] .panel-error-banner {
+  animation: block-rise var(--t-standard) var(--ease-out);
+}
+.panel-surface[data-phase="error"] .orb {
+  animation: none;
+}
+
+/* Esc / dismiss — the surface fades before it is hidden (DESIGN.md motion
+   law: Esc = 120ms fade, --ease-standard). The Tauri shell hides the panel
+   window itself (hide_panel, and the ⌥⇧D dismiss accelerator) and cannot
+   await this transition, so only webview-owned dismissals fade; a
+   shell-owned hide cuts. ResultPanel.requestDismiss carries that split. */
+.panel-surface.is-leaving {
+  opacity: 0;
+}
+
+/* Reduced motion — the panel's motion holds still on both the OS query and
+   the manual root class. */
+@media (prefers-reduced-motion: reduce) {
+  .panel-surface,
+  .panel-surface *,
+  .panel-surface *::before,
+  .panel-surface *::after {
+    animation: none !important;
+  }
+}
+.reduced-motion .panel-surface,
+.reduced-motion .panel-surface *,
+.reduced-motion .panel-surface *::before,
+.reduced-motion .panel-surface *::after,
+.panel-surface.reduced-motion,
+.panel-surface.reduced-motion *,
+.panel-surface.reduced-motion *::before,
+.panel-surface.reduced-motion *::after {
+  animation: none !important;
+}
+

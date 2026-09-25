@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { invokeTauriAsync } from "../../tauri";
 import AnswerStream from "./AnswerStream";
 import PanelHeader from "./PanelHeader";
 import ReadAloudButton from "./ReadAloudButton";
 import SaveMemoryButton from "./SaveMemoryButton";
+import { canonicalStateOf } from "./types";
 import type { CaptureInfo, NetState, PanelState } from "./types";
 
 export type ResultPanelProps = {
@@ -42,8 +43,30 @@ export default function ResultPanel({
   onPttCancel,
 }: ResultPanelProps) {
   const [reading, setReading] = useState(false);
+  const [entering, setEntering] = useState(true);
+  const [leaving, setLeaving] = useState(false);
   const readingRef = useRef(false);
+  const leavingRef = useRef(false);
   const readTimerRef = useRef<number | null>(null);
+
+  /* The panel rises in once, on mount (`rise-in 200ms --ease-out`); the class
+     is dropped after the gesture so a later state change cannot replay it. */
+  useEffect(() => {
+    const timer = window.setTimeout(() => setEntering(false), 200);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  /* Fade out before hiding on a surface the webview itself owns — that is,
+     where no shell Esc handler is attached (the browser dev harness and the
+     review board). The Tauri shell hides the panel window itself via
+     `hide_panel` and the ⌥⇧D accelerator, and cannot await this transition, so
+     a shell-owned hide cuts instead of fading. */
+  const requestDismiss = useCallback(() => {
+    if (leavingRef.current) return;
+    leavingRef.current = true;
+    setLeaving(true);
+    window.setTimeout(() => onDismiss?.(), reducedMotion ? 0 : 120);
+  }, [onDismiss, reducedMotion]);
 
   const clearReadTimer = () => {
     if (readTimerRef.current !== null) {
@@ -83,12 +106,14 @@ export default function ResultPanel({
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       if (onEscape?.()) return;
-      // Esc stops the read-aloud only; the dismiss hotkey hides the panel.
       stopReading();
+      /* A bare Esc never dismisses the Tauri panel (the dismiss hotkey owns
+         hiding there); on a webview-owned surface it does, so it fades first. */
+      if (!onEscape) requestDismiss();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onDismiss, onEscape]);
+  }, [onDismiss, onEscape, requestDismiss]);
 
   useEffect(
     () => () => {
@@ -105,19 +130,20 @@ export default function ResultPanel({
   );
   const inFlight =
     state === "ask" || state === "listening" || state === "transcribing" || state === "thinking" || state === "streaming";
+  const canonical = canonicalStateOf(state);
 
   return (
     <section
       role="group"
       aria-label="Ruòxī result panel"
-      data-state={state}
-      style={{ transitionDuration: "120ms" }}
-      className={`panel-surface w-[400px] max-w-full overflow-hidden rounded-[14px] border border-border shadow-e3 transition-opacity opacity-100${
-        reducedMotion ? " reduced-motion rm-halve" : ""
-      }`}
+      data-state={canonical}
+      data-phase={state}
+      className={`panel-surface w-[400px] max-w-full overflow-hidden rounded-[14px] border border-border shadow-e3${
+        entering ? " is-entering" : ""
+      }${leaving ? " is-leaving" : ""}${reducedMotion ? " reduced-motion rm-halve" : ""}`}
     >
       <PanelHeader state={state} net={net} onCollapse={onCollapse} />
-      <div className="panel-scroll max-h-[60vh] overflow-y-auto px-4 py-3.5">
+      <div className="panel-body panel-scroll max-h-[60vh] overflow-y-auto px-4 py-3.5">
         <AnswerStream
           state={state}
           answer={answer}
