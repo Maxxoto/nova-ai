@@ -1563,3 +1563,399 @@ async function assertMatrixCell(page: Page, mode: PanelMode, state: PanelState, 
   }
 }
 
+test.describe("state-matrix — panel mode: every state's exact computed motion", () => {
+  for (const state of MATRIX_STATES) {
+    test(`panel · ${state}`, async ({ page }) => {
+      await assertMatrixCell(page, "panel", state, PANEL_MATRIX[state]);
+      await shot(page, `state-matrix-panel-${state}`);
+    });
+  }
+});
+
+test.describe("state-matrix — mini mode: every state's canonical computed motion", () => {
+  for (const state of MATRIX_STATES) {
+    test(`mini · ${state}`, async ({ page }) => {
+      await assertMatrixCell(page, "mini", state, MINI_MATRIX[state]);
+      await shot(page, `state-matrix-mini-${state}`);
+    });
+  }
+});
+
+test.describe("state-matrix — the overlay artifact", () => {
+  test("overlay · selected region — dim enters 320ms, selection stays instant", async ({ page }) => {
+    await page.goto("/?view=overlay&sel=120,140,260,180");
+
+    const dim = await animationOf(page, ".capture-dim");
+    expect(dim.animationName).toContain("overlay-dim-in");
+    expect(dim.animationDuration).toBe("0.32s");
+
+    const selection = await animationOf(page, ".capture-sel");
+    expect(selection.animationName).toBe("none");
+    expect(selection.transitionDuration).toBe("0s");
+
+    await shot(page, "state-matrix-overlay-selection");
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* T12 — the reduced-motion column.                                    */
+/*                                                                     */
+/* The deep census walks every element AND its ::before/::after so a    */
+/* pseudo-element loop (the mini ripples, the answered bloom, the       */
+/* skeleton sweep) cannot hide behind the element-level check.          */
+/* ------------------------------------------------------------------ */
+
+type ReducePath = "os" | "manual";
+
+/**
+ * Every element (and its ::before/::after) still running motion under
+ * reduced motion: an animation with a name whose duration is > 0.01s or
+ * that loops forever, or a transition whose longest duration is > 0.01s.
+ * The contract is an empty array on both switch paths.
+ */
+async function deepMotionViolations(root: Locator): Promise<string[]> {
+  return root.evaluate((host) => {
+    const offenders: string[] = [];
+    const read = (el: Element, pseudo?: string) => {
+      const style = getComputedStyle(el, pseudo);
+      const names = style.animationName.split(",").map((value) => value.trim());
+      const durations = style.animationDuration.split(",").map((value) => value.trim());
+      const iterations = style.animationIterationCount.split(",").map((value) => value.trim());
+      const who = `${el.tagName}.${String(el.className)}${pseudo ?? ""}`;
+      names.forEach((name, index) => {
+        if (name === "" || name === "none") return;
+        const duration = Number.parseFloat(durations[index % durations.length] ?? "0") || 0;
+        const iteration = iterations[index % iterations.length] ?? "1";
+        if (duration > 0.01 || iteration === "infinite") {
+          offenders.push(`animation ${who} → ${name} ${duration}s ${iteration}`);
+        }
+      });
+      const maxTransition = Math.max(
+        0,
+        ...style.transitionDuration.split(",").map((value) => Number.parseFloat(value) || 0),
+      );
+      if (maxTransition > 0.01) offenders.push(`transition ${who} → ${maxTransition}s`);
+    };
+    read(host);
+    read(host, "::before");
+    read(host, "::after");
+    host.querySelectorAll("*").forEach((el) => {
+      read(el);
+      read(el, "::before");
+      read(el, "::after");
+    });
+    return offenders;
+  });
+}
+
+/**
+ * The reduced-motion legibility contract per cell: once motion is gone the
+ * state must still read from a static property (icon, colour, word, ring,
+ * badge). The OS and manual paths carry the same signals; the OS path also
+ * hands its explicit restoration rules the chance to fail.
+ */
+async function expectLegible(page: Page, mode: PanelMode, state: PanelState, path: ReducePath): Promise<void> {
+  const canonical = EXPECTED_CANONICAL[state];
+  const where = `${mode}/${state} (${canonical}) under ${path} reduce`;
+
+  if (mode === "mini") {
+    const mark = page.locator(".mini .mini-mark").first();
+    await expect(mark).toBeVisible();
+    const box = await mark.boundingBox();
+    expect(box?.width ?? 0, `${where} mark width`).toBeGreaterThan(0);
+
+    const label = (await page.locator(".mini").first().getAttribute("aria-label")) ?? "";
+    const title = (await page.locator(".mini").first().getAttribute("title")) ?? "";
+    expect(label, `${where} aria-label`).toContain(MINI_WORD[state]);
+    expect(title, `${where} title`).toContain(MINI_WORD[state]);
+
+    if (canonical === "listening") {
+      const ring = await page.locator(".mini .mini-mark").first().evaluate((node) => {
+        const style = getComputedStyle(node, "::after");
+        return {
+          display: style.display,
+          opacity: style.opacity,
+          borderTopWidth: style.borderTopWidth,
+          animationName: style.animationName,
+        };
+      });
+      expect(ring.display, `${where} static ring display`).not.toBe("none");
+      expect(Number.parseFloat(ring.opacity), `${where} static ring opacity`).toBeGreaterThan(0);
+      expect(Number.parseFloat(ring.borderTopWidth), `${where} static ring border`).toBeGreaterThan(0);
+      if (path === "os") expect(ring.animationName, `${where} static ring animation`).toBe("none");
+    }
+
+    if (canonical === "thinking") {
+      const comet = await page.locator(".mini .mini-spin").first().evaluate((node) => {
+        const style = getComputedStyle(node);
+        return {
+          borderTopWidth: style.borderTopWidth,
+          borderTopColor: style.borderTopColor,
+          animationName: style.animationName,
+        };
+      });
+      expect(Number.parseFloat(comet.borderTopWidth), `${where} comet ring`).toBeGreaterThan(0);
+      expect(comet.borderTopColor, `${where} comet colour`).not.toBe("rgba(0, 0, 0, 0)");
+      if (path === "os") expect(comet.animationName, `${where} comet animation`).toBe("none");
+      const dotOpacity = await page
+        .locator(".mini .mini-dots i")
+        .first()
+        .evaluate((node) => getComputedStyle(node).opacity);
+      expect(Number.parseFloat(dotOpacity), `${where} dot opacity`).toBeGreaterThan(0);
+    }
+
+    if (canonical === "answered") {
+      const badge = page.locator(".mini .mini-badge").first();
+      await expect(badge).toBeVisible();
+      const bulb = await badge.locator("svg").first().evaluate((node) => {
+        const style = getComputedStyle(node);
+        return { opacity: style.opacity, animationName: style.animationName };
+      });
+      expect(Number.parseFloat(bulb.opacity), `${where} bulb opacity`).toBeGreaterThan(0.5);
+      if (path === "os") expect(bulb.animationName, `${where} bulb animation`).toBe("none");
+    }
+    return;
+  }
+
+  const orb = page.locator(".panel-surface .orb").first();
+  const orbName = await orb.evaluate((node) => getComputedStyle(node).animationName);
+  expect(orbName, `${where} orb animation`).toBe("none");
+
+  if (canonical === "listening") {
+    const ring = await page.locator(".panel-surface .orb-ring").first().evaluate((node) => {
+      const style = getComputedStyle(node);
+      return {
+        display: style.display,
+        opacity: style.opacity,
+        borderTopWidth: style.borderTopWidth,
+        animationName: style.animationName,
+      };
+    });
+    expect(ring.display, `${where} ring display`).not.toBe("none");
+    expect(Number.parseFloat(ring.opacity), `${where} ring opacity`).toBeGreaterThan(0);
+    expect(Number.parseFloat(ring.borderTopWidth), `${where} ring border`).toBeGreaterThan(0);
+    if (path === "os") expect(ring.animationName, `${where} ring animation`).toBe("none");
+  } else if (canonical === "thinking") {
+    if (state === "transcribing" || state === "thinking") {
+      const comet = await page.locator(".panel-surface .orb-orbit i").first().evaluate((node) => {
+        const style = getComputedStyle(node);
+        return { backgroundColor: style.backgroundColor, animationName: style.animationName };
+      });
+      expect(comet.backgroundColor, `${where} comet colour`).not.toBe("rgba(0, 0, 0, 0)");
+      if (path === "os") expect(comet.animationName, `${where} comet animation`).toBe("none");
+    }
+    if (state === "streaming") {
+      const caret = await page.locator(".panel-surface .panel-caret").first().evaluate((node) => {
+        const style = getComputedStyle(node);
+        return { opacity: style.opacity, width: style.width, backgroundColor: style.backgroundColor };
+      });
+      expect(Number.parseFloat(caret.opacity), `${where} caret opacity`).toBeGreaterThan(0);
+      expect(Number.parseFloat(caret.width), `${where} caret width`).toBeGreaterThan(0);
+      expect(caret.backgroundColor, `${where} caret colour`).not.toBe("rgba(0, 0, 0, 0)");
+    }
+
+    if (state === "thinking") {
+      const skeleton = page.locator(".panel-surface .panel-skeleton").first();
+      await expect(skeleton).toBeVisible();
+      expect(
+        await skeleton.evaluate((node) => getComputedStyle(node, "::after").display),
+        `${where} skeleton sweep`,
+      ).toBe("none");
+      expect(
+        await skeleton.evaluate((node) => getComputedStyle(node).backgroundColor),
+        `${where} skeleton fill`,
+      ).not.toBe("rgba(0, 0, 0, 0)");
+    }
+    if (state === "transcribing") {
+      await expect(page.locator(".panel-surface .panel-body")).toContainText("Transcribing");
+    }
+    if (state === "thinking" || state === "streaming") {
+      const active = page.locator('.step-dot[data-step="active"]').first();
+      const done = page.locator('.step-dot[data-step="done"]').first();
+      await expect(active).toBeVisible();
+      await expect(done).toBeVisible();
+      const [activeStyle, doneStyle] = await Promise.all([
+        active.evaluate((node) => {
+          const style = getComputedStyle(node);
+          return { boxShadow: style.boxShadow, backgroundColor: style.backgroundColor, outlineWidth: style.outlineWidth };
+        }),
+        done.evaluate((node) => {
+          const style = getComputedStyle(node);
+          return { boxShadow: style.boxShadow, backgroundColor: style.backgroundColor, outlineWidth: style.outlineWidth };
+        }),
+      ]);
+      expect(await active.getAttribute("aria-current"), `${where} active step`).toBe("step");
+      const differs =
+        activeStyle.boxShadow !== doneStyle.boxShadow ||
+        activeStyle.backgroundColor !== doneStyle.backgroundColor ||
+        activeStyle.outlineWidth !== doneStyle.outlineWidth;
+      expect(differs, `${where} active ${JSON.stringify(activeStyle)} vs done ${JSON.stringify(doneStyle)}`).toBe(true);
+    }
+  } else if (canonical === "answered") {
+    if (state === "complete") {
+      await expect(page.locator(".panel-surface .panel-body > *").first()).toBeVisible();
+    } else {
+      await expect(page.locator(".panel-surface .panel-body")).not.toBeEmpty();
+    }
+  } else if (state === "error" || state === "degraded") {
+    // canonical idle, non-resting surfaces: the banner carries the state.
+    const banner = page.locator('.panel-surface [role="status"]').first();
+    await expect(banner).toBeVisible();
+  } else {
+    // canonical idle, resting surfaces (idle / ask): the disc keeps its paint.
+    const disc = await page.locator(".panel-surface .orb-disc").first().evaluate((node) => {
+      const style = getComputedStyle(node);
+      return { backgroundImage: style.backgroundImage, boxShadow: style.boxShadow };
+    });
+    expect(disc.backgroundImage, `${where} orb disc paint`).not.toBe("none");
+    expect(disc.boxShadow, `${where} orb disc ring`).not.toBe("none");
+  }
+}
+
+test.describe("state-matrix-reduced — both switch paths stop every cell and keep it legible", () => {
+  test("OS query · panel mode · all ten states", async ({ page }) => {
+    await withReducedMotion(page);
+    for (const state of MATRIX_STATES) {
+      await openPanel(page, { state });
+      const surface = panelSurface(page);
+      await expect(surface).toHaveClass(/reduced-motion/);
+      const violations = await deepMotionViolations(surface);
+      expect(violations, `OS reduce · panel ${state}: ${violations.join(" | ")}`).toEqual([]);
+      await expectLegible(page, "panel", state, "os");
+    }
+  });
+
+  test("OS query · mini mode · all ten states", async ({ page }) => {
+    await withReducedMotion(page);
+    for (const state of MATRIX_STATES) {
+      await openPanel(page, { mode: "mini", state });
+      const mark = panelSurface(page, "mini");
+      await expect(mark).toHaveClass(/reduced-motion/);
+      const violations = await deepMotionViolations(mark);
+      expect(violations, `OS reduce · mini ${state}: ${violations.join(" | ")}`).toEqual([]);
+      await expectLegible(page, "mini", state, "os");
+    }
+  });
+
+  test("manual .reduced-motion class · both modes · all ten states", async ({ page }) => {
+    for (const mode of ["panel", "mini"] as const) {
+      for (const state of MATRIX_STATES) {
+        await openPanel(page, { mode, state });
+        await enableManualReducedMotion(page);
+        const violations = await deepMotionViolations(panelSurface(page, mode));
+        expect(violations, `manual reduce · ${mode} ${state}: ${violations.join(" | ")}`).toEqual([]);
+      }
+    }
+  });
+
+  test("manual .reduced-motion class · the legibility contract holds for all ten states", async ({ page }) => {
+    for (const mode of ["panel", "mini"] as const) {
+      for (const state of MATRIX_STATES) {
+        await openPanel(page, { mode, state });
+        await enableManualReducedMotion(page);
+        await expectLegible(page, mode, state, "manual");
+      }
+    }
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* T12 — the non-panel surfaces' token-sweep smoke.                    */
+/*                                                                     */
+/* Each surface boots with NO console error and its sampled interactive */
+/* controls compute an OD token duration (hover/colour 120ms,          */
+/* press/toggle 80ms).                                                 */
+/* ------------------------------------------------------------------ */
+
+type SurfaceSmoke = {
+  label: string;
+  url: string;
+  boot: string;
+  /** `[selector, exact transitionDuration]` samples. */
+  samples: readonly (readonly [string, string])[];
+};
+
+const SURFACE_SMOKES: readonly SurfaceSmoke[] = [
+  {
+    label: "onboarding · welcome",
+    url: "/?view=onboarding&step=welcome",
+    boot: "[data-step-heading]",
+    samples: [
+      ['button:has-text("Continue")', "0.12s"],
+      ['[role="listitem"]', "0.12s"],
+    ],
+  },
+  {
+    label: "onboarding · permissions",
+    url: "/?view=onboarding&step=permissions",
+    boot: "[data-step-heading]",
+    samples: [['button:has-text("Grant")', "0.12s"]],
+  },
+  {
+    label: "onboarding · first-capture",
+    url: "/?view=onboarding&step=first-capture",
+    boot: "[data-step-heading]",
+    samples: [['button:has-text("Ask")', "0.12s"]],
+  },
+  {
+    label: "onboarding · preferences",
+    url: "/?view=onboarding&step=preferences",
+    boot: "[data-step-heading]",
+    samples: [
+      ['[role="switch"]', "0.08s"],
+      ['button:has-text("Continue")', "0.12s"],
+    ],
+  },
+  {
+    label: "onboarding · models",
+    url: "/?view=onboarding&step=models",
+    boot: "[data-step-heading]",
+    samples: [['button:has-text("Continue")', "0.12s"]],
+  },
+  {
+    label: "onboarding · ready",
+    url: "/?view=onboarding&step=ready",
+    boot: "[data-step-heading]",
+    samples: [['button:has-text("Finish")', "0.12s"]],
+  },
+  {
+    label: "settings",
+    url: "/?view=settings",
+    boot: 'button:has-text("Delete all…")',
+    samples: [
+      ['button:has-text("Delete all…")', "0.12s"],
+      ['[role="switch"][aria-label="Offline mode"] span.relative', "0.08s"],
+    ],
+  },
+  {
+    label: "timeline (demo)",
+    url: "/?view=timeline&demo=1",
+    boot: '[role="region"][aria-label="Capture timeline"]',
+    samples: [
+      ["article", "0.12s"],
+      ['button:has-text("Delete all captures…")', "0.12s"],
+    ],
+  },
+];
+
+test.describe("surfaces-smoke — onboarding / settings / timeline boot clean on token durations", () => {
+  for (const { label, url, boot, samples } of SURFACE_SMOKES) {
+    test(`${label} — no console error, sampled controls on the motion tokens`, async ({ page }) => {
+      const errors: string[] = [];
+      page.on("console", (message) => {
+        if (message.type() === "error") errors.push(`console: ${message.text()}`);
+      });
+      page.on("pageerror", (error) => errors.push(`pageerror: ${error.message}`));
+
+      await page.goto(url);
+      await expect(page.locator(boot).first()).toBeVisible();
+
+      for (const [selector, expected] of samples) {
+        const snapshot = await animationOf(page, selector);
+        expect(snapshot.transitionDuration, `${label} ${selector}`).toBe(expected);
+      }
+
+      expect(errors, `${label} console errors: ${errors.join(" | ")}`).toEqual([]);
+    });
+  }
+});
