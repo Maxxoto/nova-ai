@@ -39,7 +39,7 @@ export default function AnchorPicker({
             aria-pressed={pressed}
             aria-label={anchor.label}
             onClick={() => onChange(anchor.id)}
-            className={`relative h-6 w-[30px] rounded-[5px] border p-0 transition-colors duration-[120ms] ease-in-out ${FOCUS_RING} ${
+            className={`relative h-6 w-[30px] rounded-[5px] border p-0 transition-colors duration-[80ms] ease-[cubic-bezier(.4,0,.2,1)] ${FOCUS_RING} ${
               pressed
                 ? "border-primary bg-primary-soft"
                 : "border-border-strong bg-card hover:border-foreground"

@@ -25,9 +25,9 @@ const THUMB_MAX_PX = 480;
 const FOCUS_RING =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
 
-const SECONDARY_BUTTON = `inline-flex h-8 items-center justify-center whitespace-nowrap rounded border border-border bg-card px-3 font-ui text-[13px] font-semibold text-foreground transition-colors duration-200 hover:bg-muted ${FOCUS_RING}`;
-const GHOST_BUTTON_SM = `inline-flex h-8 items-center justify-center rounded px-3 font-ui text-[13px] font-semibold text-muted-foreground transition-colors duration-200 hover:bg-muted hover:text-foreground ${FOCUS_RING}`;
-const DANGER_BUTTON = `inline-flex h-8 items-center justify-center rounded border border-destructive bg-card px-3 font-ui text-[13px] font-semibold text-destructive transition-colors duration-200 hover:bg-destructive/10 disabled:cursor-default disabled:border-border disabled:text-muted-foreground disabled:opacity-70 ${FOCUS_RING}`;
+const SECONDARY_BUTTON = `inline-flex h-8 items-center justify-center whitespace-nowrap rounded border border-border bg-card px-3 font-ui text-[13px] font-semibold text-foreground transition-colors duration-[120ms] ease-[cubic-bezier(.4,0,.2,1)] hover:bg-muted ${FOCUS_RING}`;
+const GHOST_BUTTON_SM = `inline-flex h-8 items-center justify-center rounded px-3 font-ui text-[13px] font-semibold text-muted-foreground transition-colors duration-[120ms] ease-[cubic-bezier(.4,0,.2,1)] hover:bg-muted hover:text-foreground ${FOCUS_RING}`;
+const DANGER_BUTTON = `inline-flex h-8 items-center justify-center rounded border border-destructive bg-card px-3 font-ui text-[13px] font-semibold text-destructive transition-colors duration-[120ms] ease-[cubic-bezier(.4,0,.2,1)] hover:bg-destructive/10 disabled:cursor-default disabled:border-border disabled:text-muted-foreground disabled:opacity-70 ${FOCUS_RING}`;
 const CARD_BUTTON = `${SECONDARY_BUTTON} hover:border-primary`;
 
 type Mode = "loading" | "ready" | "demo" | "fallback" | "error";
@@ -115,7 +115,7 @@ function CaptureCard({ row, thumb, sample }: { row: CaptureRow; thumb?: string; 
   const title = row.window_title?.trim() || row.app?.trim() || "Untitled capture";
   const scopeLine = `${formatScope(row.scope)}${row.app ? ` · ${row.app}` : ""}`;
   return (
-    <article className="flex flex-col overflow-hidden rounded-lg border border-border bg-card transition-colors duration-200 hover:border-primary">
+    <article className="flex flex-col overflow-hidden rounded-lg border border-border bg-card transition-colors duration-[120ms] ease-[cubic-bezier(.4,0,.2,1)] hover:border-primary">
       <div className="relative grid h-[112px] place-items-center border-b border-border bg-muted">
         {thumb ? (
           <img
@@ -208,7 +208,7 @@ function ConfirmDeleteDialog({
             autoComplete="off"
             placeholder="DELETE"
             onChange={(event) => setTyped(event.target.value)}
-            className={`rounded border border-border bg-card px-3 py-2 font-mono text-[13px] text-foreground focus:border-primary ${FOCUS_RING}`}
+            className={`rounded border border-border bg-card px-3 py-2 font-mono text-[13px] text-foreground transition-colors duration-[120ms] ease-[cubic-bezier(.4,0,.2,1)] focus:border-primary ${FOCUS_RING}`}
           />
         </div>
         <div className="mt-5 flex justify-end gap-2">

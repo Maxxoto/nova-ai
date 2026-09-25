@@ -161,7 +161,7 @@ function DemoChip({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-pill border px-3 py-1.5 font-mono text-[11px] transition-colors duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring ${
+      className={`rounded-pill border px-3 py-1.5 font-mono text-[11px] transition-colors duration-[120ms] ease-[cubic-bezier(.4,0,.2,1)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring ${
         active ? "border-primary bg-primary-soft text-foreground" : "border-border bg-card text-muted-foreground hover:bg-muted"
       }`}
     >
@@ -177,7 +177,7 @@ function DismissedStage({ onShow }: { onShow: () => void }) {
       <button
         type="button"
         onClick={onShow}
-        className="rounded-pill border border-border bg-card px-3 py-1.5 font-ui text-[13px] font-semibold transition-colors duration-200 hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        className="rounded-pill border border-border bg-card px-3 py-1.5 font-ui text-[13px] font-semibold transition-colors duration-[120ms] ease-[cubic-bezier(.4,0,.2,1)] hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       >
         show again
       </button>
@@ -198,17 +198,17 @@ function ReducedMotionToggle({
       role="switch"
       aria-checked={on}
       onClick={() => onChange(!on)}
-      className="flex items-center gap-2.5 rounded-pill border border-border bg-card py-1.5 pl-3 pr-2.5 shadow-e1 transition-colors duration-200 hover:border-border-strong focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      className="flex items-center gap-2.5 rounded-pill border border-border bg-card py-1.5 pl-3 pr-2.5 shadow-e1 transition-colors duration-[120ms] ease-[cubic-bezier(.4,0,.2,1)] hover:border-border-strong focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
     >
       <span className="font-ui text-[13px] font-semibold text-foreground">reduced motion</span>
       <span
-        className={`relative inline-block rounded-pill transition-colors duration-200 ${
+        className={`relative inline-block rounded-pill transition-colors duration-[80ms] ${
           on ? "bg-primary" : "bg-muted"
         }`}
         style={{ height: 18, width: 32 }}
       >
         <span
-          className="absolute top-0.5 h-3.5 w-3.5 rounded-pill bg-card shadow-e1 transition-all duration-200"
+          className="absolute top-0.5 h-3.5 w-3.5 rounded-pill bg-card shadow-e1 transition-all duration-[80ms]"
           style={{ left: on ? 16 : 2 }}
         />
       </span>

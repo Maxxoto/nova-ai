@@ -4,13 +4,13 @@ import type { ReactNode } from "react";
 export const FOCUS_RING =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
 
-export const DANGER_BUTTON = `inline-flex h-7 items-center justify-center rounded border border-destructive bg-card px-2.5 font-ui text-[11px] font-semibold text-destructive transition-colors duration-200 hover:bg-destructive/10 disabled:cursor-default disabled:opacity-45 ${FOCUS_RING}`;
-export const PERMISSION_ACTION_BUTTON = `inline-flex h-7 items-center justify-center rounded px-2.5 font-ui text-[11px] font-semibold text-muted-foreground transition-colors duration-200 hover:bg-muted hover:text-foreground ${FOCUS_RING}`;
-export const SECONDARY_BUTTON = `inline-flex h-8 items-center justify-center whitespace-nowrap rounded border border-border-strong bg-card px-3 font-ui text-[13px] font-semibold text-foreground transition-colors duration-200 hover:bg-muted ${FOCUS_RING}`;
-export const GHOST_BUTTON_SM = `inline-flex h-8 items-center justify-center rounded px-3 font-ui text-[13px] font-semibold text-muted-foreground transition-colors duration-200 hover:bg-muted hover:text-foreground ${FOCUS_RING}`;
-export const CHANGE_BUTTON = `inline-flex h-7 items-center justify-center rounded border border-border-strong bg-card px-2.5 font-ui text-[11px] font-semibold text-foreground transition-colors duration-200 hover:bg-muted ${FOCUS_RING}`;
-export const PRIMARY_BUTTON_SM = `inline-flex h-8 items-center justify-center whitespace-nowrap rounded bg-primary px-3 font-ui text-[13px] font-semibold text-primary-foreground transition-colors duration-200 hover:bg-primary-active disabled:cursor-default disabled:opacity-50 ${FOCUS_RING}`;
-export const PICK_BUTTON = `inline-flex h-7 items-center justify-center whitespace-nowrap rounded border border-border-strong bg-card px-2.5 font-ui text-[11px] font-semibold text-foreground transition-colors duration-200 hover:bg-muted aria-pressed:border-primary aria-pressed:bg-primary-soft ${FOCUS_RING}`;
+export const DANGER_BUTTON = `inline-flex h-7 items-center justify-center rounded border border-destructive bg-card px-2.5 font-ui text-[11px] font-semibold text-destructive transition-colors duration-[120ms] ease-[cubic-bezier(.4,0,.2,1)] hover:bg-destructive/10 disabled:cursor-default disabled:opacity-45 ${FOCUS_RING}`;
+export const PERMISSION_ACTION_BUTTON = `inline-flex h-7 items-center justify-center rounded px-2.5 font-ui text-[11px] font-semibold text-muted-foreground transition-colors duration-[120ms] ease-[cubic-bezier(.4,0,.2,1)] hover:bg-muted hover:text-foreground ${FOCUS_RING}`;
+export const SECONDARY_BUTTON = `inline-flex h-8 items-center justify-center whitespace-nowrap rounded border border-border-strong bg-card px-3 font-ui text-[13px] font-semibold text-foreground transition-colors duration-[120ms] ease-[cubic-bezier(.4,0,.2,1)] hover:bg-muted ${FOCUS_RING}`;
+export const GHOST_BUTTON_SM = `inline-flex h-8 items-center justify-center rounded px-3 font-ui text-[13px] font-semibold text-muted-foreground transition-colors duration-[120ms] ease-[cubic-bezier(.4,0,.2,1)] hover:bg-muted hover:text-foreground ${FOCUS_RING}`;
+export const CHANGE_BUTTON = `inline-flex h-7 items-center justify-center rounded border border-border-strong bg-card px-2.5 font-ui text-[11px] font-semibold text-foreground transition-colors duration-[120ms] ease-[cubic-bezier(.4,0,.2,1)] hover:bg-muted ${FOCUS_RING}`;
+export const PRIMARY_BUTTON_SM = `inline-flex h-8 items-center justify-center whitespace-nowrap rounded bg-primary px-3 font-ui text-[13px] font-semibold text-primary-foreground transition-colors duration-[120ms] ease-[cubic-bezier(.4,0,.2,1)] hover:bg-primary-active disabled:cursor-default disabled:opacity-50 ${FOCUS_RING}`;
+export const PICK_BUTTON = `inline-flex h-7 items-center justify-center whitespace-nowrap rounded border border-border-strong bg-card px-2.5 font-ui text-[11px] font-semibold text-foreground transition-colors duration-[80ms] hover:bg-muted aria-pressed:border-primary aria-pressed:bg-primary-soft ${FOCUS_RING}`;
 
 export function Toggle({ label, on, onChange }: { label: string; on: boolean; onChange: (next: boolean) => void }) {
   return (
@@ -20,17 +20,17 @@ export function Toggle({ label, on, onChange }: { label: string; on: boolean; on
       aria-checked={on}
       aria-label={label}
       onClick={() => onChange(!on)}
-      className={`flex flex-none items-center rounded-pill border border-border bg-card p-[3px] shadow-e1 transition-colors duration-200 hover:border-border-strong ${FOCUS_RING}`}
+      className={`flex flex-none items-center rounded-pill border border-border bg-card p-[3px] shadow-e1 transition-colors duration-[120ms] ease-[cubic-bezier(.4,0,.2,1)] hover:border-border-strong ${FOCUS_RING}`}
     >
       <span
         aria-hidden="true"
-        className={`relative inline-block rounded-pill transition-colors duration-200 ${
+        className={`relative inline-block rounded-pill transition-colors duration-[80ms] ${
           on ? "bg-primary" : "bg-muted"
         }`}
         style={{ height: 20, width: 36 }}
       >
         <span
-          className="absolute top-0.5 h-4 w-4 rounded-pill bg-card shadow-e1 transition-all duration-200"
+          className="absolute top-0.5 h-4 w-4 rounded-pill bg-card shadow-e1 transition-all duration-[80ms]"
           style={{ left: on ? 18 : 2 }}
         />
       </span>
@@ -170,7 +170,7 @@ export function Segmented<T extends string>({
             type="button"
             aria-pressed={selected}
             onClick={() => onChange(option.value)}
-            className={`rounded-sm px-2.5 py-1 font-ui text-[11px] font-semibold transition-colors duration-200 ${FOCUS_RING} ${
+            className={`rounded-sm px-2.5 py-1 font-ui text-[11px] font-semibold transition-colors duration-[80ms] ${FOCUS_RING} ${
               selected ? "bg-card text-foreground shadow-e1" : "text-muted-foreground hover:text-foreground"
             }`}
           >

@@ -85,7 +85,7 @@ export function Picker({
         value={value}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
-        className={`h-7 max-w-[230px] appearance-none rounded border border-border-strong bg-card pl-2.5 pr-7 font-ui text-[12px] font-medium text-foreground transition-colors duration-200 hover:border-primary disabled:cursor-default disabled:opacity-50 ${FOCUS_RING}`}
+        className={`h-7 max-w-[230px] appearance-none rounded border border-border-strong bg-card pl-2.5 pr-7 font-ui text-[12px] font-medium text-foreground transition-colors duration-[120ms] ease-[cubic-bezier(.4,0,.2,1)] hover:border-primary disabled:cursor-default disabled:opacity-50 ${FOCUS_RING}`}
       >
         {groups.map((group) => (
           <optgroup key={group.label} label={group.label}>
@@ -164,7 +164,7 @@ export function DownloadProgress({
         className="h-1 w-[104px] overflow-hidden rounded-pill bg-muted"
       >
         <span
-          className="block h-full bg-primary transition-[width] duration-150 ease-linear"
+          className="block h-full bg-primary transition-[width] duration-[120ms] ease-linear"
           style={{ width: `${pct}%` }}
         />
       </span>
@@ -174,7 +174,7 @@ export function DownloadProgress({
       <button
         type="button"
         onClick={onCancel}
-        className={`rounded px-1 py-0.5 font-ui text-[12px] text-muted-foreground underline decoration-border-strong underline-offset-2 transition-colors duration-200 hover:text-foreground ${FOCUS_RING}`}
+        className={`rounded px-1 py-0.5 font-ui text-[12px] text-muted-foreground underline decoration-border-strong underline-offset-2 transition-colors duration-[120ms] ease-[cubic-bezier(.4,0,.2,1)] hover:text-foreground ${FOCUS_RING}`}
       >
         Cancel
       </button>

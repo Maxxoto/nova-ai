@@ -325,7 +325,7 @@ function ThemeSwatch({
       type="button"
       aria-pressed={selected}
       onClick={onSelect}
-      className={`flex min-w-0 flex-1 basis-[30%] flex-col items-start gap-1.5 rounded border bg-card p-3 text-left transition-colors duration-200 ${FOCUS_RING} ${
+      className={`flex min-w-0 flex-1 basis-[30%] flex-col items-start gap-1.5 rounded border bg-card p-3 text-left transition-colors duration-[80ms] ${FOCUS_RING} ${
         selected ? "border-primary ring-2 ring-primary" : "border-border hover:border-border-strong"
       }`}
     >
@@ -484,7 +484,7 @@ function ConfirmDeleteDialog({
             spellCheck={false}
             autoComplete="off"
             onChange={(event) => setTyped(event.target.value)}
-            className={`rounded border border-border bg-card px-3 py-2 font-ui text-[13px] text-foreground focus:border-primary ${FOCUS_RING}`}
+            className={`rounded border border-border bg-card px-3 py-2 font-ui text-[13px] text-foreground transition-colors duration-[120ms] ease-[cubic-bezier(.4,0,.2,1)] focus:border-primary ${FOCUS_RING}`}
           />
         </div>
         <div className="mt-5 flex justify-end gap-2">
@@ -495,7 +495,7 @@ function ConfirmDeleteDialog({
             type="button"
             disabled={!canDelete}
             onClick={onConfirm}
-            className={`inline-flex h-8 items-center justify-center rounded border border-destructive bg-card px-3 font-ui text-[13px] font-semibold text-destructive transition-colors duration-200 hover:bg-destructive/10 disabled:cursor-default disabled:opacity-50 ${FOCUS_RING}`}
+            className={`inline-flex h-8 items-center justify-center rounded border border-destructive bg-card px-3 font-ui text-[13px] font-semibold text-destructive transition-colors duration-[120ms] ease-[cubic-bezier(.4,0,.2,1)] hover:bg-destructive/10 disabled:cursor-default disabled:opacity-50 ${FOCUS_RING}`}
           >
             Delete all
           </button>
@@ -929,7 +929,7 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
                     <button
                       type="button"
                       onClick={openTimeline}
-                      className={`font-ui text-[13px] font-medium text-muted-foreground underline decoration-border-strong underline-offset-2 transition-colors duration-200 hover:text-foreground ${FOCUS_RING}`}
+                      className={`font-ui text-[13px] font-medium text-muted-foreground underline decoration-border-strong underline-offset-2 transition-colors duration-[120ms] ease-[cubic-bezier(.4,0,.2,1)] hover:text-foreground ${FOCUS_RING}`}
                     >
                       Review captures →
                     </button>
