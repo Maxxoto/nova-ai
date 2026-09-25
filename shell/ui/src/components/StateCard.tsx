@@ -10,7 +10,10 @@ interface StateCardProps {
 export default function StateCard({ def, theme, reducedMotion }: StateCardProps) {
   const hex = theme === "light" ? def.hexLight : def.hexDark;
   return (
-    <div className="flex items-center gap-3 rounded-md border border-border bg-card p-3">
+    <div
+      data-tray-state={def.id}
+      className="flex items-center gap-3 rounded-md border border-border bg-card p-3"
+    >
       <TrayMark svg={def.svg} size={24} anim={def.anim} />
       <div className="flex min-w-0 flex-col gap-0.5">
         <span className="truncate font-companion text-[13px] font-semibold text-foreground">{def.label}</span>

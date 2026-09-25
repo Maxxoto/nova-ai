@@ -59,6 +59,8 @@ export const TRAY_STATES: TrayStateDef[] = [
     colorClass: "text-live",
     svg: listening,
     templateSvg: listeningTemplate,
+    anim: "pulse",
+    loopName: "pulse-ring",
   },
   {
     id: "captures-paused",
