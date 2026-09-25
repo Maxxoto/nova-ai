@@ -472,7 +472,7 @@ export default function App() {
   }, [isTauri, onboardingView]);
 
   if (overlayView) {
-    return <CaptureOverlay selection={overlaySelection} />;
+    return <CaptureOverlay selection={overlaySelection} reducedMotion={reducedMotion} />;
   }
 
   if (panelView) {

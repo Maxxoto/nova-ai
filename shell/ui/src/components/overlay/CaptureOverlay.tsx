@@ -7,6 +7,8 @@ export type OverlaySelection = { x: number; y: number; w: number; h: number };
 
 /** A drag smaller than this commits nothing and snaps back to full dim. */
 const MIN_SELECTION = 8;
+/** Esc fade before `overlay_cancel` (DESIGN.md motion law: Esc = 120ms). */
+const ESC_FADE_MS = 120;
 /** Dimension chip floats this far below the selection (DESIGN.md capture-overlay). */
 const CHIP_GAP = 6;
 /** Viewport inset used when clamping the chip against the edges. */
@@ -37,21 +39,37 @@ function rectFrom(origin: { x: number; y: number }, point: { x: number; y: numbe
  * through the Tauri window. Pass `selection` for the dev QA static-render mode
  * (`?view=overlay&sel=x,y,w,h`) — it disables interaction.
  */
-export default function CaptureOverlay({ selection }: { selection?: OverlaySelection }) {
+export default function CaptureOverlay({
+  selection,
+  reducedMotion = false,
+}: {
+  selection?: OverlaySelection;
+  reducedMotion?: boolean;
+}) {
   const staticSelection = selection !== undefined;
   const [rect, setRect] = useState<OverlaySelection | null>(selection ?? null);
   const [chipSize, setChipSize] = useState({ w: 0, h: 0 });
+  const [leaving, setLeaving] = useState(false);
+  const leavingRef = useRef(false);
   const originRef = useRef<{ x: number; y: number; pointerId: number } | null>(null);
   const chipRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
+    let timer: number | undefined;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      invokeTauriAsync("overlay_cancel")?.catch(() => undefined);
+      if (e.key !== "Escape" || leavingRef.current) return;
+      leavingRef.current = true;
+      setLeaving(true);
+      timer = window.setTimeout(() => {
+        invokeTauriAsync("overlay_cancel")?.catch(() => undefined);
+      }, reducedMotion ? 0 : ESC_FADE_MS);
     };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, [reducedMotion]);
 
   /* Measure the chip so it can be clamped against the viewport edges. */
   useLayoutEffect(() => {
@@ -110,24 +128,18 @@ export default function CaptureOverlay({ selection }: { selection?: OverlaySelec
     <div
       role="application"
       aria-label="Capture region overlay"
-      className="fixed inset-0 cursor-crosshair select-none touch-none overflow-hidden"
+      className={`capture-overlay fixed inset-0 cursor-crosshair select-none touch-none overflow-hidden${
+        leaving ? " is-leaving" : ""
+      }${reducedMotion ? " reduced-motion" : ""}`}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerCancel}
     >
-      {!rect && (
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0"
-          style={{ background: "hsl(var(--overlay-dim) / 0.4)" }}
-        />
-      )}
-
-      {rect && (
-        <>
+      <div aria-hidden className="capture-dim pointer-events-none absolute inset-0">
+        {rect ? (
           <div
-            className="pointer-events-none absolute z-10 rounded-sharp border-2 border-primary bg-primary/[0.08]"
+            className="capture-sel pointer-events-none absolute z-10 rounded-sharp border-2 border-primary bg-primary/[0.08]"
             style={{
               left: rect.x,
               top: rect.y,
@@ -144,15 +156,19 @@ export default function CaptureOverlay({ selection }: { selection?: OverlaySelec
               />
             ))}
           </div>
+        ) : (
+          <div className="absolute inset-0" style={{ background: "hsl(var(--overlay-dim) / 0.4)" }} />
+        )}
+      </div>
 
-          <div
-            ref={chipRef}
-            className="pointer-events-none absolute z-20 whitespace-nowrap rounded-[6px] bg-primary px-2 py-[3px] font-mono text-[11px] font-medium leading-none text-primary-foreground"
-            style={{ left: chipLeft, top: chipTop }}
-          >
-            {Math.round(rect.w)} × {Math.round(rect.h)} px
-          </div>
-        </>
+      {rect && (
+        <div
+          ref={chipRef}
+          className="dim-chip pointer-events-none absolute z-20 whitespace-nowrap rounded-[6px] bg-primary px-2 py-[3px] font-mono text-[11px] font-medium leading-none text-primary-foreground"
+          style={{ left: chipLeft, top: chipTop }}
+        >
+          {Math.round(rect.w)} × {Math.round(rect.h)} px
+        </div>
       )}
 
       {/* top-11 keeps the hint clear of the menu bar and the macOS notch. */}

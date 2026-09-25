@@ -1009,3 +1009,51 @@ html.overlay-view body {
   animation: none !important;
 }
 
+/* ------------------------------------------------------------------ */
+/* Capture overlay motion (T7) — the dim enters in --t-slow (320ms) on  */
+/* --ease-standard (DESIGN.md motion law: overlay dim = 320ms); Esc     */
+/* fades the in-webview surface out in --t-fast (120ms) before          */
+/* CaptureOverlay invokes `overlay_cancel`. Direct manipulation stays   */
+/* instant: the selection rect, its handles and the chip never          */
+/* transition. Reduced motion: the dim appears immediately, no          */
+/* transform.                                                          */
+/* ------------------------------------------------------------------ */
+@keyframes overlay-dim-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.capture-dim {
+  animation: overlay-dim-in var(--t-slow) var(--ease-standard) both;
+  transition: opacity var(--t-slow) var(--ease-standard);
+}
+
+.capture-overlay.is-leaving .capture-dim {
+  animation: none;
+  opacity: 0;
+  transition: opacity var(--t-fast) var(--ease-standard);
+}
+
+.capture-overlay .capture-sel,
+.capture-overlay .capture-sel *,
+.capture-overlay .dim-chip {
+  transition: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .capture-dim,
+  .capture-overlay.is-leaving .capture-dim {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+.reduced-motion .capture-dim,
+.reduced-motion .capture-overlay.is-leaving .capture-dim {
+  animation: none !important;
+  transition: none !important;
+}
+
