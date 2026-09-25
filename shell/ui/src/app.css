@@ -407,9 +407,9 @@ html.panel-view body {
 }
 /* Single skeleton shimmer — the OD `shimmer` mechanism from core.css (a
    background-position sweep, not the app's old transform translateX), kept
-   under the `.panel-skeleton` contract. T10 removed both the app's
-   transform variant and the duplicate OD `shimmer` keyframe so exactly one
-   shimmer keyframe remains. */
+   under the `.panel-skeleton` contract and under the OD name `shimmer`. T10
+   removed both the app's transform variant and the duplicate keyframe so
+   exactly one shimmer keyframe remains. */
 .panel-skeleton::after {
   content: "";
   position: absolute;
@@ -417,9 +417,9 @@ html.panel-view body {
   background: linear-gradient(90deg, transparent, hsl(var(--card) / 0.7), transparent);
   background-size: 200% 100%;
   background-repeat: no-repeat;
-  animation: panel-shimmer 1.4s linear infinite;
+  animation: shimmer 1.4s linear infinite;
 }
-@keyframes panel-shimmer {
+@keyframes shimmer {
   0% {
     background-position: -140% 0;
   }
@@ -937,7 +937,7 @@ html.overlay-view body {
    contract; the step dots stay T6's gesture. Shimmer is scoped to the
    thinking surface so no other state carries it. */
 .panel-surface[data-state="thinking"] .panel-skeleton::after {
-  animation: panel-shimmer 1.4s linear infinite;
+  animation: shimmer 1.4s linear infinite;
 }
 
 /* error — the OD defines no panel error gesture, so this is the restrained

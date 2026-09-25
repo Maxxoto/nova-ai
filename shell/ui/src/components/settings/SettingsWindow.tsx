@@ -884,7 +884,7 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
 
   return (
     <div
-      className={`mx-auto flex w-full max-w-[820px] flex-col gap-5 p-8${reducedMotion ? " reduced-motion rm-halve" : ""}`}
+      className={`mx-auto flex w-full max-w-[820px] flex-col gap-5 p-8${reducedMotion ? " reduced-motion" : ""}`}
     >
       <header className="flex flex-col gap-1">
         <span className="font-mono text-[11px] font-medium uppercase tracking-[0.09em] text-muted-foreground">

@@ -487,7 +487,7 @@ export default function App() {
     }
     return (
       <div
-        className={`flex min-h-screen items-start justify-center p-3 text-[14px] leading-[1.45]${reducedMotion ? " reduced-motion rm-halve" : ""}`}
+        className={`flex min-h-screen items-start justify-center p-3 text-[14px] leading-[1.45]${reducedMotion ? " reduced-motion" : ""}`}
       >
         <ResultPanel
           state={isTauri ? liveState : panelViewState}
@@ -538,7 +538,7 @@ export default function App() {
 
   if (onboardingView) {
     return (
-      <div className={`min-h-screen bg-background${reducedMotion ? " reduced-motion rm-halve" : ""}`}>
+      <div className={`min-h-screen bg-background${reducedMotion ? " reduced-motion" : ""}`}>
         <div ref={wizardRef} className="w-full">
           <OnboardingRitual initialStep={onboardingStep} reducedMotion={reducedMotion} />
         </div>
@@ -563,7 +563,7 @@ export default function App() {
   }
 
   return (
-    <div className={`min-h-screen${reducedMotion ? " reduced-motion rm-halve" : ""}`}>
+    <div className={`min-h-screen${reducedMotion ? " reduced-motion" : ""}`}>
       <div className="mx-auto flex max-w-[1120px] flex-col gap-12 px-6 pb-20 pt-10">
         <header className="flex flex-col gap-6">
           <div className="flex flex-wrap items-center justify-between gap-4">

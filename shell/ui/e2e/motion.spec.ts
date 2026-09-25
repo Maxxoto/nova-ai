@@ -445,7 +445,7 @@ test.describe("panel-states — entrance, answered stagger, error motion, reduce
       const style = getComputedStyle(node, "::after");
       return { animationName: style.animationName, animationDuration: style.animationDuration };
     });
-    expect(shimmer.animationName).toContain("panel-shimmer");
+    expect(shimmer.animationName).toContain("shimmer");
     expect(shimmer.animationDuration).toBe("1.4s");
     await expect(page.locator(".panel-skeleton")).toHaveCount(3);
 
@@ -1424,7 +1424,7 @@ const PANEL_MATRIX: Record<PanelState, MatrixCell> = {
         label: "the skeleton shimmers",
         selector: ".panel-surface .panel-skeleton",
         pseudo: "::after",
-        name: "panel-shimmer",
+        name: "shimmer",
         duration: "1.4s",
         infinite: true,
       },

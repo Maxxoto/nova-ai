@@ -344,7 +344,7 @@ export default function TimelineView({
   };
 
   const rootClass = `mx-auto flex w-full max-w-[980px] flex-col gap-6 p-8${
-    reducedMotion ? " reduced-motion rm-halve" : ""
+    reducedMotion ? " reduced-motion" : ""
   }`;
 
   const header = (

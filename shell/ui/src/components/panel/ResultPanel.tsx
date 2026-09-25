@@ -140,7 +140,7 @@ export default function ResultPanel({
       data-phase={state}
       className={`panel-surface w-[400px] max-w-full overflow-hidden rounded-[14px] border border-border shadow-e3${
         entering ? " is-entering" : ""
-      }${leaving ? " is-leaving" : ""}${reducedMotion ? " reduced-motion rm-halve" : ""}`}
+      }${leaving ? " is-leaving" : ""}${reducedMotion ? " reduced-motion" : ""}`}
     >
       <PanelHeader state={state} net={net} onCollapse={onCollapse} />
       <div className="panel-body panel-scroll max-h-[60vh] overflow-y-auto px-4 py-3.5">

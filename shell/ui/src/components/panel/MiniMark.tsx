@@ -71,7 +71,7 @@ export default function MiniMark({
       aria-label={`Ruoxi — ${word}. Open the panel.`}
       title={title}
       className={`mini grid h-11 w-11 place-items-center border-0 bg-transparent p-0 text-primary-foreground ${FOCUS_RING}${
-        reducedMotion ? " reduced-motion rm-halve" : ""
+        reducedMotion ? " reduced-motion" : ""
       }`}
     >
       {canonical === "thinking" ? (
