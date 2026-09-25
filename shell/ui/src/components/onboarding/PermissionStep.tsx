@@ -80,7 +80,7 @@ function PermissionCard({
 
   return (
     <div
-      className={`flex items-start gap-3 rounded-md border bg-card p-3.5 transition-colors duration-200 ${
+      className={`flex items-start gap-3 rounded-md border bg-card p-3.5 transition-colors duration-[120ms] ease-[cubic-bezier(.4,0,.2,1)] ${
         granted ? "border-success" : "border-border"
       }`}
     >

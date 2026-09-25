@@ -72,7 +72,7 @@ export default function ModelsStep({
           <button
             type="button"
             onClick={onTurnOffOffline}
-            className={`flex-none rounded px-2 py-1 font-ui text-[12px] font-semibold text-warning transition-colors duration-200 hover:bg-warning/10 ${FOCUS_RING}`}
+            className={`flex-none rounded px-2 py-1 font-ui text-[12px] font-semibold text-warning transition-colors duration-[120ms] ease-[cubic-bezier(.4,0,.2,1)] hover:bg-warning/10 ${FOCUS_RING}`}
           >
             Turn off offline
           </button>

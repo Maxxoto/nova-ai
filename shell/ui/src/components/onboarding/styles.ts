@@ -3,7 +3,7 @@
 export const FOCUS_RING =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
 
-const BUTTON_BASE = `inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md border border-transparent font-ui font-semibold transition-colors duration-200 disabled:cursor-default aria-disabled:cursor-not-allowed aria-disabled:opacity-45 ${FOCUS_RING}`;
+const BUTTON_BASE = `inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md border border-transparent font-ui font-semibold transition-colors duration-[120ms] ease-[cubic-bezier(.4,0,.2,1)] disabled:cursor-default aria-disabled:cursor-not-allowed aria-disabled:opacity-45 ${FOCUS_RING}`;
 
 /** Design `.btn btn-primary` — 32px tall, 13px label. */
 export const PRIMARY_BUTTON = `${BUTTON_BASE} h-8 bg-primary px-3.5 text-[13px] text-primary-foreground hover:bg-primary-active disabled:opacity-60`;

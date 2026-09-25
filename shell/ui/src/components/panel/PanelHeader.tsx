@@ -44,7 +44,7 @@ export default function PanelHeader({
           onClick={onCollapse}
           aria-label="Collapse to mini"
           title="Collapse to mini"
-          className={`inline-flex h-[26px] flex-none items-center justify-center rounded px-2.5 text-body transition-colors duration-200 hover:bg-muted hover:text-foreground ${FOCUS_RING}`}
+          className={`inline-flex h-[26px] flex-none items-center justify-center rounded px-2.5 text-body transition-colors duration-[120ms] ease-[cubic-bezier(.4,0,.2,1)] hover:bg-muted hover:text-foreground ${FOCUS_RING}`}
         >
           <svg
             viewBox="0 0 24 24"

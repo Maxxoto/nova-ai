@@ -12,7 +12,7 @@ export default function ReadAloudButton({
       type="button"
       aria-pressed={reading}
       onClick={reading ? onStop : onRead}
-      className="inline-flex h-[26px] flex-none items-center gap-1.5 whitespace-nowrap rounded-[10px] px-2.5 font-ui text-[13px] font-semibold text-muted-foreground transition-colors duration-200 hover:bg-muted hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      className="inline-flex h-[26px] flex-none items-center gap-1.5 whitespace-nowrap rounded-[10px] px-2.5 font-ui text-[13px] font-semibold text-muted-foreground transition-colors duration-[120ms] ease-[cubic-bezier(.4,0,.2,1)] hover:bg-muted hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
     >
       <svg
         viewBox="0 0 24 24"

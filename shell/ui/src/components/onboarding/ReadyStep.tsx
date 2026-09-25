@@ -46,7 +46,7 @@ function ArrowButton({
   return (
     <button type="button" onClick={onClick} className={`group ${GHOST_BUTTON}`}>
       {children}
-      <span aria-hidden className="transition-transform duration-150 group-hover:translate-x-0.5">
+      <span aria-hidden className="transition-transform duration-[120ms] ease-[cubic-bezier(.4,0,.2,1)] group-hover:translate-x-0.5">
         →
       </span>
     </button>

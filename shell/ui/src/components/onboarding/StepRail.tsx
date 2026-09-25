@@ -34,9 +34,12 @@ export default function StepRail({ current }: { current: RitualStep }) {
             <span
               role="listitem"
               aria-current={isCurrent ? "step" : undefined}
-              className={`inline-flex items-center gap-[7px] whitespace-nowrap font-mono text-[11px] uppercase tracking-[0.06em] ${textClass}`}
+              className={`inline-flex items-center gap-[7px] whitespace-nowrap font-mono text-[11px] uppercase tracking-[0.06em] transition-colors duration-[120ms] ease-[cubic-bezier(.4,0,.2,1)] ${textClass}`}
             >
-              <i aria-hidden className={`h-1.5 w-1.5 rounded-pill ${dotClass}`} />
+              <i
+                aria-hidden
+                className={`h-1.5 w-1.5 rounded-pill transition-colors duration-[120ms] ease-[cubic-bezier(.4,0,.2,1)] ${dotClass}`}
+              />
               {String(i + 1).padStart(2, "0")} {LABELS[step]}
             </span>
             {i < RITUAL_STEPS.length - 1 && <span aria-hidden className="h-px flex-1 bg-border" />}

@@ -49,13 +49,13 @@ function CiteChip({ capture }: { capture: { id: string; time: string } }) {
       <button
         type="button"
         onClick={() => invokeTauriAsync("show_timeline")?.catch(() => undefined)}
-        className="inline-flex items-center gap-1.5 rounded-[6px] border border-primary/25 bg-primary-soft px-2 py-[3px] font-mono text-[11px] leading-[1.4] text-primary-active transition-colors duration-200 hover:border-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        className="inline-flex items-center gap-1.5 rounded-[6px] border border-primary/25 bg-primary-soft px-2 py-[3px] font-mono text-[11px] leading-[1.4] text-primary-active transition-colors duration-[120ms] ease-[cubic-bezier(.4,0,.2,1)] hover:border-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       >
         {capture.id} · {capture.time}
       </button>
       <span
         aria-hidden="true"
-        className="pointer-events-none invisible absolute bottom-[calc(100%+8px)] left-0 z-[6] w-[190px] translate-y-1.5 rounded-[10px] border border-border bg-card p-1.5 opacity-0 shadow-e2 transition-all duration-150 group-hover:visible group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:visible group-focus-within:translate-y-0 group-focus-within:opacity-100"
+        className="pointer-events-none invisible absolute bottom-[calc(100%+8px)] left-0 z-[6] w-[190px] translate-y-1.5 rounded-[10px] border border-border bg-card p-1.5 opacity-0 shadow-e2 transition-[transform,opacity] duration-[120ms] ease-[cubic-bezier(.2,.8,.3,1)] group-hover:visible group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:visible group-focus-within:translate-y-0 group-focus-within:opacity-100"
       >
         <span className="grid h-[58px] place-items-center rounded-[6px] border border-border bg-muted px-1 text-center font-mono text-[11px] leading-[1.4] text-muted-foreground">
           screenshot · capture

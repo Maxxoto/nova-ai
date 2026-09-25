@@ -29,7 +29,7 @@ export default function SaveMemoryButton({ onSaved }: { onSaved?: () => void }) 
         setSaved(true);
         onSaved?.();
       }}
-      className={`inline-flex h-[26px] items-center gap-1.5 rounded-[10px] border px-2.5 font-ui text-[13px] font-semibold transition-colors duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-default ${
+      className={`inline-flex h-[26px] items-center gap-1.5 rounded-[10px] border px-2.5 font-ui text-[13px] font-semibold transition-colors duration-[80ms] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-default ${
         saved ? "border-success text-success" : "border-border-strong bg-card text-foreground hover:bg-muted"
       }`}
     >

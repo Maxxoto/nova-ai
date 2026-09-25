@@ -30,13 +30,13 @@ function Toggle({
       aria-labelledby={labelledBy}
       aria-describedby={describedBy}
       onClick={() => onChange(!on)}
-      className={`relative h-5 w-[34px] flex-none rounded-pill transition-colors duration-200 ${
+      className={`relative h-5 w-[34px] flex-none rounded-pill transition-colors duration-[80ms] ${
         on ? "bg-primary" : "bg-border-strong"
       } hover:shadow-e2 ${FOCUS_RING}`}
     >
       <span
         aria-hidden
-        className="absolute top-0.5 left-0.5 h-4 w-4 rounded-pill bg-card shadow-e1 transition-transform duration-200"
+        className="absolute top-0.5 left-0.5 h-4 w-4 rounded-pill bg-card shadow-e1 transition-transform duration-[80ms]"
         style={{ transform: on ? "translateX(14px)" : "none" }}
       />
     </button>
