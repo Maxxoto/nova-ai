@@ -149,15 +149,17 @@ motion:
   duration-slow: 320ms      # overlay dim in, brief card entrance
   duration-deliberate: 480ms # onboarding transitions
   ease-standard: "cubic-bezier(0.4, 0, 0.2, 1)"
-  ease-out: "cubic-bezier(0.16, 1, 0.3, 1)"
-  ease-snappy: "cubic-bezier(0.32, 0.72, 0, 1)"
+  ease-out: "cubic-bezier(0.2, 0.8, 0.3, 1)"
+  ease-snappy: "cubic-bezier(0.2, 1.05, 0.3, 1)"
   breathe: "3s ease-in-out infinite — idle orb scale 1 → 1.03"
   pulse-ring: "1.2s ease-out infinite — listening ring scale 1 → 1.35, opacity 0.5 → 0"
   orbit: "1.6s linear infinite — thinking dots around orb"
+  step-run: "1.2s ease-standard, the panel's step dots advance while thinking"
   wave: "0.9s ease-in-out — waveform bars, driven by live mic level, not a timer"
   shimmer: "1.4s linear infinite — thinking skeleton blocks"
+  bulb-glow: "2.8s ease-in-out infinite, the answered bulb holds its glow"
   token-caret: "1s step-end infinite — streaming caret blink"
-  reduced-motion: "prefers-reduced-motion: reduce → every transform anim becomes an opacity fade, durations halve, waveform bars freeze with a static 'listening' label + icon"
+  reduced-motion: "prefers-reduced-motion: reduce → every loop stops; the state stays legible from its icon, its colour and its word"
 
 components:
   panel-shell:
@@ -463,14 +465,15 @@ lives in the panel header *and* the tray menu simultaneously, driven by `net.sta
 events (`offline / local_only / calling_cloud`). It transitions on request lifecycle,
 not timers — an honest sub-second view of egress (RFC-0009 §4.2, F-09, AC-09).
 
-**Motion law.** `Esc` = 120ms fade (`motion.duration-fast`) — dismissal must feel
-instant (AC-06). Entrances use `ease-out`, exits use `ease-standard`. Nothing loops
-except: breathe (idle), pulse-ring (listening), orbit (thinking), wave (live audio),
-shimmer (loading), caret (streaming). Every loop must reflect a real, current system
-condition — the listening pulse runs because the mic is open, not because a timer
-says so; the only pure timer in the product is the cosmetic idle settle. Under `prefers-reduced-motion`: transforms become
-opacity fades, durations halve, waveform freezes to a static labeled icon — the
-state must remain legible without motion.
+**Motion law.** `Esc` = 120ms fade (`motion.duration-fast`); dismissal must feel
+instant (AC-06). Entrances use `ease-out` or `ease-snappy`; exits and colour use
+`ease-standard`. Loops exist only while a real condition holds: breathe (idle),
+pulse-ring (listening), orbit (thinking), step-run (the panel's step dots), wave
+(live audio), bulb-glow (answered), caret (streaming). Every loop must reflect a
+real, current system condition: the listening pulse runs because the mic is open, not
+because a timer says so, and the only pure timer in the product is the cosmetic idle
+settle. Under `prefers-reduced-motion`: every loop stops, and the state stays legible
+from its icon, its colour and its word.
 
 ## Components
 
