@@ -41,22 +41,11 @@ export default {
         e3: "0 8px 32px rgba(15,23,38,0.18), 0 2px 8px rgba(15,23,38,0.08)",
       },
       backdropBlur: { panel: "24px" },
-      keyframes: {
-        breathe: { "0%,100%": { transform: "scale(1)" }, "50%": { transform: "scale(1.03)" } },
-        "pulse-ring": { "0%": { transform: "scale(1)", opacity: "0.5" }, "100%": { transform: "scale(1.35)", opacity: "0" } },
-        orbit: { to: { transform: "rotate(360deg)" } },
-        shimmer: { "0%": { backgroundPosition: "-200% 0" }, "100%": { backgroundPosition: "200% 0" } },
-        "token-caret": { "0%,100%": { opacity: "1" }, "50%": { opacity: "0" } },
-      },
+      /* Keyframes live once, in src/app.css (single source). Do not add a
+         keyframes block here — the utilities below resolve against the
+         app.css keyframe set. */
       animation: {
-        breathe: "breathe 3s ease-in-out infinite",
         "pulse-ring": "pulse-ring 1.2s ease-out infinite",
-        orbit: "orbit 1.6s linear infinite",
-        /* Mini mark's working ring — same `orbit` keyframe at the design's
-           .mini-spin timing (0.9s), distinct from the 1.6s orb/tray orbit. */
-        "orbit-fast": "orbit 0.9s linear infinite",
-        shimmer: "shimmer 1.4s linear infinite",
-        "token-caret": "token-caret 1s step-end infinite",
       },
     },
   },
