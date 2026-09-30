@@ -771,6 +771,54 @@ fn persist_custom_origin(app: &AppHandle, origin: (f64, f64)) {
     }
 }
 
+/// The esc tap body, kept panic-free at the boundary by the wrapper in
+/// [`spawn_esc_dismiss`].
+fn esc_tap_event(
+    ty: core_graphics::event::CGEventType,
+    event: &core_graphics::event::CGEvent,
+    app: &AppHandle,
+    port: &Arc<AtomicPtr<std::os::raw::c_void>>,
+) -> core_graphics::event::CallbackResult {
+    use core_graphics::event::CGEventFlags as F;
+    use core_graphics::event::{CallbackResult, EventField};
+
+    if matches!(
+        ty,
+        core_graphics::event::CGEventType::TapDisabledByTimeout
+            | core_graphics::event::CGEventType::TapDisabledByUserInput
+    ) {
+        eprintln!("ruoxi: esc tap {ty:?} — re-enabling");
+        let port = port.load(Ordering::Relaxed);
+        if !port.is_null() {
+            unsafe { CGEventTapEnable(port, true) };
+        }
+        return CallbackResult::Keep;
+    }
+    let flags = event.get_flags();
+    let keycode = event.get_integer_value_field(EventField::KEYBOARD_EVENT_KEYCODE);
+    eprintln!("ruoxi: esc tap {ty:?} keycode={keycode} flags={flags:?}");
+    if keycode == ESC_KEYCODE && PANEL_VISIBLE.load(Ordering::Relaxed) {
+        if crate::ask::is_active() {
+            // Accepted with the ⌥⇧V chord still held — chord + Esc is the
+            // design's cancel gesture.
+            crate::ask::cancel_ask(app);
+        } else {
+            let modifier_mask = F::CGEventFlagCommand
+                | F::CGEventFlagShift
+                | F::CGEventFlagAlternate
+                | F::CGEventFlagControl;
+            let bare = (flags & modifier_mask) == F::CGEventFlagNull;
+            if bare {
+                // Esc stops the read-aloud; the dismiss hotkey owns hiding, so
+                // Esc can never leave the panel unshown.
+                eprintln!("ruoxi: esc -> stop read-aloud");
+                crate::tts::stop_speaking();
+            }
+        }
+    }
+    CallbackResult::Keep
+}
+
 /// Listen-only Esc tap: hides the panel when visible, never consumes the
 /// key — the underlying app sees its own Esc semantics (S1 tap pattern).
 pub fn spawn_esc_dismiss(app: AppHandle) -> Result<(), String> {
@@ -779,7 +827,7 @@ pub fn spawn_esc_dismiss(app: AppHandle) -> Result<(), String> {
     use core_foundation::string::CFString;
     use core_graphics::event::{
         CallbackResult, CGEventTap, CGEventTapLocation, CGEventTapOptions, CGEventTapPlacement,
-        CGEventType, EventField,
+        CGEventType,
     };
 
     let (ready_tx, ready_rx) = std::sync::mpsc::channel::<Result<(), String>>();
@@ -799,41 +847,19 @@ pub fn spawn_esc_dismiss(app: AppHandle) -> Result<(), String> {
             // regardless of the mask, so the re-arm below still fires.
             vec![CGEventType::KeyDown],
             move |_proxy, ty, event| {
-                use core_graphics::event::CGEventFlags as F;
-                if matches!(
-                    ty,
-                    CGEventType::TapDisabledByTimeout | CGEventType::TapDisabledByUserInput
-                ) {
-                    eprintln!("ruoxi: esc tap {ty:?} — re-enabling");
-                    let port = port.load(Ordering::Relaxed);
-                    if !port.is_null() {
-                        unsafe { CGEventTapEnable(port, true) };
-                    }
-                    return CallbackResult::Keep;
-                }
-                let flags = event.get_flags();
-                let keycode = event.get_integer_value_field(EventField::KEYBOARD_EVENT_KEYCODE);
-                eprintln!("ruoxi: esc tap {ty:?} keycode={keycode} flags={flags:?}");
-                if keycode == ESC_KEYCODE && PANEL_VISIBLE.load(Ordering::Relaxed) {
-                    if crate::ask::is_active() {
-                        // Accepted with the ⌥⇧V chord still held — chord + Esc
-                        // is the design's cancel gesture.
-                        crate::ask::cancel_ask(&app);
-                    } else {
-                        let modifier_mask = F::CGEventFlagCommand
-                            | F::CGEventFlagShift
-                            | F::CGEventFlagAlternate
-                            | F::CGEventFlagControl;
-                        let bare = (flags & modifier_mask) == F::CGEventFlagNull;
-                        if bare {
-                            // Esc stops the read-aloud; the dismiss hotkey owns
-                            // hiding, so Esc can never leave the panel unshown.
-                            eprintln!("ruoxi: esc -> stop read-aloud");
-                            crate::tts::stop_speaking();
-                        }
+                // A panic below unwinds through the C trampoline, and Rust
+                // aborts the whole app when that happens (crash report
+                // nova-shell-2026-09-24-224024, killed a panel drag session).
+                // Catch it, log it, keep the tap alive.
+                match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    esc_tap_event(ty, event, &app, &port)
+                })) {
+                    Ok(result) => result,
+                    Err(panic) => {
+                        eprintln!("ruoxi: esc tap panicked: {panic:?}");
+                        CallbackResult::Keep
                     }
                 }
-                CallbackResult::Keep
             },
         );
         let tap = match tap {
@@ -884,6 +910,11 @@ pub fn hide_panel(app: AppHandle) {
 /// error.
 #[tauri::command]
 pub fn set_panel_mode(app: AppHandle, mode: String) -> Result<(), String> {
+    // TEMPORARY DIAGNOSTIC (collapse-to-mini crash): the "panel mode ->" log
+    // below sits after the mode/window lookups, so a bail there is silent.
+    // This line proves whether the command is invoked at all; remove it once
+    // the crash is located.
+    eprintln!("ruoxi: set_panel_mode({mode}) invoked");
     let Some((w, h)) = mode_size(&mode) else {
         return Err(format!(
             "unknown panel mode {mode:?} — expected \"mini\" or \"panel\""

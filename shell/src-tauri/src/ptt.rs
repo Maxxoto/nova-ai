@@ -98,18 +98,32 @@ pub fn spawn_listener(
             CGEventTapOptions::ListenOnly,
             vec![CGEventType::KeyDown, CGEventType::KeyUp],
             move |_proxy, ty, event| {
-                let keycode = event.get_integer_value_field(EventField::KEYBOARD_EVENT_KEYCODE);
-                let autorepeat =
-                    event.get_integer_value_field(EventField::KEYBOARD_EVENT_AUTOREPEAT) != 0;
-                let down = matches!(ty, CGEventType::KeyDown);
-                let flags = event.get_flags();
-                let mods_held = !require_mods || (flags & expected_mods) == expected_mods;
-                let prev = cb_pressed.load(Ordering::Relaxed);
-                if let Some(next) = transition(prev, keycode, down, autorepeat, target, mods_held) {
-                    cb_pressed.store(next, Ordering::Relaxed);
-                    let _ = tx.send(next);
+                // Same boundary rule as the esc tap: a panic must not unwind
+                // through the C trampoline (it aborts the app).
+                let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    let keycode =
+                        event.get_integer_value_field(EventField::KEYBOARD_EVENT_KEYCODE);
+                    let autorepeat =
+                        event.get_integer_value_field(EventField::KEYBOARD_EVENT_AUTOREPEAT) != 0;
+                    let down = matches!(ty, CGEventType::KeyDown);
+                    let flags = event.get_flags();
+                    let mods_held = !require_mods || (flags & expected_mods) == expected_mods;
+                    let prev = cb_pressed.load(Ordering::Relaxed);
+                    if let Some(next) =
+                        transition(prev, keycode, down, autorepeat, target, mods_held)
+                    {
+                        cb_pressed.store(next, Ordering::Relaxed);
+                        let _ = tx.send(next);
+                    }
+                    CallbackResult::Keep
+                }));
+                match outcome {
+                    Ok(result) => result,
+                    Err(panic) => {
+                        eprintln!("ruoxi: ptt tap panicked: {panic:?}");
+                        CallbackResult::Keep
+                    }
                 }
-                CallbackResult::Keep
             },
         );
         let tap = match tap {
