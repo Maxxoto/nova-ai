@@ -72,6 +72,20 @@ function readScope(raw: unknown): CaptureScope {
   return "region";
 }
 
+/** Map the settings `offline` toggle onto the design's net semantics. Per OD
+ *  (components.css:296-300): `online` = requests may reach the cloud,
+ *  `local_only` = the cloud is switched off, `offline` = no network at all.
+ *  The toggle turns the cloud *off*, so ON → `local_only`; OFF → `online`. */
+function netFromOffline(offline: boolean): NetState {
+  return offline ? "local_only" : "online";
+}
+
+/** The pulsing cloud chip is live egress — in flight while the model thinks or
+ *  writes (OD `data-inflight`, components.css:296-300). */
+function isInflight(state: PanelState): boolean {
+  return state === "thinking" || state === "streaming";
+}
+
 function parseDimension(raw: string | null, fallback: number): number {
   if (raw === null) return fallback;
   const value = Number(raw);
@@ -124,7 +138,7 @@ const DEMO_TRANSCRIPT = "explain this simply";
 
 const GALLERY: { state: PanelState; net: NetState }[] = [
   { state: "thinking", net: "local_only" },
-  { state: "streaming", net: "calling_cloud" },
+  { state: "streaming", net: "online" },
   { state: "complete", net: "local_only" },
   { state: "speaking", net: "local_only" },
   { state: "error", net: "offline" },
@@ -398,14 +412,14 @@ export default function App() {
       pendingSettings?.then(
         (raw) => {
           const record = raw && typeof raw === "object" ? (raw as { offline?: unknown; ptt_hotkey?: unknown }) : {};
-          setLiveNet(record.offline ? "offline" : "local_only");
+          setLiveNet(netFromOffline(Boolean(record.offline)));
           setHotkeyLabel(formatHotkey(record.ptt_hotkey));
         },
         () => undefined,
       );
       track(
         await listenTauri<{ offline?: boolean }>("settings:changed", (s) =>
-          setLiveNet(s?.offline ? "offline" : "local_only"),
+          setLiveNet(netFromOffline(Boolean(s?.offline))),
         ),
       );
       track(
@@ -500,6 +514,7 @@ export default function App() {
         <ResultPanel
           state={isTauri ? liveState : panelViewState}
           net={isTauri ? liveNet : panelViewNet}
+          inflight={isInflight(isTauri ? liveState : panelViewState)}
           answer={isTauri ? liveAnswer : DEMO_ANSWER}
           transcript={isTauri ? liveTranscript : DEMO_TRANSCRIPT}
           capture={isTauri ? liveCapture : panelViewCapture}
@@ -579,7 +594,7 @@ export default function App() {
               <TrayMark svg={TRAY_STATES[0].svg} size={28} />
               <div className="flex flex-col">
                 <span className="font-companion text-[15px] font-bold text-foreground">
-                  Ruòxī · 若曦 — Tray Icon Review Board
+                  Ruoxi — Tray Icon Review Board
                 </span>
                 <span className="font-mono text-[11px] text-muted-foreground">
                   docs/DESIGN.md · RFC-0002 §4.2 + §4.4 · menu-bar marks, honest states, and the W4 result panel
@@ -611,7 +626,7 @@ export default function App() {
         <Section
           eyebrow="§ 1 · idle mark"
           title="Three candidates for the resting mark"
-          lede="The tray idle state is the dawn dot (DESIGN.md AI State System: “tray = dawn dot”). Each concept below is the resting Ruòxī at real menu-bar sizes, on both bars."
+          lede="The tray idle state is the dawn dot (DESIGN.md AI State System: “tray = dawn dot”). Each concept below is the resting Ruoxi at real menu-bar sizes, on both bars."
         >
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             {IDLE_CONCEPTS.map((c) => (
@@ -719,6 +734,7 @@ export default function App() {
                   <ResultPanel
                     state={state}
                     net={net}
+                    inflight={isInflight(state)}
                     answer={DEMO_ANSWER}
                     capture={DEMO_CAPTURE}
                     transcript={DEMO_TRANSCRIPT}
@@ -731,6 +747,7 @@ export default function App() {
                   <ResultPanel
                     state={state}
                     net={net}
+                    inflight={isInflight(state)}
                     answer={DEMO_ANSWER}
                     capture={DEMO_CAPTURE}
                     transcript={DEMO_TRANSCRIPT}

@@ -10,6 +10,7 @@ import type { CaptureInfo, NetState, PanelState } from "./types";
 export type ResultPanelProps = {
   state: PanelState;
   net: NetState;
+  inflight?: boolean;
   answer?: string;
   transcript?: string;
   capture?: CaptureInfo;
@@ -28,6 +29,7 @@ export type ResultPanelProps = {
 export default function ResultPanel({
   state,
   net,
+  inflight,
   answer,
   transcript,
   capture,
@@ -142,7 +144,7 @@ export default function ResultPanel({
   return (
     <section
       role="group"
-      aria-label="Ruòxī result panel"
+      aria-label="Ruoxi result panel"
       data-tauri-drag-region="deep"
       onMouseDown={beginDragIfNotControl}
       data-state={canonical}
@@ -151,7 +153,7 @@ export default function ResultPanel({
         entering ? " is-entering" : ""
       }${leaving ? " is-leaving" : ""}${reducedMotion ? " reduced-motion" : ""}`}
     >
-      <PanelHeader state={state} net={net} onCollapse={onCollapse} />
+      <PanelHeader state={state} net={net} inflight={inflight} onCollapse={onCollapse} />
       <div
         data-tauri-drag-region="deep"
         onMouseDown={beginDragIfNotControl}

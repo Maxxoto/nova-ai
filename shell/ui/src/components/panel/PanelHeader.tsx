@@ -5,7 +5,7 @@ import Orb from "./Orb";
 import type { NetState, PanelState } from "./types";
 
 const LABELS: Record<PanelState, string> = {
-  idle: "Ruòxī",
+  idle: "Ruoxi",
   ask: "Ready",
   listening: "Listening",
   transcribing: "Transcribing",
@@ -20,10 +20,12 @@ const LABELS: Record<PanelState, string> = {
 export default function PanelHeader({
   state,
   net,
+  inflight,
   onCollapse,
 }: {
   state: PanelState;
   net: NetState;
+  inflight?: boolean;
   onCollapse?: () => void;
 }) {
   return (
@@ -40,7 +42,7 @@ export default function PanelHeader({
       <Orb state={state} size={22} />
       <span className="min-w-0 truncate font-ui text-[13px] font-semibold text-foreground">{LABELS[state]}</span>
       <span className="min-w-2 flex-1" />
-      <CloudIndicator net={net} />
+      <CloudIndicator net={net} inflight={inflight} />
       {onCollapse ? (
         <button
           type="button"

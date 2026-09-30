@@ -42,18 +42,8 @@ export type TagTone = "neutral" | "ok" | "warn";
 
 export function Tag({ children, tone = "neutral" }: { children: ReactNode; tone?: TagTone }) {
   const toneClass =
-    tone === "ok"
-      ? "border-success text-success"
-      : tone === "warn"
-        ? "border-warning text-warning"
-        : "border-border text-muted-foreground";
-  return (
-    <span
-      className={`inline-flex w-fit flex-none items-center rounded-pill border bg-muted px-2.5 py-1 font-ui text-[11px] font-medium ${toneClass}`}
-    >
-      {children}
-    </span>
-  );
+    tone === "ok" ? " app-tag-ok" : tone === "warn" ? " app-tag-warn" : "";
+  return <span className={`app-tag w-fit flex-none${toneClass}`}>{children}</span>;
 }
 
 export function Section({

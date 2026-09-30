@@ -431,11 +431,64 @@ html.panel-view body {
   border-radius: 9999px;
   background: hsl(var(--primary-foreground) / 0.9);
 }
-/* Cloud indicator */
-.cloud-glyph {
-  flex: none;
+/* Cloud / trust chip (F-09) — the OD chip chrome (core.css:182-188) and
+   its three states (components.css:296-312), mapped onto the token bridge:
+   --surface→--card, --mute→--muted-foreground, --accent→--primary,
+   --success→--success, --r-pill→9999px. The `pulse-ring` keyframe already
+   lives above; the dot pulses only while a request is actually in flight,
+   never as decoration. This chip is a non-interactive role="status" span,
+   so the OD's `button.cloud` hover rules are intentionally not ported. */
+.cloud {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--card));
+  font-size: 11px;
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
+}
+.cloud svg {
   width: 13px;
   height: 13px;
+  flex: none;
+}
+.cloud .cdot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: hsl(var(--muted-foreground));
+  flex: none;
+}
+.cloud svg .cloud-slash {
+  display: none;
+}
+.cloud[data-cloud="local"] svg .cloud-slash,
+.cloud[data-cloud="offline"] svg .cloud-slash {
+  display: block;
+}
+.cloud[data-cloud="online"] .cdot {
+  background: hsl(var(--primary));
+}
+.cloud[data-cloud="online"] svg {
+  stroke: hsl(var(--primary));
+}
+.cloud[data-cloud="online"][data-inflight="true"] .cdot {
+  animation: pulse-ring 1.2s var(--ease-out) infinite;
+}
+.cloud[data-cloud="local"] .cdot {
+  background: hsl(var(--success));
+}
+.cloud[data-cloud="local"] svg {
+  stroke: hsl(var(--success));
+}
+.cloud[data-cloud="offline"] .cdot {
+  background: hsl(var(--muted-foreground));
+}
+.cloud[data-cloud="offline"] svg {
+  stroke: hsl(var(--muted-foreground));
 }
 
 /* Answer stream */
@@ -634,7 +687,7 @@ html.panel-view body {
 .reduced-motion .orb *,
 .reduced-motion .panel-skeleton::after,
 .reduced-motion .panel-caret,
-.reduced-motion .cloud-glyph,
+.reduced-motion .cloud .cdot,
 .reduced-motion .ptt-dot::after,
 .reduced-motion .ptt-wave i {
   animation: none !important;
@@ -1124,4 +1177,46 @@ html.overlay-view body {
 }
 .reduced-motion .mini-badge::after {
   display: none !important;
+}
+
+/* ------------------------------------------------------------------ */
+/* Settings primitives — additions only.                               */
+/* ------------------------------------------------------------------ */
+
+/* Tag — OD `.tag` + the ok/warn tone modifiers, verbatim from           */
+/* core.css:189-199, mapped onto the shadcn token bridge: --mute→        */
+/* --muted-foreground, --r-pill→9999px, --font-mono→the app mono stack,  */
+/* --success→--success, --warning→--warning. The OD tint fills           */
+/* (--tint-success / --tint-warning = color-mix(in oklch, X 12%,         */
+/* transparent), core.css:53-55) are written inline against the same     */
+/* tokens. The night override (core.css:197-198) folds onto the app's    */
+/* `.dark` root instead of `[data-theme="dark"]`.                        */
+.app-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  border: 1px solid hsl(var(--border));
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground));
+  white-space: nowrap;
+}
+.app-tag-ok {
+  border-color: color-mix(in oklch, hsl(var(--success)) 42%, hsl(var(--border)));
+  color: hsl(var(--success));
+  background: color-mix(in oklch, hsl(var(--success)) 12%, transparent);
+}
+.app-tag-warn {
+  border-color: color-mix(in oklch, hsl(var(--warning)) 45%, hsl(var(--border)));
+  color: hsl(var(--warning));
+  background: color-mix(in oklch, hsl(var(--warning)) 12%, transparent);
+}
+/* core.css:197-198 — at night the green tint costs more contrast than it
+   adds, so the ok chip goes transparent. */
+.dark .app-tag-ok {
+  background: transparent;
 }

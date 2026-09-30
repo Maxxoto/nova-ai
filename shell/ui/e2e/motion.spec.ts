@@ -7,7 +7,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import type { CanonicalState, NetState, PanelState } from "../src/components/panel/types";
 
 /**
- * Motion harness for the Ruòxī UI (task T2; extended by T4–T12).
+ * Motion harness for the Ruoxi UI (task T2; extended by T4–T12).
  *
  * Helpers are exported so later tasks assert the ported motion 1:1 against the
  * production build. Every assertion reads `getComputedStyle` from a real
@@ -91,7 +91,7 @@ test("smoke — the panel surface boots and renders at ?view=panel&state=thinkin
   const surface = panelSurface(page);
   await expect(surface).toBeVisible();
   await expect(surface).toHaveAttribute("data-state", "thinking");
-  await expect(page.getByRole("group", { name: "Ruòxī result panel" })).toBeVisible();
+  await expect(page.getByRole("group", { name: "Ruoxi result panel" })).toBeVisible();
 
   await shot(page, "smoke-panel-thinking");
 });
@@ -1127,11 +1127,11 @@ test.describe("reduced-motion — fail-closed outside the previously-listed scop
     expect(state.transition, `${label} transition → ${state.transition}s`).toBeLessThanOrEqual(0.01);
   }
 
-  test("manual path: an unlisted Tailwind animate-* consumer (calling-cloud dot) stills", async ({ page }) => {
-    await openPanel(page, { state: "streaming", net: "calling_cloud" });
-    await expect(page.locator(".animate-pulse-ring").first()).toBeVisible();
+  test("manual path: the online in-flight cloud dot stills", async ({ page }) => {
+    await openPanel(page, { state: "streaming", net: "online" });
+    await expect(page.locator(".cloud .cdot").first()).toBeVisible();
     await enableManualReducedMotion(page);
-    expectStilled(await motionState(page, ".animate-pulse-ring"), "manual · cloud dot");
+    expectStilled(await motionState(page, ".cloud .cdot"), "manual · cloud dot");
   });
 
   test("OS path: settings controls outside the listed scopes still", async ({ page }) => {
@@ -2033,5 +2033,129 @@ test.describe("save-memory — the OD panel-footer button", () => {
 
     await button.screenshot({ path: resolve(SCREENSHOT_DIR, "save-memory-button-saved.png") });
     await shot(page, "save-memory-panel-saved");
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* Cloud chip — the OD three-state contract (F-09).                    */
+/*                                                                     */
+/* `NetState` is `online | local_only | offline` (types.ts): ONE cloud */
+/* glyph with a toggled `.cloud-slash` and a `.cdot` that runs          */
+/* `pulse-ring 1.2s` ONLY for online + in-flight — never as decoration.*/
+/* The chip is a non-interactive `role="status"` span; the numbers come */
+/* from `app.css` `.cloud` (OD core.css:182-188 / components.css:296-  */
+/* 312). In the dev harness `inflight` is driven by the panel state, so */
+/* `state: "streaming"` + `net: "online"` is the live-request case.     */
+/* ------------------------------------------------------------------ */
+test.describe("cloud chip — the OD three-state contract", () => {
+  const CLOUD = ".cloud";
+
+  async function chipChrome(page: Page) {
+    return page.locator(CLOUD).first().evaluate((node) => {
+      const chip = getComputedStyle(node);
+      const glyph = getComputedStyle(node.querySelector("svg") as SVGElement);
+      const dot = getComputedStyle(node.querySelector(".cdot") as Element);
+      return {
+        role: node.getAttribute("role"),
+        display: chip.display,
+        gap: chip.gap,
+        padding: chip.padding,
+        radius: chip.borderRadius,
+        fontSize: chip.fontSize,
+        fontWeight: chip.fontWeight,
+        border: chip.borderTopWidth,
+        glyph: { width: glyph.width, height: glyph.height },
+        dot: { width: dot.width, height: dot.height, radius: dot.borderRadius },
+      };
+    });
+  }
+
+  test("data-cloud reflects each of the three net states, with Title Case labels", async ({ page }) => {
+    // `NetState` spells the middle state `local_only`, but the design's
+    // `data-cloud` vocabulary (OD capture-and-ask.frag:265) spells it `local`;
+    // the visible label stays "Local Only".
+    const cases = [
+      { net: "online" as const, attr: "online", label: "Online" },
+      { net: "local_only" as const, attr: "local", label: "Local Only" },
+      { net: "offline" as const, attr: "offline", label: "Offline" },
+    ];
+
+    for (const { net, attr, label } of cases) {
+      await openPanel(page, { state: "idle", net });
+      const cloud = page.locator(CLOUD).first();
+      await expect(cloud, `net=${net}`).toHaveAttribute("data-cloud", attr);
+      await expect(cloud).toHaveAttribute("role", "status");
+      await expect(cloud).toContainText(label);
+    }
+  });
+
+  test("the slash shows only when the cloud is off (local_only / offline)", async ({ page }) => {
+    const slashDisplay = async (): Promise<string> =>
+      page.locator(`${CLOUD} svg .cloud-slash`).first().evaluate((node) => getComputedStyle(node).display);
+
+    await openPanel(page, { state: "idle", net: "online" });
+    expect(await slashDisplay(), "online slash").toBe("none");
+
+    for (const net of ["local_only", "offline"] as const) {
+      await openPanel(page, { state: "idle", net });
+      expect(await slashDisplay(), `${net} slash`).toBe("block");
+    }
+  });
+
+  test("the dot pulses only while an online request is in flight", async ({ page }) => {
+    // The live-request cell: in-flight is `thinking`/`streaming`, so
+    // `streaming` + `online` must be the only pulsing combination.
+    await openPanel(page, { state: "streaming", net: "online" });
+    await expect(page.locator(CLOUD).first()).toHaveAttribute("data-inflight", "true");
+    const live = await animationOf(page, `${CLOUD} .cdot`);
+    expect(live.animationName).toBe("pulse-ring");
+    expect(live.animationDuration).toBe("1.2s");
+
+    // (a) online without an in-flight request, (b) local_only even when the
+    // model is thinking/writing, (c) offline likewise: the dot is static.
+    const quiet: Array<{ state: PanelState; net: NetState; label: string }> = [
+      { state: "idle", net: "online", label: "online · idle" },
+      { state: "streaming", net: "local_only", label: "local_only · inflight" },
+      { state: "streaming", net: "offline", label: "offline · inflight" },
+    ];
+
+    for (const cell of quiet) {
+      await openPanel(page, { state: cell.state, net: cell.net });
+      const dot = await animationOf(page, `${CLOUD} .cdot`);
+      expect(dot.animationName, `${cell.label} dot`).toBe("none");
+    }
+  });
+
+  test("the chrome is the OD pill: 4px 10px padding, 6px gap, 11px label, 13px glyph, 7px dot", async ({ page }) => {
+    await openPanel(page, { state: "idle", net: "online" });
+
+    const chrome = await chipChrome(page);
+    expect(chrome.role).toBe("status");
+    expect(chrome.display).toBe("flex"); // .cloud is inline-flex, blockified as a header flex item.
+    expect(chrome.gap).toBe("6px");
+    // `4px 10px` padding is the height the pill collapses to (no fixed height).
+    expect(chrome.padding).toBe("4px 10px");
+    expect(chrome.radius).toBe("9999px");
+    expect(chrome.fontSize).toBe("11px");
+    expect(chrome.fontWeight).toBe("500");
+    expect(chrome.border).toBe("1px");
+    expect(chrome.glyph).toEqual({ width: "13px", height: "13px" });
+    expect(chrome.dot.width).toBe("7px");
+    expect(chrome.dot.height).toBe("7px");
+    expect(chrome.dot.radius).toBe("50%");
+  });
+
+  test("review screenshots — the three states plus the live request", async ({ page }) => {
+    await openPanel(page, { state: "idle", net: "online" });
+    await shot(page, "cloud-chip-online");
+
+    await openPanel(page, { state: "streaming", net: "online" });
+    await shot(page, "cloud-chip-online-inflight");
+
+    await openPanel(page, { state: "idle", net: "local_only" });
+    await shot(page, "cloud-chip-local-only");
+
+    await openPanel(page, { state: "idle", net: "offline" });
+    await shot(page, "cloud-chip-offline");
   });
 });

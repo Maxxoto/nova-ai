@@ -10,7 +10,7 @@ export type PanelState =
   | "error"
   | "degraded";
 
-export type NetState = "offline" | "local_only" | "calling_cloud";
+export type NetState = "online" | "local_only" | "offline";
 
 export const PANEL_STATES: PanelState[] = [
   "idle",
@@ -56,7 +56,7 @@ export type CaptureInfo = {
   height: number;
 };
 
-export const NET_STATES: NetState[] = ["offline", "local_only", "calling_cloud"];
+export const NET_STATES: NetState[] = ["online", "local_only", "offline"];
 
 export function isPanelState(v: string | null): v is PanelState {
   return v !== null && (PANEL_STATES as string[]).includes(v);

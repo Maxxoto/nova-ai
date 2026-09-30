@@ -3,6 +3,7 @@ import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
 import { getPermissionsStatus } from "../../permissions";
 import type { PermissionKind, PermissionsStatus } from "../../permissions";
 import { invokeTauriAsync, listenTauri } from "../../tauri";
+import CloudIndicator from "../panel/CloudIndicator";
 import { KBD } from "../onboarding/styles";
 import AnchorPicker, { PANEL_ANCHORS } from "./AnchorPicker";
 import type { PanelAnchor } from "./AnchorPicker";
@@ -424,13 +425,7 @@ function OfflineBanner({ offline }: { offline: boolean }) {
             : "Requests may reach the cloud when an answer needs it."}
         </p>
       </div>
-      <span className="inline-flex flex-none items-center gap-1.5 rounded-pill border border-border bg-card px-2.5 py-1 font-ui text-[11px] font-medium text-muted-foreground">
-        <span
-          aria-hidden="true"
-          className={`h-[7px] w-[7px] rounded-pill ${offline ? "bg-muted-foreground" : "bg-success"}`}
-        />
-        {offline ? "Offline" : "Local Only"}
-      </span>
+      <CloudIndicator net={offline ? "local_only" : "online"} />
     </div>
   );
 }
@@ -519,7 +514,7 @@ const PERMISSION_ROWS: { kind: PermissionKind; name: string; help: string }[] = 
   {
     kind: "accessibility",
     name: "Accessibility",
-    help: "Global hotkeys only. Ruòxī never clicks or types.",
+    help: "Global hotkeys only. Ruoxi never clicks or types.",
   },
 ];
 
@@ -881,6 +876,7 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
   };
 
   const storeHelp = stats === null ? "Reading the local store…" : storeSummary(stats);
+  const pttHotkey = hotkeyKeycaps(settings.ptt_hotkey).join("");
 
   return (
     <div
@@ -992,32 +988,26 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
             label="Read answers aloud"
             help="Esc always stops the audio."
             side={
-              <>
-                <Tag>Coming Soon</Tag>
-                <Toggle
-                  label="Read answers aloud"
-                  on={settings.read_aloud}
-                  onChange={(next) => setField({ read_aloud: next })}
-                />
-              </>
+              <Toggle
+                label="Read answers aloud"
+                on={settings.read_aloud}
+                onChange={(next) => setField({ read_aloud: next })}
+              />
             }
           />
           <Row
             label="Answer length"
             help="Short by default. The panel offers more."
             side={
-              <>
-                <Tag>Coming Soon</Tag>
-                <Segmented
-                  ariaLabel="Answer length"
-                  value={settings.answer_length}
-                  onChange={(next) => setField({ answer_length: next })}
-                  options={[
-                    { value: "short", label: "Short" },
-                    { value: "normal", label: "Normal" },
-                  ]}
-                />
-              </>
+              <Segmented
+                ariaLabel="Answer length"
+                value={settings.answer_length}
+                onChange={(next) => setField({ answer_length: next })}
+                options={[
+                  { value: "short", label: "Short" },
+                  { value: "normal", label: "Normal" },
+                ]}
+              />
             }
           />
         </div>
@@ -1111,7 +1101,7 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
           />
           <Row
             label="Default capture scope"
-            help="What a voice ask captures when you do not box anything."
+            help={`What ${pttHotkey} captures when you do not box anything.`}
             side={
               <Segmented
                 ariaLabel="Default capture scope"
@@ -1153,7 +1143,7 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
             />
           </div>
           <p className="font-ui text-[12px] leading-[1.5] text-muted-foreground">
-            Ruòxī follows the system by default.
+            Ruoxi follows the system by default.
           </p>
         </div>
         <div className="flex flex-col">
@@ -1206,7 +1196,7 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
         />
         <div className="flex min-w-0 flex-1 flex-col gap-2">
           <span className="font-ui text-[17px] font-semibold leading-[1.3] tracking-[-0.01em] text-foreground">
-            Ruòxī 若曦
+            Ruoxi
           </span>
           <p className="font-ui text-[13px] leading-[1.45] text-muted-foreground">
             A menu-bar assistant for macOS and Windows. Open source, MIT.
