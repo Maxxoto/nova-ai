@@ -3,6 +3,8 @@
 //! the API key lives in the macOS Keychain and is injected as env vars when
 //! the brain sidecar spawns — never written to disk in plaintext.
 
+use std::time::Duration;
+
 use keyring::Entry;
 use serde_json::Value;
 
@@ -25,9 +27,42 @@ pub fn stored_api_key() -> Option<String> {
     keychain_entry().ok()?.get_password().ok()
 }
 
+/// How long the spawn path waits for the Keychain before giving up on the key
+/// this round. An unanswered access prompt must never starve the supervisor —
+/// while it blocked, the brain never spawned and logged nothing at all.
+const KEYCHAIN_READ_TIMEOUT: Duration = Duration::from_secs(3);
+
+/// Keychain read that cannot block the caller indefinitely. The read runs on
+/// its own thread; if it is still waiting when the timeout expires (an access
+/// prompt is up), the brain spawns without the key, and the waiter recycles
+/// the brain once the user answers — so the key lands without an app restart.
+fn stored_api_key_bounded() -> Option<String> {
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let key = stored_api_key();
+        if tx.send(key.clone()).is_err() {
+            // The spawn already gave up waiting: the prompt was answered
+            // afterwards, so take the key into a fresh brain generation.
+            if key.is_some() {
+                eprintln!("ruoxi: keychain answered late — recycling the brain with the key");
+                crate::supervisor::request_brain_restart();
+            }
+        }
+    });
+    match rx.recv_timeout(KEYCHAIN_READ_TIMEOUT) {
+        Ok(key) => key,
+        Err(_) => {
+            eprintln!(
+                "ruoxi: keychain read still waiting (access prompt?) — spawning the brain without the key"
+            );
+            None
+        }
+    }
+}
+
 /// Env vars injected at sidecar spawn; empty when unconfigured.
 pub fn env_for_sidecar(settings: &crate::settings::Settings) -> Vec<(String, String)> {
-    env_from_parts(settings, stored_api_key())
+    env_from_parts(settings, stored_api_key_bounded())
 }
 
 fn env_from_parts(
