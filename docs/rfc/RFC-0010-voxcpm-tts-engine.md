@@ -1,6 +1,6 @@
 # RFC-0010 — VoxCPM2 TTS Engine (Pure Rust via `voxcpm-rs`)
 
-- **Status:** Draft for review
+- **Status:** Deferred (product call, 2026-10-01 — Kokoro stays the on-device voice; revive only if the voice becomes the blocker)
 - **Author:** Dani
 - **Parent:** [RFC-0001](RFC-0001-desktop-companion.md) (Desktop Companion)
 - **Relates to:** [RFC-0005](RFC-0005-voice-output-tts.md) (voice output), [RFC-0009](RFC-0009-privacy-offline.md) (privacy/offline), [RFC-0006](RFC-0006-memory-system.md) (recordings as sensitive data)

@@ -86,7 +86,7 @@ Priority = MoSCoW. *This section lists product capabilities only; implementation
 | F-03 | Region capture → Ask | "Explain *this*" — the magic moment |
 | F-04 | Active-window capture → Ask | Effortless "what's in this doc/app?" |
 | F-05 | Full-screen capture → Ask | "Help me with everything here" |
-| F-06 | Floating result panel (`Esc` dismiss) | Non-intrusive by design |
+| F-06 | Floating result panel (`⌥⇧D` dismiss) | Non-intrusive by design |
 | F-07 | **Memory-grounded answers** ⭐ | Answers built from *your* notes & history |
 | F-08 | Local capture store + searchable timeline | Your screen history becomes a library |
 | F-09 | Cloud indicator + offline kill-switch | Trust you can see and control |
@@ -94,9 +94,11 @@ Priority = MoSCoW. *This section lists product capabilities only; implementation
 ### SHOULD — the companion feel
 | ID | Feature | Value |
 |---|---|---|
-| F-10 | Save-to-memory from any answer | One-offs become permanent knowledge |
+| F-10 | Save-to-memory from any answer | One-offs become permanent knowledge — button wiring lands with RFC-0011 |
 | F-11 | TTS read-back (toggle) | Hear explanations while you read |
 | F-12 | Daily brief on tray click | Ambient value, zero prompting |
+| F-15 | Rebindable dismiss hotkey | The panel leaves when *you* choose the key |
+| F-16 | Memory management | See and delete everything remembered |
 
 ### COULD — power moves
 | ID | Feature | Value |
@@ -182,13 +184,15 @@ Machine control (click/type/edit) · flashcards · multi-tool loops · monetizat
 | **AC-03** | **Given** I press the region hotkey, **when** I drag a box and release, **then** exactly the dragged region is captured and used as context. |
 | **AC-04** | **Given** I trigger active-window capture, **then** the frontmost window (not the desktop) is captured. |
 | **AC-05** | **Given** I trigger full-screen capture, **then** the display under my cursor is captured at native resolution. |
-| **AC-06** | **Given** an answer is shown, **when** I press `Esc`, **then** the panel dismisses without side effects. |
+| **AC-06** | **Given** an answer is shown, **when** I press `Esc`, **then** the read-aloud stops and the panel stays; the dismiss hotkey hides it. *(amended by RFC-0011)* |
 | **AC-07** | **Given** I ask a question related to a saved note, **then** the answer cites at least the matching local source (screenshot/note id). |
 | **AC-08** | **Given** I save an answer, **then** it is retrievable later by a memory query and appears in the timeline. |
 | **AC-09** | **Given** offline mode is ON, **when** I use any feature, **then** zero network calls are made and the UI shows the offline state. |
 | **AC-10** | **Given** any speech session ends, **then** the temporary audio is removed within ~1 minute and never appears in the UI. |
 | **AC-11** | **Given** the agent is responding, **then** no more than 3 tool steps occur, and `Esc` can abort mid-loop. |
 | **AC-12** | **Given** a first run, **then** each permission prompt is preceded by a plain-language *why* line. |
+| **AC-13** | **Given** Settings → hotkeys, **when** I rebind the dismiss key to a capture/PTT conflict, **then** it is rejected with a reason. |
+| **AC-14** | **Given** Settings → Memory, **then** every saved note is listed with its source and can be deleted in one click. |
 
 ---
 
@@ -257,6 +261,10 @@ identity is compounding memory. 记忆，是北极星。
 ---
 
 ## 13. Decisions Log
+
+- **2026-10-01 — VoxCPM (F-11 engine) deferred**; Kokoro remains the on-device voice. RFC-0010 parked.
+- **2026-10-01 — Esc never dismisses** (stops read-aloud / cancels an ask); the dismiss hotkey owns hiding. AC-06 amended.
+- **2026-10-01 — RFC-0011 opened** for F-10 wiring, F-15 rebindable dismiss, F-16 memory management.
 
 | # | Decision |
 |---|---|
