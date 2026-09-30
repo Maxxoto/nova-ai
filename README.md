@@ -44,7 +44,7 @@ The composition, its fonts and the source captures live in [`docs/demo/`](docs/d
 |---|---|
 | **Capture** | <kbd>⌥⇧R</kbd> box a region · <kbd>⌥⇧W</kbd> the frontmost window · <kbd>⌥⇧F</kbd> the whole screen. All three are rebindable in Settings. |
 | **Ask by voice** | Hold <kbd>⌥⇧V</kbd> — or hold the pill in the panel — and speak. The question is transcribed locally (Whisper or Parakeet, on this Mac). |
-| **The panel** | Opens **Ready** with your capture as context, then **Listening → Transcribing → Thinking → Writing → Complete**. The answer cites the capture it came from. |
+| **The panel** | Opens **Ready** with your capture as context, then **Listening → Transcribing → Thinking → Writing → Complete**. The answer cites the capture it came from. It lives on the desktop as a **44 px mini mark** — double-click to expand, double-click the header to collapse, and drag it from anywhere on the card (buttons keep their clicks). |
 | **Never in the way** | The panel floats above every app, follows you across Spaces, and never takes keyboard focus from what you are doing. |
 | **Out of the way, fast** | <kbd>Esc</kbd> cancels an in-flight ask or stops the read-aloud — it never dismisses. <kbd>⌥⇧D</kbd> dismisses the panel. |
 | **Read aloud** | On-device Kokoro, or the macOS system voice — with a speaking state in the panel. <kbd>Esc</kbd> stops the audio. |
@@ -88,6 +88,33 @@ cd shell/src-tauri && npx --yes @tauri-apps/cli@2 build
 ```
 
 Shell details (dev URLs, the `index.html?view=panel|overlay|setup|settings|timeline` harness, packaging notes) live in [`shell/README.md`](shell/README.md).
+
+### 📦 Running the unsigned DMG on another Mac
+
+The build is ad-hoc signed and notarization-free, so Gatekeeper has never heard of it — and the brain sidecar is **not bundled**: it needs a Python with this repo's dependencies. On the target Mac:
+
+1. **Copy the DMG** over (AirDrop, USB, …) and drag `Ruoxi.app` into `/Applications`.
+2. **Clear the quarantine flag** Gatekeeper attaches to downloaded/copied binaries — without this macOS reports the app as *damaged and can't be opened*:
+   ```bash
+   xattr -dr com.apple.quarantine /Applications/Ruoxi.app
+   ```
+   (Right-click → *Open* also works for a plain unidentified-developer warning, but the `xattr` route is the one that always works for ad-hoc builds.)
+3. **Give the brain a Python**: clone this repo next to the app and
+   ```bash
+   uv sync          # creates .venv with the sidecar's dependencies
+   ```
+   Then point the app at it — `~/Library/Application Support/com.ruoxi.shell/settings.json`:
+   ```json
+   { "sidecar_command": "/path/to/nova-ai/.venv/bin/python" }
+   ```
+4. **First launch**: open the app, grant **Screen Recording**, **Microphone** and **Accessibility** when the setup ritual asks (each with its why-line). If a permission was previously denied, reset it first:
+   ```bash
+   tccutil reset ScreenCapture com.ruoxi.shell && tccutil reset Microphone com.ruoxi.shell
+   ```
+5. **Expect two one-time prompts** on a freshly built binary: a Keychain dialog (click *Always Allow* — the API key is read through the Keychain) and the first-run model downloads (speech-to-text and voice weights, size shown before they start).
+6. Add your model key in **Settings → Models** (any OpenAI-compatible endpoint; DeepSeek by default) — or flip on **Offline mode** and stay entirely on-device.
+
+Signing + notarization (no Apple Developer account yet) and bundling a frozen Python runtime are the two open packaging gaps — tracked under W6.
 
 ### 🔐 Permissions — and why each one exists
 
@@ -316,7 +343,7 @@ For the CLI, copy `.env.example` to `.env` and set `LITE_LLM_API_KEY` (plus `BRA
 **Known gaps**
 
 - The panel's **Save to memory** button is not wired yet — it still shows its M2 placeholder; the memory store and its commands already exist
-- The `.dmg` does not bundle a Python runtime: the brain needs a Python with the repo dependencies (set `sidecar_command` to your venv)
+- The `.dmg` does not bundle a Python runtime: the brain needs a Python with the repo dependencies (set `sidecar_command` to your venv) — see [Running the unsigned DMG on another Mac](#-running-the-unsigned-dmg-on-another-mac)
 - Builds are unsigned — expect a Gatekeeper warning, and a Keychain prompt the first time a freshly built binary starts
 - Parakeet is English-only
 
