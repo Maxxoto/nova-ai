@@ -1,11 +1,12 @@
 import type { ReactElement } from "react";
-import { useState } from "react";
 
+import { FOCUS_RING } from "../settings/primitives";
+
+/** The OD bookmark mark (`capture-and-ask.frag`), sized by `.btn svg`. */
 function BookmarkGlyph(): ReactElement {
   return (
     <svg
       viewBox="0 0 24 24"
-      className="h-3.5 w-3.5"
       fill="none"
       stroke="currentColor"
       strokeWidth="1.7"
@@ -18,23 +19,23 @@ function BookmarkGlyph(): ReactElement {
   );
 }
 
+/**
+ * "Save to memory" — the panel-footer button from the OD capture-and-ask
+ * screen (`.btn .btn-secondary .btn-sm`, core.css:154-175).
+ *
+ * UI only: the memory write is not wired yet (M2), so the button carries the
+ * design's shape and both its states, but pressing it persists nothing.
+ */
 export default function SaveMemoryButton({ onSaved }: { onSaved?: () => void }) {
-  const [saved, setSaved] = useState(false);
   return (
     <button
       type="button"
-      aria-pressed={saved}
-      disabled={saved}
-      onClick={() => {
-        setSaved(true);
-        onSaved?.();
-      }}
-      className={`inline-flex h-[26px] items-center gap-1.5 rounded-[10px] border px-2.5 font-ui text-[13px] font-semibold transition-colors duration-[80ms] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-default ${
-        saved ? "border-success text-success" : "border-border-strong bg-card text-foreground hover:bg-muted"
-      }`}
+      title="Not wired yet — saving to memory lands with M2"
+      onClick={onSaved}
+      className={`panel-save-memory ${FOCUS_RING}`}
     >
       <BookmarkGlyph />
-      <span>{saved ? "Saved to memory" : "Save to memory"}</span>
+      <span>Save to memory</span>
     </button>
   );
 }

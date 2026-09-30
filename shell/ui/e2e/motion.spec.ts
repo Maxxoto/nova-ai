@@ -1959,3 +1959,79 @@ test.describe("surfaces-smoke — onboarding / settings / timeline boot clean on
     });
   }
 });
+
+/* ------------------------------------------------------------------ */
+/* Save to memory — the OD panel footer (capture-and-ask .frag;        */
+/* core.css:154-175: .btn · .btn-secondary · .btn-sm + .is-saved).     */
+/* ------------------------------------------------------------------ */
+test.describe("save-memory — the OD panel-footer button", () => {
+  test("complete — .btn.btn-secondary.btn-sm shape, bookmark at .btn svg 15px", async ({ page }) => {
+    await openPanel(page, { state: "complete" });
+
+    const button = page.getByRole("button", { name: "Save to memory" });
+    await expect(button).toBeVisible();
+
+    const box = await button.evaluate((node) => {
+      const s = getComputedStyle(node);
+      return {
+        height: s.height,
+        padding: s.padding,
+        radius: s.borderRadius,
+        gap: s.gap,
+        fontSize: s.fontSize,
+        fontWeight: s.fontWeight,
+      };
+    });
+    expect(box.height).toBe("26px"); // .btn-sm
+    expect(box.padding).toBe("0px 10px"); // .btn-sm
+    expect(box.radius).toBe("10px"); // --r-md
+    expect(box.gap).toBe("8px"); // --gap-sm
+    expect(box.fontSize).toBe("11px"); // --fs-caption
+    expect(box.fontWeight).toBe("600");
+
+    const glyph = await button.locator("svg").evaluate((node) => {
+      const s = getComputedStyle(node);
+      return { width: s.width, height: s.height };
+    });
+    expect(glyph).toEqual({ width: "15px", height: "15px" }); // .btn svg
+
+    await button.screenshot({ path: resolve(SCREENSHOT_DIR, "save-memory-button.png") });
+    await shot(page, "save-memory-panel-complete");
+
+    await page.evaluate(() => document.documentElement.classList.add("dark"));
+    await shot(page, "save-memory-panel-complete-night");
+  });
+
+  test("hover moves the border, never the fill (.btn-secondary:hover)", async ({ page }) => {
+    await openPanel(page, { state: "complete" });
+    const button = page.getByRole("button", { name: "Save to memory" });
+
+    const base = await button.evaluate((node) => {
+      const s = getComputedStyle(node);
+      return { border: s.borderColor, background: s.backgroundColor, color: s.color };
+    });
+    await button.hover();
+    await expect
+      .poll(() => button.evaluate((node) => getComputedStyle(node).borderColor))
+      .toBe(base.color);
+    const hovered = await button.evaluate((node) => getComputedStyle(node).backgroundColor);
+    expect(hovered).toBe(base.background);
+    await shot(page, "save-memory-panel-hover");
+  });
+
+  test("is-saved — the design's pressed look, staged for review", async ({ page }) => {
+    await openPanel(page, { state: "complete" });
+    const button = page.getByRole("button", { name: "Save to memory" });
+
+    const base = await button.evaluate((node) => getComputedStyle(node).borderColor);
+    const saved = await button.evaluate((node) => {
+      node.classList.add("is-saved");
+      const s = getComputedStyle(node);
+      return { border: s.borderColor, color: s.color };
+    });
+    expect(saved.border).not.toBe(base);
+
+    await button.screenshot({ path: resolve(SCREENSHOT_DIR, "save-memory-button-saved.png") });
+    await shot(page, "save-memory-panel-saved");
+  });
+});

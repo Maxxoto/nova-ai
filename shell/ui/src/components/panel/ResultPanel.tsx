@@ -184,13 +184,7 @@ export default function ResultPanel({
           onMouseDown={beginDragIfNotControl}
           className="flex items-center justify-between gap-2 border-t border-border px-3 py-2.5"
         >
-          {onSaveMemory ? (
-            <SaveMemoryButton onSaved={onSaveMemory} />
-          ) : (
-            <span className="min-w-0 flex-1 font-mono text-[11px] leading-[1.4] text-muted-foreground">
-              Saving to memory lands with M2 — nothing is saved yet.
-            </span>
-          )}
+          <SaveMemoryButton onSaved={onSaveMemory} />
           <ReadAloudButton reading={reading} onRead={startReading} onStop={stopReading} />
         </div>
       ) : null}

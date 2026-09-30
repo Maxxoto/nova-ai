@@ -285,6 +285,56 @@ html.panel-view body {
   background: transparent;
 }
 
+/* Save to memory — OD capture-and-ask footer, verbatim from core.css:154-175
+   (.btn · .btn-secondary · .btn-sm) mapped onto the shadcn token bridge, so
+   both themes follow. The `.is-saved` state is the design's pressed look,
+   ready for when the memory write lands (M2). */
+.panel-save-memory {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 8px; /* --gap-sm */
+  height: 26px; /* .btn-sm */
+  padding: 0 10px; /* .btn-sm */
+  border: 1px solid hsl(var(--border-strong));
+  border-radius: 10px; /* --r-md */
+  background: hsl(var(--card)); /* .btn-secondary: --surface */
+  color: hsl(var(--foreground)); /* .btn-secondary: --fg */
+  font-size: 11px; /* --fs-caption */
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+  transition:
+    background var(--t-fast) var(--ease-standard),
+    border-color var(--t-fast) var(--ease-standard),
+    color var(--t-fast) var(--ease-standard),
+    transform var(--t-instant) var(--ease-standard);
+}
+.panel-save-memory:hover {
+  border-color: hsl(var(--foreground)); /* .btn-secondary:hover */
+}
+.panel-save-memory:active {
+  transform: translateY(1px); /* .btn:active */
+}
+.panel-save-memory[disabled],
+.panel-save-memory[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.panel-save-memory svg {
+  width: 15px; /* .btn svg */
+  height: 15px;
+  flex: none;
+}
+.panel-save-memory.is-saved {
+  border-color: color-mix(in oklch, hsl(var(--success)) 55%, hsl(var(--border)));
+  color: hsl(var(--success));
+}
+.panel-save-memory.is-saved svg {
+  stroke: hsl(var(--success));
+}
+
 /* Orb — the avatar; its soft inner glow is the one permitted glow. */
 .orb {
   position: relative;
