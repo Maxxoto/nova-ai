@@ -281,6 +281,12 @@ pub fn run() {
                 });
             }
 
+            // Settings changes recycle the brain: offline/model/key are read
+            // from the environment at spawn, so a flip must respawn to apply.
+            tauri::Listener::listen(app, "settings:changed", |_event| {
+                supervisor::request_brain_restart();
+            });
+
             // Clean install: the setup ritual runs first — permissions have
             // not been granted and the model is unconfigured until it does.
             // Completing the ritual clears the flag; a reinstall keeps the

@@ -43,6 +43,17 @@ pub async fn run(app: tauri::AppHandle, link: BrainLink) {
     }
 }
 
+/// Bumped whenever the sidecar-relevant settings change; the pump loop
+/// watches it and recycles the brain so the new environment (offline flag,
+/// model endpoint, key) actually takes effect — spawn-time env otherwise
+/// sticks for the process' whole life.
+static BRAIN_EPOCH: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// Requests a brain respawn on the next pump tick.
+pub fn request_brain_restart() {
+    BRAIN_EPOCH.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+}
+
 /// One sidecar generation: spawn, pump until it dies, then kill it.
 async fn supervise_once(
     app: &tauri::AppHandle,
@@ -95,8 +106,18 @@ async fn supervise_once(
     let mut ping = tokio::time::interval(interval);
     ping.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
     let mut deferred: VecDeque<BrainRequest> = VecDeque::new();
+    let spawned_epoch = BRAIN_EPOCH.load(std::sync::atomic::Ordering::SeqCst);
 
     loop {
+        // Recycle only at a quiet point: an epoch change with work already
+        // popped would drop that ask (the channel's un-taken requests survive
+        // the respawn; an in-flight one does not).
+        if deferred.is_empty()
+            && BRAIN_EPOCH.load(std::sync::atomic::Ordering::SeqCst) != spawned_epoch
+        {
+            eprintln!("ruoxi: brain settings changed — recycling sidecar");
+            break;
+        }
         let event = match deferred.pop_front() {
             Some(request) => PumpEvent::Request(request),
             None => tokio::select! {
