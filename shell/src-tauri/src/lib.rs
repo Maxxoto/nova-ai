@@ -271,6 +271,14 @@ pub fn run() {
                 if let Err(e) = panel::spawn_esc_dismiss(app.handle().clone()) {
                     eprintln!("ruoxi: esc dismiss unavailable: {e}");
                 }
+                // The panel is part of the desktop from launch: open it in the
+                // configured mode (mini by default) once the webview has had a
+                // moment to load, so the first paint is not a blank flash.
+                let launch = app.handle().clone();
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_millis(700));
+                    panel::show(&launch);
+                });
             }
 
             let handle = app.handle().clone();
