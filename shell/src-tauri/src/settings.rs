@@ -14,6 +14,15 @@ fn default_sidecar_args() -> Vec<String> {
     vec!["-m".to_string(), "app.interfaces.sidecar".to_string()]
 }
 
+impl Settings {
+    /// True while the sidecar config is still the untouched `python3 -m`
+    /// default — the signal to prefer the frozen brain bundled with the app.
+    pub fn sidecar_is_default(&self) -> bool {
+        self.sidecar_command == "python3"
+            && self.sidecar_args == vec!["-m".to_string(), "app.interfaces.sidecar".to_string()]
+    }
+}
+
 fn default_ping_interval_secs() -> u64 {
     5
 }

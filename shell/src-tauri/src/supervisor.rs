@@ -63,8 +63,23 @@ async fn supervise_once(
             .filter(|dir| std::fs::create_dir_all(dir).is_ok())
     };
 
+    // Prefer the frozen brain shipped inside the app (no Python needed on
+    // this machine) whenever the sidecar config is still the default; an
+    // explicit `sidecar_command` override always wins (dev trees, venvs).
+    let mut effective = settings.clone();
+    if settings.sidecar_is_default() {
+        use tauri::Manager;
+        if let Ok(resource) = app.path().resource_dir() {
+            let brain = resource.join("brain").join("brain");
+            if brain.is_file() {
+                effective.sidecar_command = brain.to_string_lossy().into_owned();
+                effective.sidecar_args = Vec::new();
+            }
+        }
+    }
+
     link.set_online(false);
-    let mut sidecar = match SidecarProcess::spawn(&settings, workspace) {
+    let mut sidecar = match SidecarProcess::spawn(&effective, workspace) {
         Ok(sidecar) => match capture_router(app) {
             Some(router) => sidecar.with_router(router),
             None => sidecar,

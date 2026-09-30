@@ -223,3 +223,4 @@ dist/
 
 .omo/
 tmp/
+shell/src-tauri/resources/brain/

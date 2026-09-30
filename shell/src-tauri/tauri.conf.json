@@ -11,7 +11,7 @@
       "cwd": "../ui"
     },
     "beforeBuildCommand": {
-      "script": "pnpm build",
+      "script": "pnpm build && (../../scripts/build-brain.sh || echo \"brain build skipped\")",
       "cwd": "../ui"
     }
   },
@@ -36,6 +36,9 @@
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns"
-    ]
+    ],
+    "resources": {
+      "resources/brain": "brain"
+    }
   }
 }
