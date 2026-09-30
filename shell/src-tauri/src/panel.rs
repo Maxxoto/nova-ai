@@ -796,7 +796,9 @@ fn esc_tap_event(
     }
     let flags = event.get_flags();
     let keycode = event.get_integer_value_field(EventField::KEYBOARD_EVENT_KEYCODE);
-    eprintln!("ruoxi: esc tap {ty:?} keycode={keycode} flags={flags:?}");
+    if keycode == ESC_KEYCODE {
+        eprintln!("ruoxi: esc tap {ty:?} keycode={keycode} flags={flags:?}");
+    }
     if keycode == ESC_KEYCODE && PANEL_VISIBLE.load(Ordering::Relaxed) {
         if crate::ask::is_active() {
             // Accepted with the ⌥⇧V chord still held — chord + Esc is the
