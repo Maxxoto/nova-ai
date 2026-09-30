@@ -281,6 +281,14 @@ pub fn run() {
                 });
             }
 
+            // Clean install: the setup ritual runs first — permissions have
+            // not been granted and the model is unconfigured until it does.
+            // Completing the ritual clears the flag; a reinstall keeps the
+            // app data and skips straight to the desktop.
+            if settings::load(app.handle()).needs_onboarding {
+                settings::show_onboarding_window(app.handle());
+            }
+
             let handle = app.handle().clone();
             let brain = supervisor_brain.clone();
             tauri::async_runtime::spawn(async move {

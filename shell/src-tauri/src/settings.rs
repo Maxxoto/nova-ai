@@ -143,6 +143,8 @@ pub struct Settings {
     pub pause_captures: bool,
     #[serde(default = "default_true")]
     pub offline: bool,
+    #[serde(default = "default_true")]
+    pub needs_onboarding: bool,
     #[serde(default)]
     pub read_aloud: bool,
     #[serde(default = "default_answer_length")]
@@ -228,6 +230,7 @@ impl Default for Settings {
             launch_at_login: false,
             pause_captures: false,
             offline: true,
+            needs_onboarding: true,
             read_aloud: false,
             answer_length: default_answer_length(),
             theme: default_theme(),
@@ -347,6 +350,15 @@ pub fn show_settings(app: tauri::AppHandle) {
 #[tauri::command]
 pub fn hide_onboarding(app: tauri::AppHandle) {
     use tauri::Manager;
+    // Completing the ritual is what clears the first-run gate; a quit part
+    // way through leaves it set, so the next launch opens the ritual again.
+    let mut settings = load(&app);
+    if settings.needs_onboarding {
+        settings.needs_onboarding = false;
+        if let Err(e) = save(&app, &settings) {
+            eprintln!("ruoxi: failed to persist onboarding completion: {e}");
+        }
+    }
     if let Some(win) = app.get_webview_window(ONBOARDING_LABEL) {
         let _ = win.hide();
     }
@@ -489,6 +501,7 @@ mod tests {
             launch_at_login: true,
             pause_captures: true,
             offline: false,
+            needs_onboarding: false,
             read_aloud: true,
             answer_length: "normal".to_string(),
             theme: "night".to_string(),

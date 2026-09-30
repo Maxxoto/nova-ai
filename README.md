@@ -99,15 +99,7 @@ The build is ad-hoc signed and notarization-free, so Gatekeeper has never heard 
    xattr -dr com.apple.quarantine /Applications/Ruoxi.app
    ```
    (Right-click → *Open* also works for a plain unidentified-developer warning, but the `xattr` route is the one that always works for ad-hoc builds.)
-3. **Give the brain a Python**: clone this repo next to the app and
-   ```bash
-   uv sync          # creates .venv with the sidecar's dependencies
-   ```
-   Then point the app at it — `~/Library/Application Support/com.ruoxi.shell/settings.json`:
-   ```json
-   { "sidecar_command": "/path/to/nova-ai/.venv/bin/python" }
-   ```
-4. **First launch**: open the app, grant **Screen Recording**, **Microphone** and **Accessibility** when the setup ritual asks (each with its why-line). If a permission was previously denied, reset it first:
+3. **First launch**: the setup ritual opens on its own (clean install) — grant **Screen Recording**, **Microphone** and **Accessibility** when it asks (each with its why-line). The brain ships inside the app; only the speech/voice model weights download later, on first use. If a permission was previously denied, reset it first:
    ```bash
    tccutil reset ScreenCapture com.ruoxi.shell && tccutil reset Microphone com.ruoxi.shell
    ```
