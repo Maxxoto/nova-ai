@@ -737,7 +737,12 @@ fn arm_drag_persist(app: AppHandle) {
             if !PANEL_DRAGGING.load(Ordering::Relaxed) {
                 break; // show/hide cancelled the drag: persist nothing
             }
-            if let Some(origin) = drag_origin_slot().take() {
+            // Scope the guard to this statement: an `if let` scrutinee lives
+            // for the whole block, so locking again inside the body (the
+            // re-check below) would self-deadlock this thread while holding
+            // the mutex — freezing the main thread's next drag with it.
+            let origin = drag_origin_slot().take();
+            if let Some(origin) = origin {
                 PANEL_DRAGGING.store(false, Ordering::Relaxed);
                 persist_custom_origin(&app, origin);
                 // A Moved that landed between the take and the persist re-filled
