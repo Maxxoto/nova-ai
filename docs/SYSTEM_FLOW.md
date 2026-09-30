@@ -1,4 +1,4 @@
-# Ruòxī — system flow (shell · brain · ui)
+# Ruoxi — system flow (shell · brain · ui)
 
 How the pieces talk. The **Tauri shell (Rust)** owns the windows, capture, tray and the
 sidecar; the **WebView UI (React + TS)** renders every surface; the **Python brain

@@ -56,8 +56,9 @@ export interface PermissionStepSpec {
  * the region accelerator is Alt+Shift+R (shell/src-tauri/src/hotkeys.rs ·
  * ALL_ACCELERATORS), which macOS renders as ⌥ ⇧ R.
  *
- * The quoted app name stays `Ruòxī`: that is the name macOS prints in the
- * system dialog, so the preview shows exactly what the user will see.
+ * The quoted app name is `Ruoxi` — the macOS bundle name
+ * (shell/src-tauri/tauri.conf.json · productName), so the preview shows
+ * exactly what the user will see in the system dialog.
  */
 export const PERMISSION_STEPS: PermissionStepSpec[] = [
   {
@@ -65,21 +66,21 @@ export const PERMISSION_STEPS: PermissionStepSpec[] = [
     name: "Screen Recording",
     why: "So Ruoxi can see the part of the screen you point at.",
     path: "System Settings → Privacy & Security → Screen Recording",
-    dialog: "“Ruòxī” would like to record this computer's screen.",
+    dialog: "“Ruoxi” would like to record this computer's screen.",
   },
   {
     kind: "microphone",
     name: "Microphone",
     why: "So Ruoxi can hear the question while you hold the key.",
     path: "System Settings → Privacy & Security → Microphone",
-    dialog: "“Ruòxī” would like to access the microphone.",
+    dialog: "“Ruoxi” would like to access the microphone.",
   },
   {
     kind: "accessibility",
     name: "Accessibility",
     why: "So ⌥⇧R works while you are inside another app.",
     path: "System Settings → Privacy & Security → Accessibility",
-    dialog: "“Ruòxī” would like to control this computer using accessibility features.",
+    dialog: "“Ruoxi” would like to control this computer using accessibility features.",
   },
 ];
 

@@ -327,7 +327,7 @@ pub fn show(app: &tauri::AppHandle) {
         SETTINGS_LABEL,
         WebviewUrl::App("index.html?view=settings".into()),
     )
-    .title("Ruòxī — Settings")
+    .title("Ruoxi — Settings")
     .inner_size(900.0, 700.0)
     .min_inner_size(640.0, 480.0)
     .resizable(true)
@@ -382,7 +382,7 @@ pub fn show_onboarding_window(app: &tauri::AppHandle) {
         ONBOARDING_LABEL,
         WebviewUrl::App("index.html?view=onboarding".into()),
     )
-    .title("Ruòxī — Setup")
+    .title("Ruoxi — Setup")
     .inner_size(640.0, 620.0)
     .resizable(true)
     .decorations(true)

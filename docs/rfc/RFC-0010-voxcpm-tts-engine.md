@@ -247,7 +247,7 @@ it; CI keeps default features so a broken optional path cannot block the tree.
 4. Is 16 GB enough with the user's other apps, or is this a 32 GB-class
    feature we document as such?
 5. Cloning source: reuse a PTT recording, or require an imported clip? What
-   consent affordance accompanies "make Ruòxī sound like me"?
+   consent affordance accompanies "make Ruoxi sound like me"?
 6. Idle-unload policy: minutes, or "immediately when the panel hides"?
 7. Do we ever need `batch`/`parallel_segments` on desktop, or only if a
    server-side product appears?

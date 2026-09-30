@@ -1,6 +1,6 @@
-# Nova / Ruòxī Architecture Summary
+# Nova / Ruoxi Architecture Summary
 
-Nova (若曦, *Ruòxī*) is a local-first desktop AI companion. It runs as a Rust
+Nova (*Ruoxi*) is a local-first desktop AI companion. It runs as a Rust
 Tauri shell that supervises a Python "brain" sidecar, with CLI and Telegram
 interfaces talking to the same brain. This document describes what actually
 runs today, and separates the live runtime from the code sitting in

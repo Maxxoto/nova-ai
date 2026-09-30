@@ -1,4 +1,4 @@
-# Makefile for the Ruòxī / nova-ai monorepo
+# Makefile for the Ruoxi / nova-ai monorepo
 
 .PHONY: help install test lint format clean shell shell-dev shell-ui shell-test run-cli
 

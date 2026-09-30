@@ -225,5 +225,5 @@ CGEventTap (same S1 pattern) hides the panel on bare Esc (keycode 53) while
    UIElement, it does NOT inherit the launching terminal's Accessibility grant (CLI
    tools do). The app binary needs its own grant — confirmed on nova-shell
    (2026-09-19: terminal-granted context still reported untrusted; direct binary
-   grant fixed it). The §4.5 onboarding ritual must grant Ruòxī itself.
+   grant fixed it). The §4.5 onboarding ritual must grant Ruoxi itself.
 

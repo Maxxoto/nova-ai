@@ -80,7 +80,7 @@ export default function PanelBanner(props: PanelBannerProps) {
     >
       <RestGlyph className="h-4 w-4 flex-none text-warning" />
       <span className="flex-1 font-ui text-[13px] leading-[1.4] text-warning">
-        Ruòxī is resting — the assistant core is restarting.
+        Ruoxi is resting — the assistant core is restarting.
       </span>
       <button
         type="button"

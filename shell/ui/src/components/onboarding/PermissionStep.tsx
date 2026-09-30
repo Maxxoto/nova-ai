@@ -129,7 +129,7 @@ export default function PermissionStep({ status, pendingKind, onRequest }: Permi
   const micUnreadable = status.microphone === "unknown";
   const counter = `${grantedCount} of 3 granted.${
     micUnreadable
-      ? " macOS doesn't report the microphone's status to Ruòxī — grant it in System Settings for voice."
+      ? " macOS doesn't report the microphone's status to Ruoxi — grant it in System Settings for voice."
       : ""
   }`;
 

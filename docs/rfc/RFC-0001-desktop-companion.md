@@ -1,4 +1,4 @@
-# RFC-0001 — Ruòxī Desktop Companion (Technical Design)
+# RFC-0001 — Ruoxi Desktop Companion (Technical Design)
 
 - **Status:** Draft for review
 - **Author:** Dani
@@ -22,7 +22,7 @@
 
 ## 1. Summary
 
-Ruòxī is a Tauri 2 desktop app with a thin **Core** and a swappable
+Ruoxi is a Tauri 2 desktop app with a thin **Core** and a swappable
 **Platform Adapter**. It captures screen regions/windows/fullscreen, transcribes
 voice locally, sends the live context to an OpenAI-compatible LLM endpoint, and
 speaks answers via a local TTS engine. All persistent data (screenshots,

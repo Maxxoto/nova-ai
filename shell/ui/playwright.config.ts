@@ -1,6 +1,6 @@
 import { defineConfig } from "@playwright/test";
 
-// Motion-test harness for the Ruòxī UI. Every run boots the *production*
+// Motion-test harness for the Ruoxi UI. Every run boots the *production*
 // build through `vite preview`, then reads real computed animation styles, so
 // the assertions in `e2e/` match the artifact the shell actually ships.
 export default defineConfig({

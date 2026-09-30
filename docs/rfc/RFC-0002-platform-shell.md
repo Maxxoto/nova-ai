@@ -114,7 +114,7 @@ down+up delivered at 332–405 µs; findings in plans/m0-spike-plan.md.*
 Ordered ritual; each step shows **one plain-language "why" line** before the
 OS prompt:
 
-1. Screen Recording → "so Ruòxī can see exactly what you point at."
+1. Screen Recording → "so Ruoxi can see exactly what you point at."
 2. Microphone → "so you can ask by voice; audio is deleted within a minute."
 3. Accessibility / Input Monitoring → "so the talk button works while you hold
    it, in any app."

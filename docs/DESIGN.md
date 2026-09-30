@@ -2,7 +2,7 @@
 version: alpha
 name: Ruoxi-design-system
 description: |
-  The design system for Ruòxī (若曦) — "as clear as dawn's first light" — a calm,
+  The design system for Ruoxi — "as clear as dawn's first light" — a calm,
   tray-resident AI companion for macOS + Windows built with Tauri 2, React, Tailwind
   CSS, and shadcn/ui. The visual language is built on one idea: dawn breaking over a
   quiet desk. A cool paper canvas by day, a deep night-blue mode after dusk, a
@@ -71,7 +71,7 @@ colors:
 
 typography:
   font-ui: "Inter — UI chrome: answers, settings, timeline, buttons. 400/500/600."
-  font-companion: "Nunito — Ruòxī's voice: state labels, greetings, daily brief, onboarding why-lines. 600/700."
+  font-companion: "Nunito — Ruoxi's voice: state labels, greetings, daily brief, onboarding why-lines. 600/700."
   font-mono: "JetBrains Mono — capture ids, citations, timestamps, hotkey kbd. 400/500."
   display:
     fontSize: 28px
@@ -268,7 +268,7 @@ components:
     extends: "{components.banner-error}"
     textColor: "{colors.warning}"          # dark: {colors.dark-warning}
     border: "1px solid {colors.warning}"   # dark: {colors.dark-warning}
-    content: "Ruòxī is resting — the assistant core is restarting"
+    content: "Ruoxi is resting — the assistant core is restarting"
   tray-menu:
     type: native OS menu
     items:
@@ -281,20 +281,20 @@ components:
     rule: "visually obvious the whole time captures are paused (RFC-0009 §4.5) — tray icon variant + persistent 'captures paused' chip in panel chrome; capture hotkeys show a one-line dimmed overlay note instead of silently doing nothing"
 ---
 
-# Ruòxī Design System (若曦)
+# Ruoxi Design System
 
 > Companion to [RFC-0002](rfc/RFC-0002-platform-shell.md) (shell/panel), [RFC-0003](rfc/RFC-0003-screen-capture.md) (capture),
 > [RFC-0009](rfc/RFC-0009-privacy-offline.md) (indicator). Traces to PRD features F-01–F-14 and ACs 01–12.
 
 ## Overview
 
-Ruòxī is not a chat window. She is a quiet companion who lives in the tray and appears
+Ruoxi is not a chat window. She is a quiet companion who lives in the tray and appears
 only when called — a small floating panel near where the user is already looking, a
 transient listening pill near the cursor, a precise selection box over the thing being
 pointed at. The design language renders that promise ("always one keystroke away; never
 in the way") in four moves:
 
-1. **Dawn blue, not neon.** 若曦 means "as clear as dawn's first light." The palette is
+1. **Dawn blue, not neon.** The name means "as clear as dawn's first light." The palette is
    a cool paper canvas (`{colors.canvas}`), deep night-blue ink (`{colors.ink}`), and
    one dawn-blue accent (`{colors.primary}`) that carries every action. No gradients, no
    glow, no purple-cyber. Dark mode is "night before dawn": the same system inverted.
@@ -302,7 +302,7 @@ in the way") in four moves:
    in the breathing idle orb, in Nunito's rounded terminals when *she* speaks, and in
    one rare kaomoji at the right moment. The machine chrome stays in Inter and stays
    restrained — companion softness against professional bones. (Competitors split into
-   purple-glow fandom or pastel play; Ruòxī is deliberately the calm third thing.)
+   purple-glow fandom or pastel play; Ruoxi is deliberately the calm third thing.)
 3. **Honest states.** Every system state — listening, thinking, speaking, offline,
    sending to cloud — is a color **plus an icon plus a word**, event-driven from real
    IPC events (`agent.*`, `stt.*`, `net.state`), never a timer, never color alone.
@@ -364,7 +364,7 @@ in the way") in four moves:
 | Local only | `{colors.success}` | `{colors.dark-success}` | cloud (hollow) | "local only" |
 | Calling cloud | `{colors.live}` (pulse) | `{colors.dark-live}` | cloud-upload | "sending to cloud" |
 | Error | `{colors.destructive}` | `{colors.dark-destructive}` | alert | message + retry |
-| Degraded | `{colors.warning}` | `{colors.dark-warning}` | moon-zzz | "Ruòxī is resting…" |
+| Degraded | `{colors.warning}` | `{colors.dark-warning}` | moon-zzz | "Ruoxi is resting…" |
 | Captures paused | `{colors.mute}` | `{colors.dark-mute}` | pause | "captures paused" — tray + panel chrome, obvious until resumed |
 
 **Rules.** State colors are reserved — blue is action/speaking, ember is *live/
@@ -385,7 +385,7 @@ pairs color with icon and label; if you can't name the icon, the color is wrong.
 | `{typography.mono}` | JetBrains Mono | 11/500 | capture_ids, citations, timestamps, kbd |
 
 **The three-voice rule.** Inter is the *machine* voice (everything functional).
-Nunito is *her* voice (only where Ruòxī herself speaks: greetings, state labels,
+Nunito is *her* voice (only where Ruoxi herself speaks: greetings, state labels,
 onboarding why-lines, daily brief). JetBrains Mono is the *archive* voice (anything
 that references stored captures or time). If a string could be spoken aloud *by her*,
 it's Nunito; otherwise it isn't. Never use Nunito for buttons, settings, or answers.
@@ -436,7 +436,7 @@ its depth. Cool-tinted shadow rgba only; never neutral black, never blue-tinted.
 | `{rounded.pill}` | 9999px | ptt-pill, cloud-indicator chip, orbs |
 | `{rounded.sharp}` | 2px | **Capture selection only** |
 
-The deliberate tension: everything Ruòxī *is* is soft; everything she *draws on your
+The deliberate tension: everything Ruoxi *is* is soft; everything she *draws on your
 screen* is sharp. The selection rectangle's 2px corners + corner handles read as
 precision instruments against the soft chrome — the user is trusting the crop.
 

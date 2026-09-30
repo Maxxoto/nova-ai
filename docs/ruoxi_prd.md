@@ -1,7 +1,7 @@
-# Ruòxī (若曦) — Business PRD
+# Ruoxi — Business PRD
 ### Desktop Companion Assistant · MVP v1.0
 
-- **Codename:** Ruòxī (若曦) — "as clear as dawn's first light"
+- **Codename:** Ruoxi — "as clear as dawn's first light"
 - **Owner:** Dani
 - **Status:** Approved to build
 - **License:** MIT (open source)
@@ -12,7 +12,7 @@
 
 ## 1. Executive Summary
 
-Ruòxī is a quiet AI assistant that lives in your tray/menu bar. It **sees your
+Ruoxi is a quiet AI assistant that lives in your tray/menu bar. It **sees your
 screen** and **hears your voice** — press a hotkey, point at anything (or the
 whole screen), speak, and get help **without leaving your current app**. It
 remembers what matters locally, so it grows into a personal second brain.
@@ -202,7 +202,7 @@ Machine control (click/type/edit) · flashcards · multi-tool loops · monetizat
 
 **Why this one:** it captures all three truths at once — the user actually *shows
 up* (engagement), gets *value* (answer delivered), and the *differentiator fires*
-(memory grounding). A chatbot can have high usage without memory; Ruòxī's whole
+(memory grounding). A chatbot can have high usage without memory; Ruoxi's whole
 identity is compounding memory. 记忆，是北极星。
 
 ### Supporting metrics

@@ -174,7 +174,7 @@ pub fn show(app: &tauri::AppHandle) {
         TIMELINE_LABEL,
         WebviewUrl::App("index.html?view=timeline".into()),
     )
-    .title("Ruòxī — Timeline")
+    .title("Ruoxi — Timeline")
     .inner_size(980.0, 760.0)
     .resizable(true)
     .decorations(true)

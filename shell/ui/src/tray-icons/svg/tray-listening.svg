@@ -1,4 +1,4 @@
-<!-- Ruòxī tray · state: listening (mic open) · color: {colors.live} #d16405 (live states only — never text) -->
+<!-- Ruoxi tray · state: listening (mic open) · color: {colors.live} #d16405 (live states only — never text) -->
 <!-- Design v4: capture-frame + centre dot — the live shape; paused swaps the dot for the slash. -->
 <!-- .tr-live-ring hosts the listening pulse (opacity 0 until data-anim="pulse"; event-driven). -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" fill="none" stroke="#d16405" stroke-width="1.6" stroke-linecap="round">

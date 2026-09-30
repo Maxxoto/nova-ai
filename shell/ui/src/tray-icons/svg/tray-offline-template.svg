@@ -1,4 +1,4 @@
-<!-- Ruòxī tray · state: offline · color: {colors.mute} #000000 -->
+<!-- Ruoxi tray · state: offline · color: {colors.mute} #000000 -->
 <!-- Cloud-off with a knocked-out gap around the slash (9-unit mask) so it stays crisp at 16px. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
   <mask id="tr-off-gap">

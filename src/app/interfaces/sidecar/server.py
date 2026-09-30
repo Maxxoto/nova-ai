@@ -377,7 +377,7 @@ class SidecarServer:
                     }
                 )
         system = (
-            "You are Ruòxī (若曦), a concise zh/en study companion. "
+            "You are Ruoxi, a concise zh/en study companion. "
             "Answer in the user's language; when a screenshot is attached, "
             "read it and answer about what matters in it."
         )

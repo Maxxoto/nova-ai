@@ -353,7 +353,7 @@ export default function TimelineView({
         Your captures are the source.
       </h1>
       <p className="max-w-[66ch] font-ui text-[14px] leading-[1.5] text-muted-foreground">
-        Ask a question and Ruòxī answers from what you saved — with the exact region or window it came from attached
+        Ask a question and Ruoxi answers from what you saved — with the exact region or window it came from attached
         to the answer. Everything on this screen lives on the machine; the timeline is the proof, not a sync log.
       </p>
     </header>
@@ -368,7 +368,7 @@ export default function TimelineView({
           body={
             mode === "error"
               ? "The timeline command didn’t answer, so nothing is shown. Nothing was changed — reopen this window, or add ?demo=1 to review the surface with labelled sample rows."
-              : "Open it from the Ruòxī desktop app to see your captures. In the browser there is no store to read — no sample rows appear unless you open this view with ?view=timeline&demo=1."
+              : "Open it from the Ruoxi desktop app to see your captures. In the browser there is no store to read — no sample rows appear unless you open this view with ?view=timeline&demo=1."
           }
         />
       </div>
@@ -406,7 +406,7 @@ export default function TimelineView({
           ) : null}
         </div>
         <p className="font-mono text-[11px] leading-[1.45] text-muted-foreground">
-          Filters your local timeline as you type. Asking Ruòxī about your memory arrives with memory search.
+          Filters your local timeline as you type. Asking Ruoxi about your memory arrives with memory search.
         </p>
       </div>
 

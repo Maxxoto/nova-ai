@@ -139,7 +139,7 @@ pub fn install(
     )?;
     let settings_item = MenuItem::with_id(app, "show_settings", "Settings…", true, None::<&str>)?;
     let timeline_item = MenuItem::with_id(app, "open_timeline", "Timeline", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "Quit Ruòxī", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "Quit Ruoxi", true, None::<&str>)?;
     let sep1 = PredefinedMenuItem::separator(app)?;
     let sep2 = PredefinedMenuItem::separator(app)?;
     let sep3 = PredefinedMenuItem::separator(app)?;

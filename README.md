@@ -1,4 +1,4 @@
-# 🌌 Ruòxī / 若曦 — point at anything, then ask
+# 🌌 Ruoxi — point at anything, then ask
 
 <div style="text-align:center">
 
@@ -8,7 +8,7 @@
 
 **A menu-bar AI companion for your screen**
 
-Ruòxī lives in your menu bar. Press a shortcut and box something on screen, hold one key and say what you want to know, and the answer appears in a panel beside your work — cited to the capture it came from — instead of in another window. The voice and the models run on this Mac; the brain underneath is a pure-Python agent loop you can read end to end.
+Ruoxi lives in your menu bar. Press a shortcut and box something on screen, hold one key and say what you want to know, and the answer appears in a panel beside your work — cited to the capture it came from — instead of in another window. The voice and the models run on this Mac; the brain underneath is a pure-Python agent loop you can read end to end.
 
 No account, no cloud sync, no capture you did not ask for.
 
@@ -20,7 +20,7 @@ No account, no cloud sync, no capture you did not ask for.
 
 <p align="center">
   <a href="docs/demo/ruoxi-demo.mp4">
-    <img src="docs/demo/ruoxi-demo.webp" alt="Ruòxī demo — the panel opens ready, hold to talk, and the answer arrives beside your work" width="900">
+    <img src="docs/demo/ruoxi-demo.webp" alt="Ruoxi demo — the panel opens ready, hold to talk, and the answer arrives beside your work" width="900">
   </a>
   <br>
   <sub>Click the preview for the full-quality MP4 (19.5s · 1920×1080). Every frame is a real screenshot of an app window — no desktop.</sub>
@@ -62,7 +62,7 @@ The composition, its fonts and the source captures live in [`docs/demo/`](docs/d
 | **Setup** | The six-step first-run ritual — **Welcome · Access · Capture · Defaults · Models · Ready** — each permission with its reason, one guided capture, and the model choices. Replayable from Settings → Permissions → *Run setup again*. |
 | **Settings** | Voice & answers, **Models** (speech-to-text, text-to-speech, language model), Permissions, Display, theme and hotkeys. |
 | **Timeline** | Everything you captured, day by day — thumbnails, stats, and delete. |
-| **Menu bar** | `Capture Region · Capture Window · Capture Whole Screen · Timeline · Pause Captures · Offline Mode · Settings… · Quit Ruòxī`, and a status glyph that mirrors listening / paused. |
+| **Menu bar** | `Capture Region · Capture Window · Capture Whole Screen · Timeline · Pause Captures · Offline Mode · Settings… · Quit Ruoxi`, and a status glyph that mirrors listening / paused. |
 
 ---
 
@@ -110,7 +110,7 @@ Signing + notarization (no Apple Developer account yet) and bundling a frozen Py
 
 ### 🔐 Permissions — and why each one exists
 
-| Permission | Why Ruòxī asks | How it is used |
+| Permission | Why Ruoxi asks | How it is used |
 |---|---|---|
 | **Screen Recording** | So it can see the part of the screen you point at — and only that part. | Without it macOS hands the app a wallpaper-only image. |
 | **Microphone** | So it can hear the question while you hold the key. | Push-to-talk only; the audio is deleted about a minute after you release. |

@@ -1,4 +1,4 @@
-// Registry of Ruòxī tray icon sources.
+// Registry of Ruoxi tray icon sources.
 // SVGs are single-source: colored (light palette, per docs/DESIGN.md state table)
 // and -template (pure black + alpha for macOS). The export script renders both
 // to the PNG matrix in shell/src-tauri/icons/tray/.
@@ -16,7 +16,7 @@ export type TrayAnim = "breathe" | "pulse" | "orbit" | "wave";
 
 export interface TrayStateDef {
   id: TrayStateId;
-  /** Tray-menu / panel label — Ruòxī's voice (Nunito on the board). */
+  /** Tray-menu / panel label — Ruoxi's voice (Nunito on the board). */
   label: string;
   /** Full honest-state label where DESIGN.md specifies one. */
   fullLabel?: string;
@@ -87,7 +87,7 @@ export const IDLE_CONCEPTS: IdleConceptDef[] = [
     id: "dawnrise",
     name: "A · Dawn Rise",
     rationale:
-      "The sun clearing the horizon — 若曦 as dawn breaking. The horizon line anchors the disc so the mark reads as a scene, not a stray dot, even at 16px.",
+      "The sun clearing the horizon — Ruoxi as dawn breaking. The horizon line anchors the disc so the mark reads as a scene, not a stray dot, even at 16px.",
     svg: idleDawnrise,
   },
   {
@@ -101,7 +101,7 @@ export const IDLE_CONCEPTS: IdleConceptDef[] = [
     id: "companion",
     name: "C · Companion Cradle",
     rationale:
-      "A gentle arc cradles the dot — kawaii by shape alone, no face. Reads as Ruòxī resting quietly in the menu bar, but the second element costs contrast at 16px.",
+      "A gentle arc cradles the dot — kawaii by shape alone, no face. Reads as Ruoxi resting quietly in the menu bar, but the second element costs contrast at 16px.",
     svg: idleCompanion,
   },
 ];
