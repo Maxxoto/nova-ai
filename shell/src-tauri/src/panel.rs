@@ -467,8 +467,10 @@ fn show_panel_style(win: &tauri::WebviewWindow, label: &str, resize: Option<(f64
 
 pub fn show(app: &AppHandle) {
     if let Some(win) = app.get_webview_window(PANEL_LABEL) {
-        // End any drag still flagged: the placements below are programmatic
-        // and their Moved events must not be persisted as a custom position.
+        // Land a just-ended drag before placing: the placement below reads
+        // the preferences, and a pending drop must not be discarded. Later
+        // Moved events cannot be persisted — the flag is down from here on.
+        flush_drag_persist(app);
         cancel_drag();
         // Open in the configured mode (`panel_open_as`, mini by default):
         // the resize rides the same main-thread turn as the place — placement
@@ -492,6 +494,7 @@ pub fn hide(app: &AppHandle) {
     crate::tts::stop_speaking();
     crate::ask::clear_current_capture();
     crate::ask::discard_ask();
+    flush_drag_persist(app);
     cancel_drag();
     if let Some(win) = app.get_webview_window(PANEL_LABEL) {
         // A dismissed panel comes back in the CONFIGURED open mode: restore
@@ -550,8 +553,9 @@ pub fn reposition(app: &AppHandle) {
     if !is_visible() {
         return;
     }
-    // A settings-driven re-place is programmatic: end any live drag so its
-    // watcher cannot persist the frame this is about to move.
+    // A settings-driven re-place is programmatic: land any just-ended drag
+    // first, then end it so its watcher cannot persist further moves.
+    flush_drag_persist(app);
     cancel_drag();
     let Some(win) = app.get_webview_window(PANEL_LABEL) else {
         return;
@@ -617,6 +621,21 @@ fn cancel_drag() {
     PANEL_DRAGGING.store(false, Ordering::Relaxed);
     *drag_origin_slot() = None;
     DRAG_TICKET.fetch_add(1, Ordering::SeqCst);
+}
+
+/// Lands a just-ended drag immediately, ahead of the debounce. A programmatic
+/// re-place (mode switch, show) re-places from the placement preferences, so a
+/// pending drop must be persisted first — cancelling instead discarded the
+/// user's drop and the window snapped back to the previous position.
+fn flush_drag_persist(app: &AppHandle) {
+    if !PANEL_DRAGGING.load(Ordering::Relaxed) {
+        return;
+    }
+    // Guard scoped to the statement (see arm_drag_persist).
+    let origin = drag_origin_slot().take();
+    if let Some(origin) = origin {
+        persist_custom_origin(app, origin);
+    }
 }
 
 /// Registers the `Moved` watcher on the panel window (called once from
@@ -931,8 +950,9 @@ pub fn set_panel_mode(app: AppHandle, mode: String) -> Result<(), String> {
         return Err("panel window is not built".to_string());
     };
     eprintln!("ruoxi: panel mode -> {mode}");
-    // A mode switch is a programmatic re-place: end any live drag so its
-    // watcher cannot persist the position this resize is about to overwrite.
+    // A mode switch re-places from the placement preferences, so a drag that
+    // just ended must land first; cancelling here alone discarded the drop.
+    flush_drag_persist(&app);
     cancel_drag();
     let win_main = win.clone();
     let _ = app.run_on_main_thread(move || {
