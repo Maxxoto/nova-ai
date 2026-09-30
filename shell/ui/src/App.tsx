@@ -485,8 +485,16 @@ export default function App() {
         />
       );
     }
+    const beginDragOffControls = (e: React.MouseEvent<HTMLElement>) => {
+      if ((e.target as HTMLElement).closest("button, a, input, textarea, [role='button']")) return;
+      invokeTauriAsync("begin_panel_drag")?.catch(() => undefined);
+    };
     return (
+      /* The wrapper is a drag surface too: the card is shorter than the
+         window, and the empty space below it must still move the panel. */
       <div
+        data-tauri-drag-region="deep"
+        onMouseDown={beginDragOffControls}
         className={`flex min-h-screen items-start justify-center p-3 text-[14px] leading-[1.45]${reducedMotion ? " reduced-motion" : ""}`}
       >
         <ResultPanel

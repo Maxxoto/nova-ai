@@ -123,6 +123,13 @@ export default function ResultPanel({
     [],
   );
 
+  /* The whole card is a drag surface; controls inside (buttons, the pill)
+     must keep their clicks, so the drag only begins off-controls. */
+  const beginDragIfNotControl = (e: React.MouseEvent<HTMLElement>) => {
+    if ((e.target as HTMLElement).closest("button, a, input, textarea, [role='button']")) return;
+    invokeTauriAsync("begin_panel_drag")?.catch(() => undefined);
+  };
+
   const caption = (
     <span className="font-ui text-[11px] font-medium leading-[1.4] text-muted-foreground">
       Three steps maximum · <span className="font-mono">Esc</span> aborts
@@ -136,6 +143,8 @@ export default function ResultPanel({
     <section
       role="group"
       aria-label="Ruòxī result panel"
+      data-tauri-drag-region="deep"
+      onMouseDown={beginDragIfNotControl}
       data-state={canonical}
       data-phase={state}
       className={`panel-surface w-[400px] max-w-full overflow-hidden rounded-[14px] border border-border shadow-e3${
@@ -143,7 +152,11 @@ export default function ResultPanel({
       }${leaving ? " is-leaving" : ""}${reducedMotion ? " reduced-motion" : ""}`}
     >
       <PanelHeader state={state} net={net} onCollapse={onCollapse} />
-      <div className="panel-body panel-scroll max-h-[60vh] overflow-y-auto px-4 py-3.5">
+      <div
+        data-tauri-drag-region="deep"
+        onMouseDown={beginDragIfNotControl}
+        className="panel-body panel-scroll max-h-[60vh] overflow-y-auto px-4 py-3.5"
+      >
         <AnswerStream
           state={state}
           answer={answer}
@@ -158,9 +171,19 @@ export default function ResultPanel({
         />
       </div>
       {inFlight ? (
-        <div className="flex items-center border-t border-border px-3 py-2.5">{caption}</div>
+        <div
+          data-tauri-drag-region="deep"
+          onMouseDown={beginDragIfNotControl}
+          className="flex items-center border-t border-border px-3 py-2.5"
+        >
+          {caption}
+        </div>
       ) : state === "complete" ? (
-        <div className="flex items-center justify-between gap-2 border-t border-border px-3 py-2.5">
+        <div
+          data-tauri-drag-region="deep"
+          onMouseDown={beginDragIfNotControl}
+          className="flex items-center justify-between gap-2 border-t border-border px-3 py-2.5"
+        >
           {onSaveMemory ? (
             <SaveMemoryButton onSaved={onSaveMemory} />
           ) : (

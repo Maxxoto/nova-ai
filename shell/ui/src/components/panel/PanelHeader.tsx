@@ -28,7 +28,7 @@ export default function PanelHeader({
 }) {
   return (
     <header
-    data-tauri-drag-region
+    data-tauri-drag-region="deep"
     onMouseDown={(e) => {
       if (e.target === e.currentTarget) invokeTauriAsync("begin_panel_drag")?.catch(() => undefined);
     }}
