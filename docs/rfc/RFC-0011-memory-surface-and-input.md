@@ -4,6 +4,7 @@
 - **Author:** Sisyphus
 - **Parent:** [RFC-0001](RFC-0001-desktop-companion.md) (Desktop Companion)
 - **Relates to:** [RFC-0006](RFC-0006-memory-system.md) (memory), [RFC-0007](RFC-0007-agent-brain.md) (loop), [RFC-0002](RFC-0002-platform-shell.md) (shell/hotkeys)
+- **Research basis:** [docs/research/agent-memory-practices.md](../research/agent-memory-practices.md) — survey of Mem0/Letta/Zep/LangMem/Cognee/MemOS + the memory literature; amended decisions below cite it
 - **Covers (PRD):** F-10 (save-to-memory wiring), F-15 (rebindable dismiss), F-16 (memory management) · **Amends:** AC-06
 - **Milestone:** post-M2, next implementation block
 
@@ -63,6 +64,12 @@ lets the management surface show "saved from capture ⌈thumb⌉ on <date>".
   episodic (that path is automatic and already exists).
 - Dedupe: exact-text match against existing semantic notes returns the
   existing note and the UI says "Already saved" instead of writing a copy.
+- Saved notes carry `pinned`: never auto-superseded by consolidation, and
+  always eligible for the prompt's memory block (research: user-curated
+  memory is authoritative everywhere — Letta core blocks, Mem0 layers).
+- The raw answer is stored as-is; **distilled facts are extracted later by
+  the nightly reflection pass** (D7), not at save time — keeps the save
+  instant and off any LLM path.
 
 ### D2 — Save UX (F-10)
 
@@ -84,17 +91,42 @@ confirmation dialog (which would).
 ### D4 — Memory management surface (F-16)
 
 Settings gains a **Memory** section backed by the existing `memory.search`
-and a new `memory_delete` command (by note id). List view with search, one
-row per semantic note: snippet, source (capture thumb or `ask`), age, delete
-(typed-confirm only when more than one row is selected for deletion — single
-delete is one click + undo toast). Rationale: reuse the FTS index; no new
-store surface or window; delete is the sensitive action so it gets the
-guard, browsing does not.
+and new `memory_archive`/`memory_restore` commands. List view with search,
+one row per semantic note: snippet, source (capture thumb or `ask`), age,
+archive (single click + undo toast; typed-confirm for multi-select).
+Archived notes leave retrieval but stay restorable — **no hard delete**.
+Rationale: the field consensus is invalidate-don't-delete (Zep's bi-temporal
+edges, Mem0 Supersede, soft-archive in Letta/Cognee/MemOS), and the STALE
+benchmark shows stale-belief handling is the dominant failure mode; history
+and undo are worth more than disk. User-pinned notes are exempt from any
+batch curation.
 
 ### D5 — Brain involvement
 
 None for F-15 (pure shell). F-10/F-16 touch the brain only through the
 existing JSON-RPC commands — no loop changes, no new tool steps.
+
+### D6 — Retrieval ranking (memory read path, from the research)
+
+Memory candidates re-rank by composite score —
+`w_rec·recency + w_imp·importance + w_fts·BM25` — with recency as an
+exponential decay whose clock **resets on access** (`last_accessed_at`
+bumped asynchronously), importance defaulted by kind (pinned > reflection >
+episode), and relative dates in the query ("last week") turned into
+time-aware filters. Injected memory is a structured block (id, date, text)
+with an abstention instruction. Evidence: Generative Agents' ablation and
+LongMemEval's controlled findings (+4–11% per mechanism; +10 points from
+the reading stage). Embeddings stay **out** until a personal eval shows
+paraphrase-recall misses — BM25 is competitive at personal-corpus scale.
+
+### D7 — Nightly reflection pass
+
+A scheduled consolidation (off the interactive path): distil the day's
+episodes and saved answers into durable `fact`/`reflection` notes, build
+links, assign importance, and propose supersessions for contradictions
+(applied to non-pinned notes only). Evidence: Generative Agents' reflection
+ablation; identical scheduling in Mem0 Dream / Letta sleep-time / LangMem /
+Cognee. This is where the LLM earns its cost — never on the write path.
 
 ## 5. Test plan
 
@@ -109,7 +141,16 @@ existing JSON-RPC commands — no loop changes, no new tool steps.
 
 ## 6. Open questions
 
-1. Should episodic notes (auto-logged asks) also be deletable from F-16, or
+1. Should episodic notes (auto-logged asks) also be archivable from F-16, or
    only semantic? (Leaning: both, separate group in the list.)
 2. Cap on semantic notes before suggesting cleanup? (Leaning: no cap, surface
    a count only.)
+3. Reflection cadence: nightly vs Generative-Agents-style importance
+   threshold. (Leaning: nightly to start — simpler, debuggable.)
+
+## 7. Evaluation
+
+Per the research digest: a personal eval set (20–50 questions) covering
+LongMemEval's five abilities plus STALE-style implicit conflicts, measuring
+retrieval recall@k separately from answer accuracy — not vendor
+leaderboards, whose methodology is documented as noisy.
