@@ -216,7 +216,7 @@ CREATE TABLE IF NOT EXISTS memory (
 impl MemoryStore {
     pub fn open(root: &Path) -> Result<Self, String> {
         let memory_root = root.join("memory");
-        for dir in ["episodic", "semantic", "procedural", "digest"] {
+        for dir in ["episodic", "semantic", "procedural", "digest", "archive"] {
             std::fs::create_dir_all(memory_root.join(dir)).map_err(|e| format!("mkdir: {e}"))?;
         }
         let conn =
@@ -278,15 +278,24 @@ impl MemoryStore {
             ],
         )
         .map_err(|e| e.to_string())?;
-        if self.fts {
-            let _ = conn.execute("INSERT INTO memory_fts(memory_fts) VALUES('delete-all')", []);
-            let _ = conn.execute(
-                "INSERT INTO memory_fts(rowid, body, tags)
-                 SELECT rowid, body, tags FROM memory",
-                [],
-            );
-        }
         drop(conn);
+        self.reindex()
+    }
+
+    /// Rebuilds the FTS mirror and the digest from the index — the shared
+    /// tail of every mutation (write, archive, restore).
+    fn reindex(&self) -> Result<(), String> {
+        {
+            let conn = self.conn.lock().map_err(|e| e.to_string())?;
+            if self.fts {
+                let _ = conn.execute("INSERT INTO memory_fts(memory_fts) VALUES('delete-all')", []);
+                let _ = conn.execute(
+                    "INSERT INTO memory_fts(rowid, body, tags)
+                     SELECT rowid, body, tags FROM memory",
+                    [],
+                );
+            }
+        }
         self.refresh_digest()
     }
 
@@ -408,6 +417,165 @@ impl MemoryStore {
 
     /// FTS bm25 when available, token-LIKE otherwise; episodic recency boost;
     /// at most 3 of one type in the top-k (RFC-0006 §4.4).
+    /// RFC-0011 D1 dedupe: an identical saved body returns the existing note
+    /// so the UI can say "already saved" instead of writing a copy.
+    pub fn find_identical(&self, body: &str) -> Result<Option<String>, String> {
+        let conn = self.conn.lock().map_err(|e| e.to_string())?;
+        conn.query_row(
+            "SELECT id FROM memory WHERE body = ?1 LIMIT 1",
+            rusqlite::params![body],
+            |row| row.get::<_, String>(0),
+        )
+        .map(Some)
+        .or_else(|e| match e {
+            rusqlite::Error::QueryReturnedNoRows => Ok(None),
+            other => Err(other.to_string()),
+        })
+    }
+
+    /// Newest-first listing for the management surface (F-16); a query
+    /// filters through the same FTS path as search.
+    pub fn list(&self, query: Option<&str>, k: usize) -> Result<Vec<MemoryRow>, String> {
+        let conn = self.conn.lock().map_err(|e| e.to_string())?;
+        let query = query.map(str::trim).filter(|q| !q.is_empty());
+        let mut stmt;
+        let rows: Vec<(String, String, String, String, String)> = match query {
+            Some(q) if self.fts => {
+                stmt = conn
+                    .prepare(
+                        "SELECT m.id, m.kind, m.created, m.source_refs, m.body
+                         FROM memory m JOIN memory_fts ON m.rowid = memory_fts.rowid
+                         WHERE memory_fts MATCH ?1 ORDER BY bm25(memory_fts) LIMIT ?2",
+                    )
+                    .map_err(|e| e.to_string())?;
+                let iter = stmt
+                    .query_map(rusqlite::params![fts_query(q), k as i64], |row| {
+                        Ok((
+                            row.get(0)?,
+                            row.get(1)?,
+                            row.get(2)?,
+                            row.get(3)?,
+                            row.get(4)?,
+                        ))
+                    })
+                    .map_err(|e| e.to_string())?;
+                iter.filter_map(|r| r.ok()).collect()
+            }
+            Some(q) => {
+                let pattern = format!("%{}%", q.replace('%', ""));
+                stmt = conn
+                    .prepare(
+                        "SELECT id, kind, created, source_refs, body FROM memory
+                         WHERE body LIKE ?1 ORDER BY created DESC LIMIT ?2",
+                    )
+                    .map_err(|e| e.to_string())?;
+                let iter = stmt
+                    .query_map(rusqlite::params![pattern, k as i64], |row| {
+                        Ok((
+                            row.get(0)?,
+                            row.get(1)?,
+                            row.get(2)?,
+                            row.get(3)?,
+                            row.get(4)?,
+                        ))
+                    })
+                    .map_err(|e| e.to_string())?;
+                iter.filter_map(|r| r.ok()).collect()
+            }
+            None => {
+                stmt = conn
+                    .prepare(
+                        "SELECT id, kind, created, source_refs, body FROM memory
+                         ORDER BY created DESC LIMIT ?1",
+                    )
+                    .map_err(|e| e.to_string())?;
+                let iter = stmt
+                    .query_map(rusqlite::params![k as i64], |row| {
+                        Ok((
+                            row.get(0)?,
+                            row.get(1)?,
+                            row.get(2)?,
+                            row.get(3)?,
+                            row.get(4)?,
+                        ))
+                    })
+                    .map_err(|e| e.to_string())?;
+                iter.filter_map(|r| r.ok()).collect()
+            }
+        };
+        Ok(rows
+            .into_iter()
+            .map(|(id, kind, created, refs, body)| MemoryRow {
+                id,
+                kind,
+                created,
+                source_refs: refs.split_whitespace().map(str::to_string).collect(),
+                snippet: snippet_of(&body, 160),
+            })
+            .collect())
+    }
+
+    /// RFC-0011 D4: archive-first. The note leaves retrieval but nothing is
+    /// deleted — the markdown moves to `memory/archive/` and `restore` puts
+    /// it back.
+    pub fn archive(&self, id: &str) -> Result<(), String> {
+        let rel: String = {
+            let conn = self.conn.lock().map_err(|e| e.to_string())?;
+            let rel = conn
+                .query_row(
+                    "SELECT path FROM memory WHERE id = ?1",
+                    rusqlite::params![id],
+                    |row| row.get::<_, String>(0),
+                )
+                .map_err(|_| format!("no such memory: {id}"))?;
+            conn.execute("DELETE FROM memory WHERE id = ?1", rusqlite::params![id])
+                .map_err(|e| e.to_string())?;
+            rel
+        };
+        let src = self.root.join(&rel);
+        let dest = self.root.join("archive").join(format!("{id}.md"));
+        std::fs::rename(&src, &dest).map_err(|e| format!("archive move: {e}"))?;
+        self.reindex()
+    }
+
+    /// The archived notes, newest first — for the restore list.
+    pub fn archived(&self) -> Result<Vec<MemoryRow>, String> {
+        let dir = self.root.join("archive");
+        let mut rows = Vec::new();
+        if let Ok(entries) = std::fs::read_dir(&dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.extension().and_then(|e| e.to_str()) != Some("md") {
+                    continue;
+                }
+                let Ok(text) = std::fs::read_to_string(&path) else {
+                    continue;
+                };
+                let Ok(parsed) = MemoryEntry::from_markdown(&text, &path) else {
+                    continue;
+                };
+                rows.push(MemoryRow {
+                    id: parsed.id,
+                    kind: parsed.kind.as_str().to_string(),
+                    created: parsed.created,
+                    source_refs: parsed.source_refs,
+                    snippet: snippet_of(&parsed.body, 160),
+                });
+            }
+        }
+        rows.sort_by(|a, b| b.created.cmp(&a.created));
+        Ok(rows)
+    }
+
+    /// Puts an archived note back into its kind shard and the index.
+    pub fn restore(&self, id: &str) -> Result<(), String> {
+        let path = self.root.join("archive").join(format!("{id}.md"));
+        let text = std::fs::read_to_string(&path).map_err(|_| format!("no archived memory: {id}"))?;
+        let entry = MemoryEntry::from_markdown(&text, &path)?;
+        self.write(&entry)?;
+        std::fs::remove_file(&path).map_err(|e| format!("remove archived copy: {e}"))
+    }
+
     pub fn search(
         &self,
         query: &str,
@@ -558,6 +726,15 @@ fn fts_query(query: &str) -> String {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct MemoryRow {
+    pub id: String,
+    pub kind: String,
+    pub created: String,
+    pub source_refs: Vec<String>,
+    pub snippet: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct MemoryHit {
     pub id: String,
     pub kind: String,
@@ -573,7 +750,7 @@ pub fn memory_save_semantic(
     body: String,
     tags: Vec<String>,
     source_refs: Vec<String>,
-) -> Result<String, String> {
+) -> Result<serde_json::Value, String> {
     use tauri::Manager;
     let dir = app
         .path()
@@ -585,12 +762,51 @@ pub fn memory_save_semantic(
     } else {
         format!("# {title}\n\n{body}")
     };
+    // RFC-0011 D1: an identical save returns the existing note instead of a copy.
+    if let Some(existing) = store.find_identical(&body)? {
+        return Ok(serde_json::json!({ "id": existing, "created": false }));
+    }
     let mut entry = MemoryEntry::new(MemoryType::Semantic, body);
     entry.tags = tags;
     entry.source_refs = source_refs;
     entry.origin = "user-save".to_string();
     store.write(&entry)?;
-    Ok(entry.id)
+    Ok(serde_json::json!({ "id": entry.id, "created": true }))
+}
+
+fn memory_store(app: &tauri::AppHandle) -> Result<MemoryStore, String> {
+    use tauri::Manager;
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("data dir: {e}"))?;
+    MemoryStore::open(&dir)
+}
+
+#[tauri::command]
+pub fn memory_list(
+    app: tauri::AppHandle,
+    query: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let store = memory_store(&app)?;
+    let rows = store.list(query.as_deref(), 200)?;
+    serde_json::to_value(rows).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn memory_archive(app: tauri::AppHandle, id: String) -> Result<(), String> {
+    memory_store(&app)?.archive(&id)
+}
+
+#[tauri::command]
+pub fn memory_archived_list(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    let rows = memory_store(&app)?.archived()?;
+    serde_json::to_value(rows).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn memory_restore(app: tauri::AppHandle, id: String) -> Result<(), String> {
+    memory_store(&app)?.restore(&id)
 }
 
 pub struct MemoryRouter {
@@ -686,6 +902,60 @@ mod tests {
             .contains(&format!("episodic/{}/{}", &date[0..4], &date[5..7])));
         store.write(&entry).expect("write");
         assert!(path.exists());
+    }
+
+    #[test]
+    fn identical_save_is_deduped() {
+        let store = temp_store("dedupe");
+        let body = "# Note\nSame text twice.".to_string();
+        let mut entry = MemoryEntry::new(MemoryType::Semantic, body.clone());
+        entry.origin = "user-save".to_string();
+        store.write(&entry).expect("write");
+        assert_eq!(store.find_identical(&body).expect("find"), Some(entry.id.clone()));
+        assert_eq!(store.find_identical("different").expect("find"), None);
+    }
+
+    #[test]
+    fn archive_leaves_search_and_restore_returns() {
+        let store = temp_store("archive");
+        let mut entry = MemoryEntry::new(
+            MemoryType::Semantic,
+            "# Keep me\nunique-needle-xyz lives here".to_string(),
+        );
+        entry.origin = "user-save".to_string();
+        store.write(&entry).expect("write");
+        assert!(!store.search("unique-needle-xyz", None, 10).expect("search").is_empty());
+
+        store.archive(&entry.id).expect("archive");
+        assert!(store.search("unique-needle-xyz", None, 10).expect("search").is_empty());
+        let archived = store.archived().expect("archived");
+        assert_eq!(archived.len(), 1);
+        assert_eq!(archived[0].id, entry.id);
+
+        store.restore(&entry.id).expect("restore");
+        assert!(!store.search("unique-needle-xyz", None, 10).expect("search").is_empty());
+        assert!(store.archived().expect("archived").is_empty());
+    }
+
+    #[test]
+    fn list_is_newest_first_and_query_filters() {
+        let store = temp_store("list");
+        let mut first = MemoryEntry::new(MemoryType::Semantic, "# A\nalpha-topic".to_string());
+        first.origin = "user-save".to_string();
+        first.created = "2026-01-01T00:00:00Z".to_string();
+        store.write(&first).expect("write");
+        let mut second = MemoryEntry::new(MemoryType::Semantic, "# B\nbeta-topic".to_string());
+        second.origin = "user-save".to_string();
+        second.created = "2026-01-02T00:00:00Z".to_string();
+        store.write(&second).expect("write");
+
+        let all = store.list(None, 10).expect("list");
+        assert_eq!(all.len(), 2);
+        assert_eq!(all[0].id, second.id);
+
+        let filtered = store.list(Some("alpha-topic"), 10).expect("list");
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].id, first.id);
     }
 
     #[test]

@@ -24,6 +24,7 @@ import {
   Tag,
   Toggle,
 } from "./primitives";
+import MemorySection from "./MemorySection";
 
 /** Mirrors the cross-window event name in `App.tsx`. */
 const THEME_EVENT = "ruoxi:theme";
@@ -61,6 +62,7 @@ type Settings = {
   panel_open_as: PanelOpenAs;
   fullscreen_display_id: number | null;
   ptt_hotkey: string;
+  dismiss_hotkey: string;
   sidecar_command: string;
   sidecar_args: string[];
   ping_interval_secs: number;
@@ -79,6 +81,7 @@ const DEFAULT_SETTINGS: Settings = {
   panel_open_as: "mini",
   fullscreen_display_id: null,
   ptt_hotkey: "F8",
+  dismiss_hotkey: "Alt+Shift+D",
   sidecar_command: "python3",
   sidecar_args: ["-m", "app.interfaces.sidecar"],
   ping_interval_secs: 5,
@@ -248,6 +251,10 @@ function normalizeSettings(raw: unknown): Settings {
       typeof record.ptt_hotkey === "string" && record.ptt_hotkey.trim().length > 0
         ? record.ptt_hotkey
         : DEFAULT_SETTINGS.ptt_hotkey,
+    dismiss_hotkey:
+      typeof record.dismiss_hotkey === "string" && record.dismiss_hotkey.trim().length > 0
+        ? record.dismiss_hotkey
+        : DEFAULT_SETTINGS.dismiss_hotkey,
     sidecar_command:
       typeof record.sidecar_command === "string" ? record.sidecar_command : DEFAULT_SETTINGS.sidecar_command,
     sidecar_args: isStringArray(record.sidecar_args) ? record.sidecar_args : DEFAULT_SETTINGS.sidecar_args,
@@ -547,12 +554,20 @@ function HotkeyKeycaps({ caps }: { caps: readonly string[] }) {
   );
 }
 
-function PushToTalkRow({
+function HotkeyRow({
   value,
   onCommit,
+  label,
+  help,
+  prompt,
+  ariaLabel,
 }: {
   value: string;
   onCommit: (accel: string) => Promise<HotkeyCommitResult>;
+  label: string;
+  help: string;
+  prompt: string;
+  ariaLabel: string;
 }) {
   const [recording, setRecording] = useState(false);
   const [captured, setCaptured] = useState<string | null>(null);
@@ -644,7 +659,7 @@ function PushToTalkRow({
         ref={surfaceRef}
         tabIndex={0}
         role="group"
-        aria-label="Press the key you want to hold to talk. Modifiers optional. Escape cancels."
+        aria-label={ariaLabel}
         onKeyDown={onSurfaceKeyDown}
         onKeyUp={onSurfaceKeyUp}
         onBlur={() => setHeld([])}
@@ -653,7 +668,7 @@ function PushToTalkRow({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 flex-col gap-1">
             <span className="font-ui text-[14px] font-semibold leading-[1.4] text-foreground">
-              Press the key you want to hold to talk
+              {prompt}
             </span>
             <span className="font-ui text-[12px] leading-[1.4] text-muted-foreground">
               Modifiers optional · Tab moves on · Esc cancels
@@ -695,8 +710,8 @@ function PushToTalkRow({
   const caps = hotkeyKeycaps(value);
   return (
     <Row
-      label="Push-to-talk hotkey"
-      help="Hold to talk, release to send."
+      label={label}
+      help={help}
       side={
         <>
           {caps.length > 0 ? (
@@ -849,6 +864,38 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
     return { ok: true };
   };
 
+  /* The dismiss key validates through its own command: captures, the PTT
+     key, and mappability. Persisted non-optimistically like push-to-talk. */
+  const commitDismissHotkey = async (accel: string): Promise<HotkeyCommitResult> => {
+    const validation = invokeTauriAsync("validate_dismiss_hotkey", { accel });
+    if (!validation) {
+      return {
+        ok: false,
+        tone: "muted",
+        message: "Saving a hotkey needs the desktop app — this preview can't validate or persist it.",
+      };
+    }
+    try {
+      await validation;
+    } catch (error) {
+      return { ok: false, tone: "error", message: hotkeyErrorMessage(error) };
+    }
+    const next = { ...settingsRef.current, dismiss_hotkey: accel };
+    const write = invokeTauriAsync("set_settings", { settings: next });
+    if (!write) return { ok: false, tone: "muted", message: "Saving a hotkey needs the desktop app." };
+    try {
+      await write;
+    } catch {
+      return {
+        ok: false,
+        tone: "error",
+        message: "Couldn't save that hotkey — your previous shortcut is unchanged.",
+      };
+    }
+    apply(next);
+    return { ok: true };
+  };
+
   const handleDeleteAll = () => {
     setConfirmOpen(false);
     const pending = invokeTauriAsync("capture_delete_all");
@@ -980,7 +1027,22 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
 
       <Section id="voice" title="Voice and answers">
         <div className="flex flex-col">
-          <PushToTalkRow value={settings.ptt_hotkey} onCommit={commitHotkey} />
+          <HotkeyRow
+            label="Push-to-talk hotkey"
+            help="Hold to talk, release to send."
+            prompt="Press the key you want to hold to talk"
+            ariaLabel="Press the key you want to hold to talk. Modifiers optional. Escape cancels."
+            value={settings.ptt_hotkey}
+            onCommit={commitHotkey}
+          />
+          <HotkeyRow
+            label="Dismiss hotkey"
+            help="Hides the result panel. Esc stays reserved for stopping the read-aloud."
+            prompt="Press the key that should dismiss the panel"
+            ariaLabel="Press the key that should dismiss the panel. Modifiers optional. Escape cancels."
+            value={settings.dismiss_hotkey}
+            onCommit={commitDismissHotkey}
+          />
           <p className="pt-1 font-ui text-[12px] leading-[1.5] text-muted-foreground">
             Applies on the next start.
           </p>
@@ -1017,6 +1079,8 @@ export default function SettingsWindow({ reducedMotion = false }: { reducedMotio
         offline={settings.offline}
         onTurnOffOffline={() => setField({ offline: false })}
       />
+      <MemorySection />
+
       <Section id="displays" title="Displays">
         <div className="flex flex-col gap-3">
           <Row

@@ -70,6 +70,7 @@ pub fn run() {
             settings::hide_onboarding,
             settings::resize_onboarding,
             hotkeys::validate_hotkey,
+            hotkeys::validate_dismiss_hotkey,
             panel::show_panel,
             panel::hide_panel,
             panel::set_panel_mode,
@@ -78,6 +79,10 @@ pub fn run() {
             ask::voice_ask_stop,
             ask::voice_ask_cancel,
             memory::memory_save_semantic,
+            memory::memory_list,
+            memory::memory_archive,
+            memory::memory_archived_list,
+            memory::memory_restore,
             brain::session_ask,
             brain::session_abort,
             models::stt_catalog,
@@ -287,6 +292,29 @@ pub fn run() {
                 supervisor::request_brain_restart();
             });
 
+            // The dismiss hotkey is a setting, so it registers here rather
+            // than with the static capture accelerators; changes apply on the
+            // next start (same contract as push-to-talk).
+            {
+                use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
+                let dismiss = settings::load(app.handle()).dismiss_hotkey;
+                match dismiss.parse::<Shortcut>() {
+                    Ok(shortcut) => {
+                        if let Err(e) =
+                            app.global_shortcut().on_shortcut(shortcut, |app, s, event| {
+                                if event.state == ShortcutState::Pressed {
+                                    eprintln!("ruoxi: hotkey {s} -> dismiss panel");
+                                    panel::hide(app);
+                                }
+                            })
+                        {
+                            eprintln!("ruoxi: dismiss hotkey {dismiss:?} register failed: {e}");
+                        }
+                    }
+                    Err(e) => eprintln!("ruoxi: dismiss hotkey {dismiss:?} invalid: {e}"),
+                }
+            }
+
             // Clean install: the setup ritual runs first — permissions have
             // not been granted and the model is unconfigured until it does.
             // Completing the ritual clears the flag; a reinstall keeps the
@@ -312,19 +340,10 @@ fn capture_shortcut_plugin(
 ) -> tauri::plugin::TauriPlugin<tauri::Wry> {
     use tauri_plugin_global_shortcut::ShortcutState;
     tauri_plugin_global_shortcut::Builder::new()
-        .with_shortcuts(
-            hotkeys::ALL_ACCELERATORS
-                .into_iter()
-                .chain(std::iter::once(hotkeys::DISMISS_ACCELERATOR)),
-        )
+        .with_shortcuts(hotkeys::ALL_ACCELERATORS)
         .expect("register capture shortcuts")
-        .with_handler(move |app, shortcut, event| {
+        .with_handler(move |_app, shortcut, event| {
             if event.state != ShortcutState::Pressed {
-                return;
-            }
-            if hotkeys::is_dismiss_accelerator(&shortcut.to_string()) {
-                eprintln!("ruoxi: hotkey {shortcut} -> dismiss panel");
-                panel::hide(app);
                 return;
             }
             if let Some(intent) = hotkeys::intent_from_accelerator(&shortcut.to_string()) {

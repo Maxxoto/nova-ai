@@ -699,7 +699,6 @@ export default function App() {
                   capture={DEMO_CAPTURE}
                   transcript={DEMO_TRANSCRIPT}
                   reducedMotion={reducedMotion}
-                  onSaveMemory={() => undefined}
                   onRetry={() => setPanelState("thinking")}
                   onDismiss={() => setPanelVisible(false)}
                 />
@@ -716,7 +715,6 @@ export default function App() {
                   capture={DEMO_CAPTURE}
                   transcript={DEMO_TRANSCRIPT}
                   reducedMotion={reducedMotion}
-                  onSaveMemory={() => undefined}
                   onRetry={() => setPanelState("thinking")}
                   onDismiss={() => setPanelVisible(false)}
                 />
@@ -739,8 +737,7 @@ export default function App() {
                     capture={DEMO_CAPTURE}
                     transcript={DEMO_TRANSCRIPT}
                     reducedMotion={reducedMotion}
-                    onSaveMemory={() => undefined}
-                    onRetry={() => undefined}
+                      onRetry={() => undefined}
                   />
                 </PanelStage>,
                 <PanelStage key={`night-${state}`} label={`${state} · ${net} · night`} dark>
@@ -752,8 +749,7 @@ export default function App() {
                     capture={DEMO_CAPTURE}
                     transcript={DEMO_TRANSCRIPT}
                     reducedMotion={reducedMotion}
-                    onSaveMemory={() => undefined}
-                    onRetry={() => undefined}
+                      onRetry={() => undefined}
                   />
                 </PanelStage>,
               ])}

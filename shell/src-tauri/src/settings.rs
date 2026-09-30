@@ -6,6 +6,10 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
+fn default_dismiss_hotkey() -> String {
+    crate::hotkeys::DISMISS_ACCELERATOR.to_string()
+}
+
 fn default_sidecar_command() -> String {
     "python3".to_string()
 }
@@ -145,6 +149,8 @@ pub struct Settings {
     pub offline: bool,
     #[serde(default = "default_true")]
     pub needs_onboarding: bool,
+    #[serde(default = "default_dismiss_hotkey")]
+    pub dismiss_hotkey: String,
     #[serde(default)]
     pub read_aloud: bool,
     #[serde(default = "default_answer_length")]
@@ -231,6 +237,7 @@ impl Default for Settings {
             pause_captures: false,
             offline: true,
             needs_onboarding: true,
+            dismiss_hotkey: default_dismiss_hotkey(),
             read_aloud: false,
             answer_length: default_answer_length(),
             theme: default_theme(),
@@ -502,6 +509,7 @@ mod tests {
             pause_captures: true,
             offline: false,
             needs_onboarding: false,
+            dismiss_hotkey: "Alt+Shift+D".to_string(),
             read_aloud: true,
             answer_length: "normal".to_string(),
             theme: "night".to_string(),

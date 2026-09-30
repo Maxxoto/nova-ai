@@ -19,7 +19,6 @@ export type ResultPanelProps = {
   onDismiss?: () => void;
   onEscape?: () => boolean;
   onCollapse?: () => void;
-  onSaveMemory?: () => void;
   onRetry?: () => void;
   onPttStart?: () => void;
   onPttStop?: () => void;
@@ -38,7 +37,6 @@ export default function ResultPanel({
   onDismiss,
   onEscape,
   onCollapse,
-  onSaveMemory,
   onRetry,
   onPttStart,
   onPttStop,
@@ -186,7 +184,7 @@ export default function ResultPanel({
           onMouseDown={beginDragIfNotControl}
           className="flex items-center justify-between gap-2 border-t border-border px-3 py-2.5"
         >
-          <SaveMemoryButton onSaved={onSaveMemory} />
+          <SaveMemoryButton answer={answer ?? ""} captureId={capture?.id} />
           <ReadAloudButton reading={reading} onRead={startReading} onStop={stopReading} />
         </div>
       ) : null}

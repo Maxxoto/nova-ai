@@ -48,7 +48,7 @@ The composition, its fonts and the source captures live in [`docs/demo/`](docs/d
 | **Never in the way** | The panel floats above every app, follows you across Spaces, and never takes keyboard focus from what you are doing. |
 | **Out of the way, fast** | <kbd>Esc</kbd> cancels an in-flight ask or stops the read-aloud — it never dismisses. <kbd>⌥⇧D</kbd> dismisses the panel. |
 | **Read aloud** | On-device Kokoro, or the macOS system voice — with a speaking state in the panel. <kbd>Esc</kbd> stops the audio. |
-| **Keep it** | Every capture lands in a local, date-sharded store with sha256 dedupe; the Timeline window browses it, and answers can be grounded in what you kept. |
+| **Keep it** | Every capture lands in a local, date-sharded store with sha256 dedupe; the Timeline window browses it. **Save to memory** keeps an answer (with its capture as provenance — repeats say *Already saved*, with a 4 s Undo), and Settings → **Memory** lists, searches, archives and restores everything remembered. |
 | **Your call** | Offline mode keeps everything on this Mac — cloud answers are simply unavailable while it is on. Auto-capture is off for every app by default. |
 
 ---
@@ -334,7 +334,6 @@ For the CLI, copy `.env.example` to `.env` and set `LITE_LLM_API_KEY` (plus `BRA
 
 **Known gaps**
 
-- The panel's **Save to memory** button is not wired yet — it still shows its M2 placeholder; the memory store and its commands already exist
 - The `.dmg` does not bundle a Python runtime: the brain needs a Python with the repo dependencies (set `sidecar_command` to your venv) — see [Running the unsigned DMG on another Mac](#-running-the-unsigned-dmg-on-another-mac)
 - Builds are unsigned — expect a Gatekeeper warning, and a Keychain prompt the first time a freshly built binary starts
 - Parakeet is English-only

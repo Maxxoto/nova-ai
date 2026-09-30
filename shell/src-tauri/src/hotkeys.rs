@@ -21,10 +21,7 @@ pub const ALL_ACCELERATORS: [&str; 3] = ["Alt+Shift+R", "Alt+Shift+W", "Alt+Shif
 /// read-aloud instead, so it can never leave the panel unshown.
 pub const DISMISS_ACCELERATOR: &str = "Alt+Shift+D";
 
-/// Whether an incoming global-shortcut string is the dismiss accelerator.
-pub fn is_dismiss_accelerator(shortcut: &str) -> bool {
-    shortcut.to_lowercase().replace(' ', "") == "alt+shift+d"
-}
+
 
 pub fn accelerator(intent: CaptureIntent) -> &'static str {
     match intent {
@@ -217,6 +214,23 @@ pub fn validate_ptt_hotkey(accel: &str) -> Result<(), String> {
 #[tauri::command]
 pub fn validate_hotkey(accel: String) -> Result<(), String> {
     validate_ptt_hotkey(&accel)
+}
+
+/// The dismiss hotkey must be mappable, must not collide with a capture
+/// shortcut, and must differ from the push-to-talk key (both are live at
+/// once, so a clash would make one of them dead).
+#[tauri::command]
+pub fn validate_dismiss_hotkey(app: tauri::AppHandle, accel: String) -> Result<(), String> {
+    validate_ptt_hotkey(&accel)?;
+    let ptt = crate::settings::load(&app).ptt_hotkey;
+    if normalize_token(&accel) == normalize_token(&ptt) {
+        return Err("That key is already the push-to-talk hotkey.".to_string());
+    }
+    Ok(())
+}
+
+fn normalize_token(accel: &str) -> String {
+    accel.to_lowercase().replace(' ', "")
 }
 
 #[cfg(test)]
