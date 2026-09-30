@@ -1,4 +1,3 @@
-import { useRef } from "react";
 import { FOCUS_RING } from "../settings/primitives";
 import { invokeTauriAsync } from "../../tauri";
 import { canonicalStateOf, type PanelState } from "./types";
@@ -35,12 +34,10 @@ export default function MiniMark({
   const answered = canonical === "answered";
   const title = `Ruoxi · ${word}${answered ? " — open to read" : ""}`;
 
-  const pressRef = useRef<{ x: number; y: number } | null>(null);
-
   /* The root must not be a `<button>`: Tauri's drag region ignores interactive
-     elements, so a button can never start a native window drag. A drag-region
-     press can swallow `click`, so release expands only when the pointer moved
-     < 4px; `onClick` stays as the fallback (idempotent if both fire). */
+     elements, so a button can never start a native window drag. Mode change is
+     double-click only — `click` fires after a native drag too, so a click
+     handler here turned every drag of the mark into an expand. */
   return (
     <div
       role="button"
@@ -49,19 +46,10 @@ export default function MiniMark({
       data-phase={state}
       data-icon="circle"
       data-tauri-drag-region
-      onMouseDown={(e) => {
-        pressRef.current = { x: e.screenX, y: e.screenY };
+      onMouseDown={() => {
         invokeTauriAsync("begin_panel_drag")?.catch(() => undefined);
       }}
-      onMouseUp={(e) => {
-        const press = pressRef.current;
-        pressRef.current = null;
-        if (press && Math.hypot(e.screenX - press.x, e.screenY - press.y) < 4) onOpen();
-      }}
-      onMouseLeave={() => {
-        pressRef.current = null;
-      }}
-      onClick={onOpen}
+      onDoubleClick={onOpen}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();

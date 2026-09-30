@@ -32,6 +32,9 @@ export default function PanelHeader({
     onMouseDown={(e) => {
       if (e.target === e.currentTarget) invokeTauriAsync("begin_panel_drag")?.catch(() => undefined);
     }}
+    onDoubleClick={(e) => {
+      if (e.target === e.currentTarget) onCollapse?.();
+    }}
     className="flex cursor-default items-center gap-2.5 border-b border-border px-3.5 py-2.5"
   >
       <Orb state={state} size={22} />
