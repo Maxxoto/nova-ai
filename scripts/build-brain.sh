@@ -18,8 +18,15 @@ uv run --with pyinstaller pyinstaller \
   --exclude-module logfire \
   --collect-all tiktoken \
   --collect-all tiktoken_ext \
-  src/app/interfaces/sidecar/__main__.py \
+  scripts/brain_entry.py \
   --distpath shell/src-tauri/resources
+
+# Ship tiktoken's encoding blobs next to the executable: the frozen app
+# cannot fetch them (plugin discovery is dead under PyInstaller), so the
+# entry wrapper points TIKTOKEN_CACHE_DIR here.
+TIKTOKEN_CACHE_DIR="$OUT/tiktoken-cache" uv run python -c \
+  "import tiktoken; tiktoken.get_encoding('cl100k_base'); tiktoken.get_encoding('o200k_base')" || \
+  { echo "tiktoken cache warm failed"; exit 1; }
 
 du -sh "$OUT"
 "$OUT/brain/brain" --version >/dev/null 2>&1 || true
