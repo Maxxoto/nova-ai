@@ -664,8 +664,12 @@ impl MemoryStore {
                     .map_err(|e| e.to_string())?
                     .filter_map(|r| r.ok())
                     .map(|row| {
+                        // FTS5's bm25 is more-negative-is-better, so the
+                        // composite weight must grow with |bm25| — a naive
+                        // 1/(1+|rank|) inverted quality and let weak stopword
+                        // matches outrank real hits.
                         let mut row = row;
-                        row.7 = 1.0 / (1.0 + row.7.abs());
+                        row.7 = row.7.abs() / (1.0 + row.7.abs());
                         row
                     })
                     .collect()
@@ -880,10 +884,12 @@ fn snippet_of(body: &str, max: usize) -> String {
 fn fts_query(query: &str) -> String {
     query
         .split_whitespace()
-        .filter(|t| !t.is_empty())
+        // Single-character tokens are stopwords with near-zero signal, but a
+        // prefix match on "a"* still hits almost every document.
+        .filter(|t| t.len() > 1)
         .map(|t| format!("\"{}\"*", t.trim_matches('"')))
         .collect::<Vec<_>>()
-        .join(" ")
+        .join(" OR ")
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -1259,6 +1265,6 @@ mod tests {
 
     #[test]
     fn fts_query_quotes_and_prefixes() {
-        assert_eq!(fts_query("krebs cycle"), "\"krebs\"* \"cycle\"*");
+        assert_eq!(fts_query("krebs cycle"), "\"krebs\"* OR \"cycle\"*");
     }
 }
