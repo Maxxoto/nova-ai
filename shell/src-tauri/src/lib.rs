@@ -16,6 +16,7 @@ pub mod hotkeys;
 pub mod llm;
 pub mod models;
 pub mod overlay;
+pub mod reflect;
 pub mod panel;
 pub mod permissions;
 pub mod settings;
@@ -328,6 +329,10 @@ pub fn run() {
             tauri::async_runtime::spawn(async move {
                 supervisor::run(handle, brain).await;
             });
+
+            // Nightly reflection (RFC-0011 D7): distil yesterday's diary into
+            // semantic facts off the interactive path.
+            reflect::spawn(app.handle().clone(), supervisor_brain.clone());
             Ok(())
         })
         .run(tauri::generate_context!())

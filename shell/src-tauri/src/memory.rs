@@ -607,6 +607,58 @@ impl MemoryStore {
         Ok(rows)
     }
 
+    /// Yesterday's diary for the reflection pass (RFC-0011 D7): episodic
+    /// entries created at or after `since_iso`, newest first.
+    pub fn episodic_since(
+        &self,
+        since_iso: &str,
+        limit: usize,
+    ) -> Result<Vec<serde_json::Value>, String> {
+        let conn = self.conn.lock().map_err(|e| e.to_string())?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, created, body, source_refs FROM memory
+                 WHERE kind = 'episodic' AND created >= ?1
+                 ORDER BY created DESC LIMIT ?2",
+            )
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map(rusqlite::params![since_iso, limit as i64], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                ))
+            })
+            .map_err(|e| e.to_string())?
+            .filter_map(|r| r.ok())
+            .collect::<Vec<_>>();
+        drop(stmt);
+        drop(conn);
+        Ok(rows
+            .into_iter()
+            .map(|(id, created, body, refs)| {
+                serde_json::json!({
+                    "id": id,
+                    "created": created,
+                    "body": body,
+                    "source_refs": refs.split_whitespace().map(str::to_string).collect::<Vec<_>>(),
+                })
+            })
+            .collect())
+    }
+
+    /// Marker for "reflection already ran for this day" (RFC-0011 D7).
+    pub fn reflection_marker_path(&self) -> PathBuf {
+        self.root.join("digest").join(".last-reflection")
+    }
+
+    /// Where reflection queues supersession proposals for the user.
+    pub fn review_queue_path(&self) -> PathBuf {
+        self.root.join("digest").join("REVIEW.md")
+    }
+
     /// Puts an archived note back into its kind shard and the index.
     pub fn restore(&self, id: &str) -> Result<(), String> {
         let path = self.root.join("archive").join(format!("{id}.md"));

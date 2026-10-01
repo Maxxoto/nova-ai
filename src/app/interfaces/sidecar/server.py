@@ -278,6 +278,96 @@ class SidecarServer:
         )
         return hits
 
+    async def _reflect(self, params: dict[str, object]) -> dict[str, object]:
+        """RFC-0011 D7: distil episodic entries into durable facts.
+
+        The LLM sees yesterday's diary lines and returns strict JSON — facts
+        become semantic notes (origin `consolidation`) on the shell side;
+        `review` items are supersession proposals for the user, never applied
+        automatically. Cloud-gated: unconfigured or offline returns empty.
+        """
+        entries = params.get("entries") if isinstance(params, dict) else None
+        entries = [e for e in entries if isinstance(e, dict)] if isinstance(entries, list) else []
+        scripted = bool(os.environ.get("RUOXI_LLM_SCRIPT", "").strip())
+        base_url = os.environ.get("RUOXI_LLM_BASE_URL", "").strip()
+        api_key = os.environ.get("RUOXI_LLM_API_KEY", "").strip()
+        if not entries:
+            return {"facts": [], "review": [], "reason": "no-entries"}
+        if not scripted and (not base_url or not api_key):
+            return {"facts": [], "review": [], "reason": "unconfigured"}
+        lines = []
+        for entry in entries:
+            when = str(entry.get("created", ""))[:10]
+            body = str(entry.get("body", "")).replace("\n", " ")[:600]
+            lines.append(f"[{entry.get('id', '?')}] ({when}) {body}")
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "You distil a personal assistant's session diary into durable "
+                    "memory. Extract only stable, reusable facts: preferences, "
+                    "decisions, corrections, knowledge worth keeping. Ignore transient "
+                    "chatter and one-off lookups. If entries contradict each other, put "
+                    "the older entry id in review instead of writing both as facts. "
+                    "Reply with STRICT JSON only, no prose:\n"
+                    '{\"facts\": [{\"title\": str, \"body\": str, \"tags\": [str]}], '
+                    '\"review\": [{\"id\": str, \"note\": str}]}'
+                ),
+            },
+            {"role": "user", "content": "\n".join(lines)},
+        ]
+        started = time.monotonic()
+        try:
+            response = await self._llm_client().chat_completion(messages=messages)
+        except Exception as exc:  # noqa: BLE001 — provider errors are a normal skip
+            LOG.warning("reflect | llm failed: %s", exc)
+            return {"facts": [], "review": [], "reason": "llm-error"}
+        content = ""
+        if isinstance(response, dict):
+            content = str(response.get("response") or "")
+            if not content:
+                try:
+                    content = str(response["choices"][0]["message"]["content"] or "")
+                except (KeyError, IndexError, TypeError):
+                    pass
+        parsed = self._parse_reflection_json(content)
+        LOG.info(
+            "reflect | %d entry(ies) -> %d fact(s), %d review item(s) %.0fms",
+            len(entries),
+            len(parsed.get("facts", [])),
+            len(parsed.get("review", [])),
+            (time.monotonic() - started) * 1000,
+        )
+        return parsed
+
+    @staticmethod
+    def _parse_reflection_json(content: str) -> dict[str, object]:
+        text = content.strip()
+        fenced = re.search(r"```(?:json)?\s*(.*?)```", text, re.DOTALL)
+        if fenced:
+            text = fenced.group(1).strip()
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError:
+            if text:
+                LOG.warning("reflect | unparseable LLM output: %.80r", text)
+            return {"facts": [], "review": []}
+        facts: list[dict[str, object]] = []
+        for fact in data.get("facts") or []:
+            if not isinstance(fact, dict):
+                continue
+            title = str(fact.get("title") or "").strip()
+            body = str(fact.get("body") or "").strip()
+            if not title or not body:
+                continue
+            tags = [str(t) for t in (fact.get("tags") or []) if str(t).strip()]
+            facts.append({"title": title[:120], "body": body[:2000], "tags": tags[:6]})
+        review: list[dict[str, object]] = []
+        for item in data.get("review") or []:
+            if isinstance(item, dict) and item.get("id") and item.get("note"):
+                review.append({"id": str(item["id"]), "note": str(item["note"])[:300]})
+        return {"facts": facts, "review": review}
+
     @staticmethod
     def _memory_block(hits: list[dict[str, object]]) -> str:
         if not hits:
@@ -531,6 +621,10 @@ class SidecarServer:
             )
         elif method == "session.ask":
             await self._start_ask(request)
+        elif method == "session.reflect":
+            params = request.params if isinstance(request.params, dict) else {}
+            result = await self._reflect(params)
+            await self._send(RpcResponse(id=request.id, result=result))
         elif method == "config.test":
             result = await asyncio.to_thread(llm_config_test, request.params if isinstance(request.params, dict) else None)
             await self._send(RpcResponse(id=request.id, result=result))

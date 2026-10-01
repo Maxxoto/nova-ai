@@ -676,3 +676,82 @@ def test_capture_block_tolerates_sparse_records() -> None:
     block = SidecarServer._capture_block([{"scope": "fullscreen"}])
     assert "fullscreen of unknown app" in block
     assert "(" not in block.split("unknown app")[1].split("\n")[0], "no time when ts missing"
+
+
+def test_reflect_distils_facts_from_scripted_llm(tmp_path: Path) -> None:
+    import tempfile
+
+    canned = (
+        '```json\n'
+        '{"facts": [{"title": "Prefers short answers", "body": "Answer length: short.", "tags": ["preference"]}], '
+        '"review": [{"id": "mem_old", "note": "superseded by newer office note"}]}\n'
+        '```'
+    )
+    with tempfile.TemporaryDirectory() as td:
+        script = _script_file(Path(td), [{"content": canned, "tool_calls": []}])
+        sidecar = SidecarProcess(
+            {
+                "RUOXI_LLM_MOCK": "",
+                "RUOXI_LLM_SCRIPT": script,
+                "RUOXI_LLM_BASE_URL": "http://127.0.0.1:9",
+                "RUOXI_LLM_API_KEY": "sk-test",
+            }
+        )
+        try:
+            sidecar.request(1, "ping")
+            reply = sidecar.request(
+                2,
+                "session.reflect",
+                {
+                    "entries": [
+                        {"id": "e1", "created": "2026-09-30T10:00:00Z", "body": "asked for a short summary"}
+                    ]
+                },
+            )
+            result = reply.get("result") or {}
+            facts = result.get("facts") or []
+            assert len(facts) == 1
+            assert facts[0]["title"] == "Prefers short answers"
+            assert facts[0]["tags"] == ["preference"]
+            review = result.get("review") or []
+            assert review == [{"id": "mem_old", "note": "superseded by newer office note"}]
+        finally:
+            sidecar.close()
+
+
+def test_reflect_unconfigured_returns_empty() -> None:
+    sidecar = SidecarProcess({"RUOXI_LLM_MOCK": ""})
+    try:
+        sidecar.request(1, "ping")
+        reply = sidecar.request(
+            2,
+            "session.reflect",
+            {"entries": [{"id": "e1", "created": "2026-09-30T10:00:00Z", "body": "anything"}]},
+        )
+        result = reply.get("result") or {}
+        assert result.get("facts") == []
+        assert result.get("reason") == "unconfigured"
+    finally:
+        sidecar.close()
+
+
+def test_reflect_no_entries_short_circuits() -> None:
+    sidecar = SidecarProcess({"RUOXI_LLM_MOCK": ""})
+    try:
+        sidecar.request(1, "ping")
+        reply = sidecar.request(2, "session.reflect", {"entries": []})
+        assert (reply.get("result") or {}).get("reason") == "no-entries"
+    finally:
+        sidecar.close()
+
+
+def test_parse_reflection_json_tolerates_garbage() -> None:
+    from app.interfaces.sidecar.server import SidecarServer
+
+    parsed = SidecarServer._parse_reflection_json("not json at all")
+    assert parsed == {"facts": [], "review": []}
+    parsed = SidecarServer._parse_reflection_json(
+        '{"facts": [{"title": "t", "body": "b"}, {"title": "", "body": "x"}], "review": [{"id": 1}]}'
+    )
+    assert len(parsed["facts"]) == 1
+    assert parsed["review"] == []
