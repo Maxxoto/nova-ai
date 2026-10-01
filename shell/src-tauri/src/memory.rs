@@ -48,6 +48,10 @@ pub struct MemoryEntry {
     pub tags: Vec<String>,
     pub confidence: f32,
     pub origin: String,
+    /// Last time retrieval surfaced this note; resets the recency clock
+    /// (Generative Agents). Derived signal — the index column is refreshed
+    /// on search, files carry it when known.
+    pub last_accessed: Option<String>,
     pub body: String,
 }
 
@@ -65,6 +69,7 @@ impl MemoryEntry {
             tags: Vec::new(),
             confidence: 1.0,
             origin: "auto".to_string(),
+            last_accessed: None,
             body,
         }
     }
@@ -78,6 +83,9 @@ impl MemoryEntry {
         out.push_str(&format!("tags: [{}]\n", self.tags.join(", ")));
         out.push_str(&format!("confidence: {:.2}\n", self.confidence));
         out.push_str(&format!("origin: {}\n", self.origin));
+        if let Some(last) = &self.last_accessed {
+            out.push_str(&format!("last_accessed: {last}\n"));
+        }
         out.push_str("---\n\n");
         out.push_str(&self.body);
         out.push('\n');
@@ -132,6 +140,7 @@ impl MemoryEntry {
                 .and_then(|c| c.parse().ok())
                 .unwrap_or(1.0),
             origin: fields.get("origin").cloned().unwrap_or_else(|| "auto".to_string()),
+            last_accessed: fields.get("last_accessed").cloned(),
             body: body.trim().to_string(),
         })
     }
@@ -139,6 +148,30 @@ impl MemoryEntry {
 
 /// RFC3339 UTC from epoch milliseconds (civil-from-days, chrono-free —
 /// mirrors capture_store::day_string).
+/// Adds columns older stores predate. SQLite has no `ADD COLUMN IF NOT
+/// EXISTS`, so presence is checked through the table info.
+fn migrate_index(conn: &Connection) {
+    let has = |col: &str| {
+        conn.prepare("PRAGMA table_info(memory)")
+            .and_then(|mut stmt| {
+                let names = stmt
+                    .query_map([], |row| row.get::<_, String>(1))
+                    .map(|rows| rows.filter_map(|r| r.ok()).collect::<Vec<_>>())?;
+                Ok::<_, rusqlite::Error>(names.iter().any(|n| n == col))
+            })
+            .unwrap_or(false)
+    };
+    if !has("origin") {
+        let _ = conn.execute(
+            "ALTER TABLE memory ADD COLUMN origin TEXT NOT NULL DEFAULT 'auto'",
+            [],
+        );
+    }
+    if !has("last_accessed") {
+        let _ = conn.execute("ALTER TABLE memory ADD COLUMN last_accessed TEXT", []);
+    }
+}
+
 pub fn iso_utc(ts_ms: u64) -> String {
     let days = (ts_ms / 86_400_000) as i64;
     let date = civil_from_days(days);
@@ -209,7 +242,9 @@ CREATE TABLE IF NOT EXISTS memory (
     tags TEXT NOT NULL,
     source_refs TEXT NOT NULL,
     path TEXT NOT NULL,
-    body TEXT NOT NULL
+    body TEXT NOT NULL,
+    origin TEXT NOT NULL DEFAULT 'auto',
+    last_accessed TEXT
 );
 ";
 
@@ -222,6 +257,7 @@ impl MemoryStore {
         let conn =
             Connection::open(memory_root.join("index.sqlite")).map_err(|e| e.to_string())?;
         conn.execute_batch(INDEX_SCHEMA).map_err(|e| e.to_string())?;
+        migrate_index(&conn);
         let fts = conn
             .execute_batch(
                 "CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(body, tags, content='memory', content_rowid='rowid');",
@@ -262,8 +298,8 @@ impl MemoryStore {
         std::fs::write(&path, entry.to_markdown()).map_err(|e| format!("write: {e}"))?;
         let conn = self.conn.lock().map_err(|e| e.to_string())?;
         conn.execute(
-            "INSERT OR REPLACE INTO memory (id, kind, created, tags, source_refs, path, body)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            "INSERT OR REPLACE INTO memory (id, kind, created, tags, source_refs, path, body, origin, last_accessed)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
             rusqlite::params![
                 entry.id,
                 entry.kind.as_str(),
@@ -275,6 +311,8 @@ impl MemoryStore {
                     .display()
                     .to_string(),
                 entry.body,
+                entry.origin,
+                entry.last_accessed,
             ],
         )
         .map_err(|e| e.to_string())?;
@@ -386,8 +424,8 @@ impl MemoryStore {
         conn.execute_batch("DELETE FROM memory;").map_err(|e| e.to_string())?;
         for (path, entry) in &files {
             conn.execute(
-                "INSERT OR REPLACE INTO memory (id, kind, created, tags, source_refs, path, body)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                "INSERT OR REPLACE INTO memory (id, kind, created, tags, source_refs, path, body, origin, last_accessed)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
                 rusqlite::params![
                     entry.id,
                     entry.kind.as_str(),
@@ -399,6 +437,8 @@ impl MemoryStore {
                         .display()
                         .to_string(),
                     entry.body,
+                    entry.origin,
+                    entry.last_accessed,
                 ],
             )
             .map_err(|e| e.to_string())?;
@@ -589,67 +629,83 @@ impl MemoryStore {
                 format!("AND kind IN ({})", names.join(","))
             })
             .unwrap_or_default();
-        let scored: Vec<(String, String, String, String, f64)> = if self.fts && !query.is_empty()
-        {
-            let sql = format!(
-                "SELECT m.id, m.kind, m.body, m.source_refs, bm25(memory_fts)
-                 FROM memory m JOIN memory_fts ON m.rowid = memory_fts.rowid
-                 WHERE memory_fts MATCH ?1 {type_filter}
-                 ORDER BY bm25(memory_fts) LIMIT 50"
-            );
-            conn.prepare(&sql)
-                .map_err(|e| e.to_string())?
-                .query_map(rusqlite::params![fts_query(query)], |row| {
-                    Ok((
-                        row.get::<_, String>(0)?,
-                        row.get::<_, String>(1)?,
-                        row.get::<_, String>(2)?,
-                        row.get::<_, String>(3)?,
-                        row.get::<_, f64>(4)?,
-                    ))
-                })
-                .map_err(|e| e.to_string())?
-                .filter_map(|r| r.ok())
-                .map(|(id, kind, body, refs, rank)| {
-                    let norm = 1.0 / (1.0 + rank.abs());
-                    (id, kind, body, refs, norm)
-                })
-                .collect()
-        } else {
-            let pattern = format!("%{}%", query.replace('%', ""));
-            let sql = format!(
-                "SELECT id, kind, body, source_refs, 0.5 FROM memory
-                 WHERE body LIKE ?1 {type_filter} LIMIT 50"
-            );
-            conn.prepare(&sql)
-                .map_err(|e| e.to_string())?
-                .query_map(rusqlite::params![pattern], |row| {
-                    Ok((
-                        row.get::<_, String>(0)?,
-                        row.get::<_, String>(1)?,
-                        row.get::<_, String>(2)?,
-                        row.get::<_, String>(3)?,
-                        row.get::<_, f64>(4)?,
-                    ))
-                })
-                .map_err(|e| e.to_string())?
-                .filter_map(|r| r.ok())
-                .collect()
-        };
+
+        // Time-aware queries (RFC-0011 D6): a relative-date phrase becomes a
+        // `created >=` filter instead of poisoning the keyword match.
+        let (since_filter, query) = relative_since(query);
+        let since_clause = since_filter
+            .as_ref()
+            .map(|since| format!("AND created >= '{since}'"))
+            .unwrap_or_default();
+
+        // id, kind, created, origin, last_accessed, body, source_refs, fts_norm
+        let scored: Vec<(String, String, String, String, Option<String>, String, String, f64)> =
+            if self.fts && !query.is_empty() {
+                let sql = format!(
+                    "SELECT m.id, m.kind, m.created, m.origin, m.last_accessed, m.body, m.source_refs, bm25(memory_fts)
+                     FROM memory m JOIN memory_fts ON m.rowid = memory_fts.rowid
+                     WHERE memory_fts MATCH ?1 {type_filter} {since_clause}
+                     ORDER BY bm25(memory_fts) LIMIT 50"
+                );
+                conn.prepare(&sql)
+                    .map_err(|e| e.to_string())?
+                    .query_map(rusqlite::params![fts_query(&query)], |row| {
+                        Ok((
+                            row.get(0)?,
+                            row.get(1)?,
+                            row.get(2)?,
+                            row.get(3)?,
+                            row.get(4)?,
+                            row.get(5)?,
+                            row.get(6)?,
+                            row.get::<_, f64>(7)?,
+                        ))
+                    })
+                    .map_err(|e| e.to_string())?
+                    .filter_map(|r| r.ok())
+                    .map(|row| {
+                        let mut row = row;
+                        row.7 = 1.0 / (1.0 + row.7.abs());
+                        row
+                    })
+                    .collect()
+            } else {
+                // No keyword left (a pure "what did I save last week?") or no
+                // FTS: rank the date window by recency alone.
+                let pattern = format!("%{}%", query.replace('%', ""));
+                let sql = format!(
+                    "SELECT id, kind, created, origin, last_accessed, body, source_refs, 0.5 FROM memory
+                     WHERE (body LIKE ?1 OR ?1 = '%%') {type_filter} {since_clause}
+                     ORDER BY created DESC LIMIT 50"
+                );
+                conn.prepare(&sql)
+                    .map_err(|e| e.to_string())?
+                    .query_map(rusqlite::params![pattern], |row| {
+                        Ok((
+                            row.get(0)?,
+                            row.get(1)?,
+                            row.get(2)?,
+                            row.get(3)?,
+                            row.get(4)?,
+                            row.get(5)?,
+                            row.get(6)?,
+                            row.get::<_, f64>(7)?,
+                        ))
+                    })
+                    .map_err(|e| e.to_string())?
+                    .filter_map(|r| r.ok())
+                    .collect()
+            };
+
         let mut hits: Vec<MemoryHit> = scored
             .into_iter()
-            .map(|(id, kind, body, refs, mut score)| {
-                if kind == "episodic" {
-                    let age_days =
-                        age_ms_from_iso(&body_age_lookup(&conn, &id).unwrap_or_default())
-                            as f64
-                            / 86_400_000.0;
-                    score *= 1.0 + 0.3 * (1.0 - (age_days / 14.0).clamp(0.0, 1.0));
-                }
+            .map(|(id, kind, created, origin, last_accessed, body, refs, fts)| {
+                let score = composite_score(&kind, &origin, &created, last_accessed.as_deref(), fts);
                 let snippet = snippet_of(&body, 140);
                 MemoryHit {
                     id,
                     kind,
+                    created,
                     snippet,
                     score,
                     source_refs: refs
@@ -660,6 +716,7 @@ impl MemoryStore {
             })
             .collect();
         hits.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+
         let mut diversified = Vec::new();
         let mut per_type: HashMap<String, usize> = HashMap::new();
         for hit in hits {
@@ -672,13 +729,29 @@ impl MemoryStore {
                 }
             }
         }
+
+        // Retrieval resets the recency clock on what it surfaced — the next
+        // search sees these as fresher (Generative Agents).
+        let now = iso_utc(
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map(|d| d.as_millis() as u64)
+                .unwrap_or(0),
+        );
+        for hit in &diversified {
+            let _ = conn.execute(
+                "UPDATE memory SET last_accessed = ?1 WHERE id = ?2",
+                rusqlite::params![now, hit.id],
+            );
+        }
+
         Ok(diversified)
     }
 
     pub fn lookup(&self, id: &str) -> Result<Option<MemoryEntry>, String> {
         let conn = self.conn.lock().map_err(|e| e.to_string())?;
         conn.query_row(
-            "SELECT id, kind, created, tags, source_refs, body FROM memory WHERE id = ?1",
+            "SELECT id, kind, created, tags, source_refs, body, origin, last_accessed FROM memory WHERE id = ?1",
             [id],
             |row| {
                 Ok(MemoryEntry {
@@ -688,8 +761,9 @@ impl MemoryStore {
                     created: row.get(2)?,
                     tags: split_ws(&row.get::<_, String>(3)?),
                     source_refs: split_ws(&row.get::<_, String>(4)?),
+                    origin: row.get::<_, String>(6).unwrap_or_else(|_| "auto".to_string()),
+                    last_accessed: row.get::<_, Option<String>>(7).ok().flatten(),
                     confidence: 1.0,
-                    origin: String::new(),
                     body: row.get(5)?,
                 })
             },
@@ -699,15 +773,102 @@ impl MemoryStore {
     }
 }
 
-fn body_age_lookup(conn: &Connection, id: &str) -> Option<String> {
-    conn.query_row("SELECT created FROM memory WHERE id = ?1", [id], |r| {
-        r.get::<_, String>(0)
-    })
-    .ok()
-}
-
 fn split_ws(raw: &str) -> Vec<String> {
     raw.split_whitespace().map(str::to_string).collect()
+}
+
+/// Composite ranking weights (RFC-0011 D6; ScalyClaw/Generative-Agents
+/// lineage): keyword match dominates, recency and importance break ties and
+/// lift fresh/pinned notes over stale chatter.
+const W_FTS: f64 = 0.6;
+const W_REC: f64 = 0.2;
+const W_IMP: f64 = 0.2;
+/// Half-life of a note's recency score, in days.
+const RECENCY_HALF_LIFE_DAYS: f64 = 14.0;
+
+fn composite_score(
+    kind: &str,
+    origin: &str,
+    created: &str,
+    last_accessed: Option<&str>,
+    fts: f64,
+) -> f64 {
+    let age_days = age_ms_from_iso(last_accessed.unwrap_or(created)) as f64 / 86_400_000.0;
+    let recency = 0.5_f64.powf(age_days / RECENCY_HALF_LIFE_DAYS);
+    let base: f64 = match kind {
+        "semantic" => 0.8,
+        "procedural" => 0.6,
+        _ => 0.35,
+    };
+    let importance = if origin == "user-save" { (base + 0.2).min(1.0) } else { base };
+    W_FTS * fts + W_REC * recency + W_IMP * importance
+}
+
+/// Extracts a relative-date phrase ("last week", "yesterday", "last 3 days")
+/// from a query: returns the `created >=` floor and the query with the phrase
+/// removed, so the words do not pollute the keyword match.
+fn relative_since(query: &str) -> (Option<String>, String) {
+    let lower = query.to_lowercase();
+    let days_for = |word: &str| -> Option<u64> {
+        match word {
+            "today" => Some(0),
+            "yesterday" => Some(1),
+            "this week" | "last week" | "past week" | "recently" => Some(7),
+            "this month" | "last month" | "past month" => Some(31),
+            _ => None,
+        }
+    };
+    for phrase in [
+        "today",
+        "yesterday",
+        "this week",
+        "last week",
+        "past week",
+        "recently",
+        "this month",
+        "last month",
+        "past month",
+    ] {
+        if lower.contains(phrase) {
+            let cleaned = lower.replacen(phrase, "", 1);
+            let ms = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map(|d| d.as_millis() as u64)
+                .unwrap_or(0);
+            let since = iso_utc(ms.saturating_sub(7 * 86_400_000));
+            let cleaned = cleaned.split_whitespace().collect::<Vec<_>>().join(" ");
+            let cleaned = cleaned.replace(" ?", "?").replace(" ,", ",");
+            return (Some(since), cleaned);
+        }
+    }
+    // "last N days/weeks/months"
+    let split: Vec<&str> = lower.split_whitespace().collect();
+    for window in split.windows(3) {
+        if window[0] == "last" {
+            if let Ok(n) = window[1].parse::<u64>() {
+                let unit = window[2].trim_end_matches('s');
+                let mult = match unit {
+                    "day" => Some(1),
+                    "week" => Some(7),
+                    "month" => Some(31),
+                    _ => None,
+                };
+                if let Some(mult) = mult {
+                    let cleaned = lower.replacen(&format!("last {} {}", window[1], window[2]), "", 1);
+                    let ms = SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .map(|d| d.as_millis() as u64)
+                        .unwrap_or(0);
+                    let since = iso_utc(ms.saturating_sub(n * mult * 86_400_000));
+                    let cleaned = cleaned.split_whitespace().collect::<Vec<_>>().join(" ");
+            let cleaned = cleaned.replace(" ?", "?").replace(" ,", ",");
+            return (Some(since), cleaned);
+                }
+            }
+        }
+    }
+    let _ = days_for;
+    (None, query.to_string())
 }
 
 fn snippet_of(body: &str, max: usize) -> String {
@@ -738,6 +899,7 @@ pub struct MemoryRow {
 pub struct MemoryHit {
     pub id: String,
     pub kind: String,
+    pub created: String,
     pub snippet: String,
     pub score: f64,
     pub source_refs: Vec<String>,
@@ -956,6 +1118,98 @@ mod tests {
         let filtered = store.list(Some("alpha-topic"), 10).expect("list");
         assert_eq!(filtered.len(), 1);
         assert_eq!(filtered[0].id, first.id);
+    }
+
+    #[test]
+    fn relative_date_phrase_filters_without_poisoning_match() {
+        let store = temp_store("time");
+        let mut ancient = MemoryEntry::new(
+            MemoryType::Semantic,
+            "# Ancient\nkappa-fact from long ago".to_string(),
+        );
+        ancient.origin = "user-save".to_string();
+        ancient.created = "2026-01-01T00:00:00Z".to_string();
+        store.write(&ancient).expect("write");
+        let mut fresh = MemoryEntry::new(
+            MemoryType::Semantic,
+            "# Fresh\nkappa-fact from today".to_string(),
+        );
+        fresh.origin = "user-save".to_string();
+        fresh.created = iso_utc(
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map(|d| d.as_millis() as u64)
+                .unwrap_or(0),
+        );
+        store.write(&fresh).expect("write");
+
+        let windowed = store.search("kappa-fact last week", None, 10).expect("search");
+        assert_eq!(windowed.len(), 1);
+        assert_eq!(windowed[0].id, fresh.id);
+
+        let unfiltered = store.search("kappa-fact", None, 10).expect("search");
+        assert_eq!(unfiltered.len(), 2);
+    }
+
+    #[test]
+    fn newer_note_wins_the_recency_tiebreak() {
+        let store = temp_store("recency");
+        let mut older = MemoryEntry::new(MemoryType::Semantic, "# A\nlambda-topic".to_string());
+        older.created = "2026-01-01T00:00:00Z".to_string();
+        store.write(&older).expect("write");
+        let mut newer = MemoryEntry::new(MemoryType::Semantic, "# B\nlambda-topic".to_string());
+        newer.created = "2026-06-01T00:00:00Z".to_string();
+        store.write(&newer).expect("write");
+        let hits = store.search("lambda-topic", None, 10).expect("search");
+        assert_eq!(hits[0].id, newer.id);
+    }
+
+    #[test]
+    fn user_save_outranks_auto_at_equal_age() {
+        let store = temp_store("importance");
+        let mut auto = MemoryEntry::new(MemoryType::Semantic, "# A\nmu-topic".to_string());
+        auto.origin = "auto".to_string();
+        auto.created = "2026-06-01T00:00:00Z".to_string();
+        store.write(&auto).expect("write");
+        let mut saved = MemoryEntry::new(MemoryType::Semantic, "# B\nmu-topic".to_string());
+        saved.origin = "user-save".to_string();
+        saved.created = "2026-06-01T00:00:00Z".to_string();
+        store.write(&saved).expect("write");
+        let hits = store.search("mu-topic", None, 10).expect("search");
+        assert_eq!(hits[0].id, saved.id);
+    }
+
+    #[test]
+    fn retrieval_bump_makes_the_survivor_sticky() {
+        let store = temp_store("bump");
+        for i in 0..2 {
+            let mut entry = MemoryEntry::new(
+                MemoryType::Semantic,
+                format!("# {i}\nnu-topic identical body"),
+            );
+            entry.origin = "auto".to_string();
+            entry.created = "2026-06-01T00:00:00Z".to_string();
+            store.write(&entry).expect("write");
+        }
+        let first = store.search("nu-topic", None, 10).expect("search");
+        let winner = first[0].id.clone();
+        // The bump above reset the winner's recency clock, so a re-run of the
+        // same search must keep it on top instead of flip-flopping.
+        let second = store.search("nu-topic", None, 10).expect("search");
+        assert_eq!(second[0].id, winner);
+    }
+
+    #[test]
+    fn relative_since_parses_phrases_and_counts() {
+        let (since, cleaned) = relative_since("What did I save last week?");
+        assert!(since.is_some());
+        assert_eq!(cleaned, "what did i save?");
+        let (since, cleaned) = relative_since("notes from last 3 days");
+        assert!(since.is_some());
+        assert_eq!(cleaned, "notes from");
+        let (since, cleaned) = relative_since("plain query");
+        assert!(since.is_none());
+        assert_eq!(cleaned, "plain query");
     }
 
     #[test]

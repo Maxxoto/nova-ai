@@ -288,13 +288,16 @@ class SidecarServer:
         for hit in hits:
             hit_id = hit.get("id", "?")
             kind = hit.get("kind", "?")
+            created = str(hit.get("created", ""))[:10]
             snippet = str(hit.get("snippet", "")).replace("\n", " ")
             refs = ", ".join(hit.get("source_refs", []) or [])
             cite = f" (captures: {refs})" if refs else ""
-            lines.append(f"- [{hit_id}] ({kind}) {snippet}{cite}")
+            when = f", {created}" if created else ""
+            lines.append(f"- [{hit_id}] ({kind}{when}) {snippet}{cite}")
         lines.append(
             "If you use a memory above, cite it as [mem_id] in the answer; "
-            "cite captures as [cap_id]. Never cite ids that are not listed here."
+            "cite captures as [cap_id]. Never cite ids that are not listed here. "
+            "If the memories do not contain the answer, say so plainly instead of guessing."
         )
         return "\n".join(lines)
 

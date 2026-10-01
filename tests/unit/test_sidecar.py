@@ -269,15 +269,23 @@ def test_memory_block_lists_hits_and_citation_rules() -> None:
         {
             "id": "mem_01H",
             "kind": "semantic",
+            "created": "2026-09-30T12:00:00Z",
             "snippet": "Krebs cycle summary",
             "source_refs": ["cap_9"],
         },
-        {"id": "mem_02H", "kind": "procedural", "snippet": "prefers simple first", "source_refs": []},
+        {
+            "id": "mem_02H",
+            "kind": "procedural",
+            "created": "2026-09-29T08:00:00Z",
+            "snippet": "prefers simple first",
+            "source_refs": [],
+        },
     ]
     block = SidecarServer._memory_block(hits)
-    assert "[mem_01H] (semantic)" in block
+    assert "[mem_01H] (semantic, 2026-09-30)" in block
     assert "(captures: cap_9)" in block
     assert "cite it as [mem_id]" in block
+    assert "say so plainly instead of guessing" in block
     assert SidecarServer._memory_block([]) == ""
 
 
