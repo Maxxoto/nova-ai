@@ -202,16 +202,28 @@ the design above, this section wins.
   Grounding, `[mem_id]`/`[cap_id]` citations and the false-grounding guard
   shipped with M2 (§4.5).
 
+- **Composite ranking (D6, shipped 2026-10-01):** search reranks by
+  `0.6·BM25 + 0.2·recency + 0.2·importance` — recency a 14-day half-life whose
+  clock retrieval resets (`last_accessed` column, migrated), importance by kind
+  with a user-save boost — and relative-date phrases ("last week") become
+  `created >=` filters. Natural-language queries use OR-ranked FTS (stopword
+  ANDs were a real zero-hit bug).
+- **Nightly reflection (D7, shipped 2026-10-01):** once a day the shell sends
+  yesterday's episodic entries to the brain (`session.reflect`); distilled
+  facts land as `origin: consolidation` semantic notes, and contradiction
+  proposals queue in `digest/REVIEW.md` for the user — never auto-applied.
+- **Personal eval:** `cargo run --example memory_eval` measures recall@5/MRR
+  across LongMemEval's five abilities; all groups at 1.00 after the fixes it
+  drove.
+
 **Deliberately deferred** (evidence in the
 [research digest](../research/agent-memory-practices.md))
 - **Vectors (stage 2):** BM25 is competitive at a personal corpus (< 500
-  notes), and MMR diversity / time-decay measured as negligible at this scale.
-  Revisit only when a personal eval shows paraphrase-recall misses.
-- **Composite ranking (recency × importance × BM25)** with `importance` /
-  `pinned` fields: decided in [RFC-0011](RFC-0011-memory-surface-and-input.md)
-  §D6, not yet built — search ranks by BM25 today.
-- **Nightly reflection / consolidation and the confirm-loop (§4.6):** decided
-  in RFC-0011 §D7; the daily brief (F-12) remains M3.
+  notes), and MMR diversity / time-decay measured as negligible at this
+  scale. Revisit only when the eval shows paraphrase-recall misses.
+- **Auto-supersession and the confirm-loop (§4.6):** reflection *proposes* to
+  REVIEW.md today; auto-applying (with pinned exemption) and the daily brief
+  (F-12) remain M3.
 
 ## 5. Interfaces & Data Structures
 

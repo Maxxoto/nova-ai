@@ -1,6 +1,6 @@
 # RFC-0011 — Post-M2 Completion: Memory Surface & Input Bindings
 
-- **Status:** Implemented (2026-10-01) — F-10/F-15/F-16 shipped in `9da51ea`; the amended decisions **D6** (composite ranking) and **D7** (nightly reflection) remain open
+- **Status:** Implemented (2026-10-01) — F-10/F-15/F-16 in `9da51ea`; **D6** (composite ranking, `c82e214`) and **D7** (nightly reflection, `13994b0`) in the same block. §7's eval ships as `cargo run --example memory_eval` (`f7596ce`), which caught and verified fixes for two real retrieval defects on its first run
 - **Author:** Sisyphus
 - **Parent:** [RFC-0001](RFC-0001-desktop-companion.md) (Desktop Companion)
 - **Relates to:** [RFC-0006](RFC-0006-memory-system.md) (memory), [RFC-0007](RFC-0007-agent-brain.md) (loop), [RFC-0002](RFC-0002-platform-shell.md) (shell/hotkeys)

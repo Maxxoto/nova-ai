@@ -218,8 +218,11 @@ sequenceDiagram
 - **Archive-first**: nothing is hard-deleted — `memory_archive` moves a note
   to `memory/archive/` and removes it from retrieval; `memory_restore` puts it
   back. Identical saves dedupe instead of copying.
-- **Planned** (RFC-0011, evidence in
-  [`research/agent-memory-practices.md`](research/agent-memory-practices.md)):
-  composite ranking (recency × importance × BM25, §D6) and a nightly
-  reflection pass that distils episodes into facts (§D7). Vector search is
-  deliberately not built (BM25 is competitive at personal-corpus scale).
+- **Ranking (D6)**: rerank by `0.6·BM25 + 0.2·recency + 0.2·importance`;
+  retrieval resets a note's recency clock; "last week"-style phrases become
+  date filters. `cargo run --example memory_eval` gates regressions.
+- **Reflection (D7)**: once a day the shell sends yesterday's episodic notes
+  to the brain (`session.reflect`); facts land as consolidation-origin
+  semantic notes, contradictions queue in `digest/REVIEW.md` for the user.
+  Vector search is deliberately not built (BM25 is competitive at
+  personal-corpus scale).
