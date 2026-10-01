@@ -8,8 +8,9 @@ sidecar** answers over stdio JSON-RPC. Every name below matches the code:
 Related: [RFC-0002](rfc/RFC-0002-platform-shell.md) (shell) · [RFC-0003](rfc/RFC-0003-screen-capture.md)
 (capture) · [DESIGN.md](DESIGN.md) (contract) · [shell/README](../shell/README.md).
 
-**M0 note:** `session.ask` streams a *canned* answer from the stub sidecar — the real
-agent loop (tools, memory, LLM routing) lands behind the same seam in M1+.
+**As-built (2026-10-01):** `session.ask` runs the repo's real agent loop (tools, memory,
+LiteLLM routing) in the sidecar — frozen with PyInstaller and shipped inside the app
+(`Contents/Resources/brain/`). Memory has its own section below (§7).
 
 ## 1 · Component map
 
@@ -138,7 +139,9 @@ flowchart LR
 `permissions_status` · `permissions_request` · `open_privacy_pane` ·
 `capture_store_stats` · `capture_delete_all` · `show_timeline` · `timeline_list` ·
 `capture_thumbnail` · `list_displays` · `start_region_capture` · `overlay_cancel` ·
-`capture_region_commit` · `validate_hotkey`
+`capture_region_commit` · `validate_hotkey` · `validate_dismiss_hotkey` ·
+`memory_save_semantic` · `memory_list` · `memory_archive` · `memory_archived_list` ·
+`memory_restore`
 
 **Rust → JS — `emit` events:**
 `panel:capture {id, at_ms}` · `panel:token {delta}` · `panel:complete {answer}` ·
@@ -173,5 +176,50 @@ flowchart LR
   APP["app data dir<br/>~/Library/Application Support/com.ruoxi.shell"] --> S["settings.json"]
   APP --> DB[("capture_index.sqlite<br/>captures: id · ts · scope · app · sha256 · …")]
   APP --> FILES["captures/YYYY/MM/DD/*.png"]
+  APP --> MEM["memory/<br/>episodic/YYYY/MM/DD · semantic · procedural ·<br/>digest/MEMORY.md · archive/ · index.sqlite (FTS5)"]
   DB -. "dedupe by sha256 · day/app/scope indexes" .- FILES
+  MEM -. "files are the source of truth — index rebuilds from drift" .- MEM
 ```
+
+## 7 · Memory flow (RFC-0006 · RFC-0011)
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor U as You
+  participant UI as UI · panel / settings
+  participant MS as Rust · memory.rs (MemoryStore)
+  participant SU as Rust · supervisor
+  participant PY as Python · sidecar
+
+  Note over U,MS: Save (F-10) — explicit, LLM-free, offline-safe
+  U->>UI: Save to memory
+  UI->>MS: invoke memory_save_semantic {title, body, sourceRefs:[cap_id]}
+  MS->>MS: dedupe — an identical body returns the existing note
+  MS-->>UI: {id, created:true|false} → “Saved” / “Already saved”
+  U->>UI: Undo (4 s)
+  UI->>MS: invoke memory_archive {id} — file moves to memory/archive/
+
+  Note over PY,SU: Episodic auto-log — the diary
+  PY-->>SU: answer completes (panel:complete)
+  SU->>MS: log_episodic — a date-sharded note with the capture ref
+
+  Note over PY,MS: Retrieval — grounding with citations (AC-07)
+  PY->>MS: memory.search {query, k}
+  MS-->>PY: BM25 hits → Memory block + [mem_id]/[cap_id] citation guard
+
+  Note over U,MS: Management (F-16)
+  U->>UI: Settings → Memory — list · search · archive · restore
+```
+
+- **Files are the source of truth**: every note is Markdown with YAML
+  front-matter (`id · type · created · source_refs · tags · confidence ·
+  origin`); `index.sqlite` (FTS5) is derived and rebuilds when it drifts.
+- **Archive-first**: nothing is hard-deleted — `memory_archive` moves a note
+  to `memory/archive/` and removes it from retrieval; `memory_restore` puts it
+  back. Identical saves dedupe instead of copying.
+- **Planned** (RFC-0011, evidence in
+  [`research/agent-memory-practices.md`](research/agent-memory-practices.md)):
+  composite ranking (recency × importance × BM25, §D6) and a nightly
+  reflection pass that distils episodes into facts (§D7). Vector search is
+  deliberately not built (BM25 is competitive at personal-corpus scale).

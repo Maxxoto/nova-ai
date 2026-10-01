@@ -1,6 +1,6 @@
 # RFC-0006 — Memory System (Three Memories, Local & Human-Readable) ⭐
 
-- **Status:** Draft for review
+- **Status:** As-built (2026-10-01) — the design below holds; §4.10 records what shipped and what is deliberately deferred
 - **Author:** Dani
 - **Parent:** [RFC-0001](RFC-0001-desktop-companion.md) (Desktop Companion)
 - **Companion:** [Business PRD](../ruoxi_prd.md)
@@ -175,6 +175,44 @@ Captures/transcripts are untrusted (RFC-0009). Rules:
 This blocks the "malicious webpage writes into your long-term memory"
 attack path.
 
+### 4.10 As-built (2026-10-01)
+
+The M2 store and the RFC-0011 completion shipped; where the build differs from
+the design above, this section wins.
+
+**Shipped**
+- **Storage** as §4.2, plus `memory/archive/` for archived notes; the SQLite
+  index mirrors bodies + tags + `source_refs` and carries the FTS5 table
+  (`memory_fts`), rebuilt from files when drift is detected.
+- **Save (F-10):** `memory_save_semantic(title, body, tags, source_refs)`
+  writes a semantic note, `origin: user-save`, with the capture as provenance.
+  An identical body **dedupes** — returns `{id, created:false}` and the panel
+  says *Already saved*. Save is LLM-free (instant, offline-safe); richer
+  extraction is deferred to the reflection pass below. A fresh save offers a
+  4 s **Undo**, which archives the note it just created.
+- **Episodic auto-log:** when an answer completes, the supervisor writes a
+  diary entry (`log_episodic`) into the date-sharded `episodic/` tree with the
+  capture ref. The agent cannot write episodic entries (RFC-0008 rule).
+- **Management (F-16):** `memory_list` · `memory_archive` ·
+  `memory_archived_list` · `memory_restore` back Settings → Memory (search,
+  archive, restore). **Archive-first:** a note leaves retrieval, nothing is
+  deleted — the file moves to `archive/` and restore puts it back.
+- **Retrieval — stage 1 only:** FTS5/BM25 over note bodies, served to the
+  brain's `memory.search` RPC (the sidecar calls back into the shell).
+  Grounding, `[mem_id]`/`[cap_id]` citations and the false-grounding guard
+  shipped with M2 (§4.5).
+
+**Deliberately deferred** (evidence in the
+[research digest](../research/agent-memory-practices.md))
+- **Vectors (stage 2):** BM25 is competitive at a personal corpus (< 500
+  notes), and MMR diversity / time-decay measured as negligible at this scale.
+  Revisit only when a personal eval shows paraphrase-recall misses.
+- **Composite ranking (recency × importance × BM25)** with `importance` /
+  `pinned` fields: decided in [RFC-0011](RFC-0011-memory-surface-and-input.md)
+  §D6, not yet built — search ranks by BM25 today.
+- **Nightly reflection / consolidation and the confirm-loop (§4.6):** decided
+  in RFC-0011 §D7; the daily brief (F-12) remains M3.
+
 ## 5. Interfaces & Data Structures
 
 Examples:
@@ -248,6 +286,28 @@ source_ref?)`, `memory_confirm(id)`, `timeline.query(...)` (RFC-0003).
 
 ## 10. Milestone Alignment
 
-- **M2 ⭐:** three-type store, hybrid retrieval, grounding + citations, false-
-  grounding guard, Save (F-10).
+- **M2 ⭐:** three-type store, grounding + citations, false-grounding guard,
+  Save (F-10) — **shipped** with keyword-stage retrieval (§4.10).
+- **RFC-0011 (2026-10-01):** Save wiring, Memory surface, archive/restore —
+  **shipped**; composite ranking (D6) and nightly reflection (D7) open.
 - **M3:** daily brief (F-12), consolidation confirm-loop polish.
+
+## 11. References
+
+The agent-memory literature that shaped these decisions — full survey with
+evidence tiers in [`docs/research/agent-memory-practices.md`](../research/agent-memory-practices.md):
+
+- **MemGPT** — Packer et al., 2023 · [arXiv:2310.08560](https://arxiv.org/abs/2310.08560) — tiered context, self-editing memory
+- **Generative Agents** — Park et al., 2023 · [arXiv:2304.03442](https://arxiv.org/abs/2304.03442) — memory stream, recency×importance×relevance, reflection
+- **Reflexion** — Shinn et al., 2023 · [arXiv:2303.11366](https://arxiv.org/abs/2303.11366) — verbal reinforcement as episodic memory
+- **Voyager** — Wang et al., 2023 · [arXiv:2305.16291](https://arxiv.org/abs/2305.16291) — procedural memory as a verified skill library
+- **HippoRAG** — Gutiérrez et al., 2024 · [arXiv:2405.14831](https://arxiv.org/abs/2405.14831) (and HippoRAG 2 · [arXiv:2502.14802](https://arxiv.org/abs/2502.14802)) — graph retrieval, deferred here
+- **Zep / Graphiti** — Rasmussen et al., 2025 · [arXiv:2501.13956](https://arxiv.org/abs/2501.13956) — temporal invalidation instead of deletion
+- **Mem0** — Chhikara et al., 2025 · [arXiv:2504.19413](https://arxiv.org/abs/2504.19413) — write-time consolidation (ADD/UPDATE/DELETE/NOOP)
+- **A-Mem** — Xu et al., 2025 · [arXiv:2502.12110](https://arxiv.org/abs/2502.12110) — Zettelkasten linking (plausible, weakly validated)
+- **MemOS** — Li et al., 2025 · [arXiv:2507.03724](https://arxiv.org/abs/2507.03724) — memory-as-OS, over-scoped for a single user
+- **LongMemEval** — Wu et al., ICLR 2025 · [arXiv:2410.10813](https://arxiv.org/abs/2410.10813) — controlled retrieval findings (+4–11% per mechanism)
+- **LoCoMo** — Maharana et al., 2024 · [arXiv:2402.17753](https://arxiv.org/abs/2402.17753) — long-conversation benchmark (answer-key audit caveats)
+- **MemoryAgentBench** — Hu et al., ICLR 2026 · [arXiv:2507.05257](https://arxiv.org/abs/2507.05257) — four memory competencies
+- **STALE** — Chao et al., 2026 · [arXiv:2605.06527](https://arxiv.org/abs/2605.06527) — stale-belief handling is the dominant failure mode
+- **Surveys** — [arXiv:2512.13564](https://arxiv.org/abs/2512.13564) · [arXiv:2603.07670](https://arxiv.org/abs/2603.07670)

@@ -1,6 +1,6 @@
 # RFC-0011 — Post-M2 Completion: Memory Surface & Input Bindings
 
-- **Status:** Draft for review
+- **Status:** Implemented (2026-10-01) — F-10/F-15/F-16 shipped in `9da51ea`; the amended decisions **D6** (composite ranking) and **D7** (nightly reflection) remain open
 - **Author:** Sisyphus
 - **Parent:** [RFC-0001](RFC-0001-desktop-companion.md) (Desktop Companion)
 - **Relates to:** [RFC-0006](RFC-0006-memory-system.md) (memory), [RFC-0007](RFC-0007-agent-brain.md) (loop), [RFC-0002](RFC-0002-platform-shell.md) (shell/hotkeys)
